@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Wenmei Light Theme */
+    --surface-0: #F6F4F2;
+    --surface-1: #FFFFFF;
+    --surface-2: #EAE7E3;
+    --surface-3: #D9D5CF;
+    --surface-glass: rgba(255, 255, 255, 0.65);
+    --text-primary: #111111;
+    --text-secondary: #5C5C5C;
+    --text-tertiary: #9A9590;
+    --accent-teal: #008673;
+    --accent-rose: #C24A4A;
+    --syntax-keyword: #AF00DB;
+    --syntax-string: #A31515;
+    --syntax-comment: #008000;
+    --syntax-bg: #F5F5F5;
+
+    /* shadcn compatibility */
+    --background: 30 8% 96%;
+    --foreground: 0 0% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 170 100% 26%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 8% 91%;
+    --secondary-foreground: 0 0% 7%;
+    --muted: 30 8% 91%;
+    --muted-foreground: 0 0% 36%;
+    --accent: 30 8% 91%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 51% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 8% 83%;
+    --input: 30 8% 83%;
+    --ring: 170 100% 26%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Wenmei Dark Theme */
+    --surface-0: #0F0F0F;
+    --surface-1: #141414;
+    --surface-2: #1A1A1A;
+    --surface-3: #2A2A2A;
+    --surface-glass: rgba(30, 30, 30, 0.75);
+    --text-primary: #F0F0F0;
+    --text-secondary: #A0A0A0;
+    --text-tertiary: #6E6E6E;
+    --accent-teal: #00D9B5;
+    --accent-rose: #FF6B6B;
+    --syntax-keyword: #C586C0;
+    --syntax-string: #CE9178;
+    --syntax-comment: #6A9955;
+    --syntax-bg: #1E1E1E;
+
+    /* shadcn compatibility */
+    --background: 0 0% 6%;
+    --foreground: 0 0% 94%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 94%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 94%;
+    --primary: 168 100% 43%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 94%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 63%;
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 94%;
+    --destructive: 0 100% 71%;
+    --destructive-foreground: 0 0% 0%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 168 100% 43%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+  html {
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .editor-font {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  }
+  .terminal-font {
+    font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  }
+  .display-font {
+    font-family: 'Playfair Display', 'Georgia', serif;
+  }
+
+  /* Custom scrollbar */
+  .wenmei-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .wenmei-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .wenmei-scroll::-webkit-scrollbar-thumb {
+    background: var(--surface-3);
+    border-radius: 3px;
+  }
+  .wenmei-scroll::-webkit-scrollbar-thumb:hover {
+    width: 10px;
+    background: var(--text-tertiary);
+  }
+
+  /* Syntax highlighting */
+  .syntax-keyword { color: var(--syntax-keyword); }
+  .syntax-string { color: var(--syntax-string); }
+  .syntax-comment { color: var(--syntax-comment); font-style: italic; }
+  .syntax-number { color: #098658; }
+  .syntax-function { color: #795E26; }
+
+  .dark .syntax-keyword { color: #C586C0; }
+  .dark .syntax-string { color: #CE9178; }
+  .dark .syntax-comment { color: #6A9955; }
+  .dark .syntax-number { color: #B5CEA8; }
+  .dark .syntax-function { color: #DCDCAA; }
+}
+
+/* Paper mode animations */
+@keyframes paper-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes header-slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes left-panel-slide {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes right-panel-slide {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes wenmei-text-glitch {
+  0%, 100% {
+    text-shadow: 3px 0 0 rgba(0, 217, 181, 0.7), -3px 0 0 rgba(194, 74, 74, 0.7), 0 0 0 transparent;
+    transform: skew(-1deg, -1deg);
+  }
+  25% {
+    text-shadow: -3px 0 0 rgba(0, 217, 181, 0.7), 3px 0 0 rgba(194, 74, 74, 0.7), 0 0 0 transparent;
+    transform: skew(1deg, 1deg);
+  }
+  50% {
+    text-shadow: 2px 0 0 rgba(0, 217, 181, 0.5), -2px 0 0 rgba(194, 74, 74, 0.5), 0 0 0 transparent;
+    transform: skew(-0.5deg, 0.5deg);
+  }
+  75% {
+    text-shadow: -2px 0 0 rgba(0, 217, 181, 0.5), 2px 0 0 rgba(194, 74, 74, 0.5), 0 0 0 transparent;
+    transform: skew(0.5deg, -0.5deg);
+  }
+}
+
+.animate-header-slide {
+  animation: header-slide-down 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-left-panel {
+  animation: left-panel-slide 0.7s 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-right-panel {
+  animation: right-panel-slide 0.6s 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-paper-reveal {
+  animation: paper-reveal 0.5s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.logo-glitch:hover {
+  animation: wenmei-text-glitch 2.5s steps(10, end) infinite;
+  letter-spacing: -0.05em;
+}
+
+/* Cursor blink for Pi terminal */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: cursor-blink 530ms infinite;
+}

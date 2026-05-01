@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+# wenmei - open folders/files in Wenmei, with small OS-friendly helpers.
+set -euo pipefail
+
+APP_NAME="${WENMEI_APP_NAME:-Wenmei}"
+APP_PATH="${WENMEI_APP_PATH:-}"
+
+resolve_app_target() {
+  if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
+    printf '%s\n' "$APP_PATH"
+    return
+  fi
+  if [ -d "$HOME/Applications/$APP_NAME.app" ]; then
+    printf '%s\n' "$HOME/Applications/$APP_NAME.app"
+    return
+  fi
+  if [ -d "/Applications/$APP_NAME.app" ]; then
+    printf '%s\n' "/Applications/$APP_NAME.app"
+    return
+  fi
+  printf '%s\n' "$APP_NAME"
+}
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  wenmei [--new-window] [path]
+  wenmei open [--new-window] <path>...
+  wenmei create <file.md>...
+  wenmei edit <file.md>...
+  wenmei mkdir <folder>...
+  wenmei sandbox <folder>...
+  wenmei vault <folder>...
+  wenmei promote <folder>...
+  wenmei composite <name> <folder>...
+  wenmei reveal <path>...
+
+Examples:
+  wenmei ~/Notes
+  wenmei --new-window ~/Notes/today.md
+  wenmei create ~/Notes/new-idea.md
+  wenmei edit ~/Notes/drafts/missing.md
+USAGE
+}
+
+die() {
+  echo "wenmei: $*" >&2
+  exit 1
+}
+
+abs_existing() {
+  local raw="$1"
+  local dir base dir_abs
+  dir="$(dirname "$raw")"
+  base="$(basename "$raw")"
+  dir_abs="$(cd "$dir" 2>/dev/null && pwd -P)" || return 1
+  local target="$dir_abs/$base"
+  [ -e "$target" ] || return 1
+  printf '%s\n' "$target"
+}
+
+abs_for_create() {
+  local raw="$1"
+  local dir base dir_abs
+  dir="$(dirname "$raw")"
+  base="$(basename "$raw")"
+  mkdir -p "$dir" || return 1
+  dir_abs="$(cd "$dir" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$dir_abs" "$base"
+}
+
+open_wenmei() {
+  local target="${1:-}"
+  local app_target
+  app_target="$(resolve_app_target)"
+  if [ -z "$target" ]; then
+    open -na "$app_target"
+  else
+    open -na "$app_target" --args "$target"
+  fi
+}
+
+launch_wenmei_args() {
+  local app_target
+  app_target="$(resolve_app_target)"
+  open -na "$app_target" --args "$@"
+}
+
+command="open"
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
+  usage
+  exit 0
+fi
+
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --new-window)
+      # Wenmei currently opens a fresh app instance/window for every CLI target.
+      ;;
+    *)
+      args+=("$arg")
+      ;;
+  esac
+done
+set -- "${args[@]}"
+
+case "${1:-}" in
+  open)
+    shift
+    command="open"
+    ;;
+  create|new)
+    command="create"
+    shift
+    ;;
+  edit)
+    command="edit"
+    shift
+    ;;
+  mkdir)
+    command="mkdir"
+    shift
+    ;;
+  sandbox)
+    command="sandbox"
+    shift
+    ;;
+  vault)
+    command="vault"
+    shift
+    ;;
+  promote)
+    command="promote"
+    shift
+    ;;
+  composite)
+    command="composite"
+    shift
+    ;;
+  reveal)
+    command="reveal"
+    shift
+    ;;
+esac
+
+if [ "$#" -eq 0 ]; then
+  [ "$command" = "open" ] || die "$command requires a path"
+  exec open -na "$(resolve_app_target)"
+fi
+
+case "$command" in
+  open)
+    for raw in "$@"; do
+      target="$(abs_existing "$raw")" || die "no such file or directory: $raw"
+      open_wenmei "$target"
+    done
+    ;;
+  create)
+    for raw in "$@"; do
+      target="$(abs_for_create "$raw")" || die "cannot create parent folder for: $raw"
+      [ ! -e "$target" ] || die "file already exists: $target"
+      : > "$target" || die "cannot create file: $target"
+      open_wenmei "$target"
+    done
+    ;;
+  edit)
+    for raw in "$@"; do
+      target="$(abs_for_create "$raw")" || die "cannot create parent folder for: $raw"
+      if [ -d "$target" ]; then
+        open_wenmei "$target"
+      else
+        [ -e "$target" ] || : > "$target" || die "cannot create file: $target"
+        open_wenmei "$target"
+      fi
+    done
+    ;;
+  mkdir)
+    for raw in "$@"; do
+      target="$(abs_for_create "$raw")" || die "cannot create parent folder for: $raw"
+      mkdir -p "$target" || die "cannot create folder: $target"
+      open_wenmei "$target"
+    done
+    ;;
+  sandbox|vault|promote)
+    for raw in "$@"; do
+      target="$(abs_existing "$raw")" || die "no such file or directory: $raw"
+      [ -d "$target" ] || die "$command requires a folder: $target"
+      launch_wenmei_args "$command" "$target"
+    done
+    ;;
+  composite)
+    [ "$#" -ge 2 ] || die "composite requires a name and at least one folder"
+    name="$1"
+    shift
+    targets=()
+    for raw in "$@"; do
+      target="$(abs_existing "$raw")" || die "no such file or directory: $raw"
+      [ -d "$target" ] || die "composite roots must be folders: $target"
+      targets+=("$target")
+    done
+    launch_wenmei_args composite "$name" "${targets[@]}"
+    ;;
+  reveal)
+    for raw in "$@"; do
+      target="$(abs_existing "$raw")" || die "no such file or directory: $raw"
+      open -R "$target"
+    done
+    ;;
+  *)
+    die "unknown command: $command"
+    ;;
+esac

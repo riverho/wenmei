@@ -1,0 +1,28 @@
+Build clean. Bundle: src-tauri/target/release/bundle/macos/Wenmei.app
+
+  To finish the OS-entry setup:
+
+  # 1. Register the app with macOS (one-time)
+  open src-tauri/target/release/bundle/macos/Wenmei.app
+
+  # 2. Install the CLI shim
+  ./scripts/install-cli.sh
+
+  # 3. Install the Finder service
+  ./scripts/install-finder-service.sh
+
+  Then test:
+  wenmei /Users/river/.openclaw/workspace/projects/wenmei      # open this repo as a vault
+  wenmei /Users/river/.openclaw/workspace/projects/wenmei/README.md  # open + select a file
+  wenmei create /Users/river/Notes/new-note.md                 # create + open a file
+  wenmei edit /Users/river/Notes/draft.md                      # create if missing + open
+
+  In Finder, right-click any folder or .md file → Services → Open in New Wenmei Window.
+
+  Caveats to know:
+  - Each invocation launches a new app instance (open -n). Tauri single-instance forwarding isn't wired yet — if you'd rather have one
+   app with multiple windows for different vaults, that's a follow-up (tauri-plugin-single-instance).
+  - File path the frontend opens is computed relative to the resolved vault — works when the file is inside the folder we opened. Edge
+   case: symlinks in the path could mismatch; not bullet-proofed yet.
+  - Finder service won't appear immediately on some macOS versions — System Settings → Keyboard → Keyboard Shortcuts → Services →
+  Files and Folders to enable it manually if needed.

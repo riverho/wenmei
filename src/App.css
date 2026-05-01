@@ -1,0 +1,151 @@
+/* Markdown Preview Styles */
+.md-h1 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1.2;
+  margin: 0 0 24px 0;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.md-h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.3;
+  margin: 32px 0 16px 0;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid var(--surface-3);
+  padding-bottom: 8px;
+}
+
+.md-h3 {
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 24px 0 12px 0;
+  color: var(--text-primary);
+}
+
+.md-h4,
+.md-h5,
+.md-h6 {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 20px 0 10px 0;
+  color: var(--text-primary);
+}
+
+.md-p {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+
+.md-blockquote {
+  margin: 20px 0;
+  padding: 12px 20px;
+  border-left: 4px solid var(--accent-teal);
+  background: rgba(0, 134, 115, 0.04);
+  border-radius: 0 8px 8px 0;
+}
+
+.md-blockquote p {
+  margin: 0;
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.md-pre {
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--syntax-bg);
+  overflow-x: auto;
+}
+
+.md-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.inline-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--accent-teal);
+}
+
+.md-ul,
+.md-ol {
+  margin: 16px 0;
+  padding-left: 24px;
+}
+
+.md-li {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  margin: 6px 0;
+  color: var(--text-primary);
+}
+
+.md-link {
+  color: var(--accent-teal);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.md-link:hover {
+  border-bottom-color: var(--accent-teal);
+}
+
+.md-hr {
+  border: none;
+  height: 1px;
+  background: var(--surface-3);
+  margin: 32px 0;
+}
+
+.md-blank {
+  height: 8px;
+}
+
+/* Paper mode prose enhancements */
+.prose-paper .md-h1 {
+  font-size: 42px;
+  margin-bottom: 32px;
+}
+
+.prose-paper .md-p {
+  font-size: 18px;
+  line-height: 1.8;
+  margin-bottom: 20px;
+}
+
+.prose-paper .md-h2 {
+  font-size: 32px;
+  margin-top: 40px;
+}
+
+.prose-paper .md-blockquote {
+  padding: 16px 24px;
+}
+
+.prose-paper .md-blockquote p {
+  font-size: 17px;
+}
