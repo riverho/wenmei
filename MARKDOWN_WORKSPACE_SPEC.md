@@ -73,8 +73,9 @@ Wenmei should feel:
 - No dependence on a proprietary document format.
 - No VS Code clone.
 - No Obsidian clone.
-- No fake rule-based assistant pretending to be an agent.
-- No terminal UI embedded for its own sake.
+- No plugin marketplace as the primary experience.
+- No web-backend build path.
+- No graph-first worldview.
 
 ## Core Mental Model
 
@@ -222,9 +223,13 @@ The right panel should behave like a thinking and execution plane rather than a 
 
 #### Pi Mode
 
-Pi mode should eventually run a real token-backed Pi engine through Global Pi RPC, not rule-based command simulation.
-
 Pi Panel is the integration point for structured/programmatic/agentic workflows. Terminal is the user's free direct-control surface; Pi Panel is where Wenmei drives workflows through Pi.
+
+**Architecture: Router with local commands + Pi RPC**
+
+The Pi Panel maintains a slash-command router. Fast, deterministic operations (format, find, vault list, sandbox create, file delete, etc.) run locally for speed and reliability. Natural-language, agentic, and skill-driven queries route through `pi --mode rpc`.
+
+This is not a "fake rule-based assistant." It is a deliberate harness: local commands give the user predictable tools, while Pi RPC handles open-ended reasoning. As Pi's autonomy level grows, more commands can migrate from local handlers to agent-driven execution. The router stays.
 
 Capabilities:
 
@@ -246,7 +251,7 @@ User in Pi Panel:
 "Use attention-research to monitor green-tech news and create a visual briefing."
 
 Wenmei:
-- starts Pi RPC in the active sandbox
+- routes to Pi RPC in the active sandbox
 - Pi uses global attention-research skill/package
 - Pi writes briefing.md, sources.md, charts/, presentation.md
 - Wenmei renders those files with its document/paper/magazine surfaces
@@ -263,6 +268,10 @@ Pi should have broad agency inside the sandbox. Wenmei should enforce the sandbo
 Terminal mode is a center workspace mode, not a right-panel mode.
 
 It exists because Pi lives in a CLI world and because users should be able to freely work in the sandbox like they would in a normal terminal.
+
+**Implementation: Embedded PTY via `portable-pty` + `xterm.js`**
+
+The terminal is a fully embedded PTY running the user's login shell (`zsh`/`bash`) inside the active sandbox cwd. It is not an external Terminal.app window. This gives Wenmei integrated lifecycle control, snapshot/replay on re-open, and a consistent UI surface.
 
 Purpose:
 
@@ -282,8 +291,6 @@ Expected liberty:
 Terminal mode is not the agentic workflow engine. It is the user's free direct-control surface. Programmatic/agentic workflows belong in Pi Panel through Pi RPC.
 
 Terminal cwd must be the active sandbox root. Terminal mode hides the right panel and uses the center canvas for focus.
-
-First implementation may be command-console style. Later implementation can use a real PTY.
 
 #### Actions Mode
 
@@ -312,15 +319,25 @@ Memory mode should show and manage:
 
 Wenmei should be folder-native.
 
-Target UX:
+**Current state:** CLI open from a terminal window works manually. The user can run:
 
-1. User finds any folder or markdown file in Finder.
-2. User right-clicks.
-3. User chooses `Services > New Wenmei Window`.
-4. Wenmei opens that folder/file as a sandboxed thinking environment.
-5. Wenmei opens that sandbox; the Terminal button opens system Terminal at that sandbox and starts interactive Pi.
+```bash
+wenmei /path/to/folder
+wenmei /path/to/file.md
+```
 
-CLI target:
+Rust parses startup args and the frontend opens the requested vault/file on launch. This has been manually verified but needs end-to-end polish.
+
+**Next priority:** mature the CLI installation flow and make it globally accessible.
+
+Target flow:
+
+1. User installs Wenmei (drag to Applications / brew / dmg).
+2. First-run prompts to install CLI shim to `/usr/local/bin/wenmei`.
+3. User can then run `wenmei /path/to/folder` from any terminal.
+4. Later: OS-level double-click / Finder Service / `open -na Wenmei.app --args /path`.
+
+Future CLI flags:
 
 ```bash
 wenmei /path/to/folder
@@ -768,56 +785,98 @@ Execution detail lives in `DEV_PLAN.md`. Compact handoff context lives in `CONTE
 - Pi panel exists and has early local command wiring.
 - Rust/Tauri file boundary exists.
 
-### Next: CLI and OS Entry
+### ✅ Done: Sandbox Terminal / CLI Env
 
-- Add `wenmei /path/to/folder` support.
-- Add `wenmei /path/to/file.md` support.
-- Add `--new-window` support.
-- Open selected path as active vault/sandbox.
-- Add macOS Finder Service: `Services > New Wenmei Window`.
-- Later: Quick Look markdown preview extension.
+- Center Terminal mode with embedded PTY (`portable-pty` + `xterm.js`).
+- Left file pane visible, right Pi panel hidden while Terminal mode is active.
+- Commands run in active sandbox cwd with login-shell env.
+- Session snapshot/replay on re-open.
 
-### Next: Sandbox Terminal / CLI Env
-
-- Add center Terminal mode.
-- Keep left file pane visible and hide right Pi panel while Terminal mode is active.
-- Run commands in active sandbox cwd.
-- Load shell environment from user login shell on macOS.
+Still needed:
 - Add diagnostics for `PATH`, `node`, `git`, `pi`, provider auth.
 - Ensure Pi uses the same env as Terminal.
-- Later: real PTY support.
 
-### Next: Real Pi Engine
+### ✅ Partial: Real Pi Engine
 
-- Replace rule-based Pi behavior with real Pi engine integration.
-- Implement `GlobalPiRpcEngine` first.
-- Auto-detect global Pi executable, defaulting to `/usr/local/bin/pi` when present.
+- `GlobalPiRpcEngine` plumbing exists: `pi_panel_start`, `prompt`, `abort`, `restart`, `stop`.
+- Pi RPC streams `pi-rpc-event` to frontend with `text_delta`, `thinking_delta`, `toolcall_start`, `tool_execution_start/end`.
+- Session dir: `<vault>/.wenmei/pi-sessions/<sandbox-id>`.
+- Natural-language prompts already route to Pi RPC.
+
+Still needed:
+- Reduce reliance on local slash-command handlers as Pi autonomy grows.
 - Probe Pi version/capabilities before enabling agent mode.
-- Launch Pi with active sandbox cwd.
-- Use `--mode rpc` for structured streaming into Wenmei.
-- Use `--session-dir <vault>/.wenmei/pi-sessions/<sandbox-id>` so memory remains vault-local and follows the folder.
-- Reuse global Pi auth/model/package configuration unless user disables global profile usage.
-- Stream Pi events into Pi panel.
-- Support natural-language prompts, not only slash commands.
-- Later: add `BundledPiEngine` using Pi SDK or internal RPC for stable distribution.
+- Later: `BundledPiEngine` for stable distribution.
 
-### Next: Settings
+### Next: CLI and OS Entry (HIGH PRIORITY)
 
-- Add compact settings panel.
-- Configure Pi engine mode.
-- Configure Pi executable or bundled engine.
-- Configure model/provider status.
-- Configure shell/env behavior.
-- Configure trust mode and memory scope.
+Goal: Wenmei can open a folder/file as the active sandbox from any terminal, and eventually from the OS.
 
-### Next: Agentic Document UX
+Current state: manual `wenmei /path` works from a separate terminal. Needs enrichment and end-to-end testing.
 
-- Clickable search results.
-- Clickable document links.
+Implement:
+
+- Enrich CLI arg parsing in Rust (folder vs file vs flags).
+- Support `--new-window` flag.
+- First-run prompt to install CLI shim (`/usr/local/bin/wenmei`).
+- Mature the `install_cli_integration` flow (currently basic `osascript`).
+- Test full flow: dmg → first run → install CLI → open file from any terminal.
+- Add frontend init handling for startup-selected file (partially done, needs polish).
+
+Acceptance:
+
+```bash
+wenmei /path/to/folder
+wenmei /path/to/file.md
+wenmei --new-window /path/to/folder
+```
+
+### Next: Native Join-Folder Dialog
+
+Replace `window.prompt()` in `Header.tsx`.
+
+Implement Tauri dialog open-folder flow:
+
+- Use `@tauri-apps/plugin-dialog` from frontend or Rust command.
+- Add selected path as vault.
+- Set active vault.
+- Refresh tree.
+
+### Next: Pi Diagnostics / Wenmei Settings Foundation
+
+Implement compact Wenmei settings and diagnostics. Do not build Pi setup inside Wenmei.
+
+Fields:
+
+- piPath default `/usr/local/bin/pi`
+- shell path default `/bin/zsh`
+- loadLoginShellEnv boolean
+- trustMode: `ask | auto | yolo`
+- memoryScope: `file | sandbox | vault | global`
+
+Diagnostics:
+
+- `pi --version`
+- `pi --mode rpc --no-session` startup probe
+- `PATH`, `node`, `git`
+
+Acceptance:
+- Wenmei can show if global Pi is available.
+- If Pi is missing/unconfigured, Wenmei tells the user to run/configure Pi directly.
+
+### Next: Pi Panel Modes + Agentic Document UX
+
+- Actions mode: diffs, file mutations, commands, confirmations, action log as a visual workflow surface.
+- Memory mode: session/sandbox/vault memory browser, compacted summaries, clear/export.
 - Diff preview/apply flow.
-- Selection-aware Pi prompts.
+- Selection-aware Pi prompts (highlight text → ask Pi).
+- Clickable search results.
 - Current-file, sandbox, and vault memory display.
-- Action log visibility.
+
+### Later: Search Indexing
+
+- Current search is unindexed line-by-line walk.
+- Add content indexing for fast full-text search across vaults.
 
 ### Later: Extension Ecosystem
 
@@ -825,6 +884,12 @@ Execution detail lives in `DEV_PLAN.md`. Compact handoff context lives in `CONTE
 - Support project-local `.wenmei/settings.json`.
 - Expose extension capabilities in Pi and UI.
 - Keep extensions sandbox-aware.
+
+### Later: OS-Level Finder Service
+
+- macOS Services > New Wenmei Window.
+- Command shape: `open -na /Applications/Wenmei.app --args "$SELECTED_PATH"`.
+- Quick Look markdown preview extension.
 
 ## Success Criteria
 
@@ -843,7 +908,7 @@ The product is successful if:
 ## Open Questions
 
 - Should bundled Pi use SDK directly or run internal RPC?
-- Should first terminal mode be command-console only or PTY immediately?
+- ~~Should first terminal mode be command-console only or PTY immediately?~~ **Resolved: PTY is the chosen implementation.**
 - What is the exact memory default: file, sandbox, or vault?
 - How much should YOLO mode allow inside sandbox?
 - Should Quick Look be bundled with the main app or shipped as a separate extension?

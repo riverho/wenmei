@@ -25,6 +25,22 @@ Global Pi is the step-zero engine. Wenmei sandbox is the authority/world.
 - `npm run desktop:build` passes.
 - `npm run lint` exits 0 with App hook warnings only.
 
+### Live Features
+
+- **Layout:** Header, FileTree (left), CenterPanel, PiPanel (right). Resizable panels. Mobile drawer + bottom sheet.
+- **Document modes:** Edit (line numbers), Preview, Split (draggable), Paper (immersive with progress + reading time), Terminal (center mode).
+- **File tree:** Nested folders, search filter, new file/folder, rename, move (modal), delete, pin, reveal in folder, copy path, context menu.
+- **Theme:** System / light / dark via CSS custom properties + Tailwind.
+- **Keyboard shortcuts:** Full `useKeyboardShortcuts` hook (panels, modes, terminal, search, Pi, new file/folder, theme, escape).
+- **State persistence:** Zustand + Rust `AppState` dual persistence. Panel widths, open folders, theme, last file, vaults, sandboxes.
+- **File operations:** Rust Tauri commands with path containment and safe-delete to `.wenmei/trash/`.
+- **Search:** Active-vault and cross-vault line-by-line text search (unindexed).
+- **Vault / Sandbox:** Join, switch, create sandbox, authorize/promote workspace. Metadata under `.wenmei/`.
+- **Pi Panel:** Hybrid router — local slash commands for fast deterministic ops (`/format`, `/find`, `/generate`, etc.) + Pi RPC for natural language and agentic workflows. Streams `pi-rpc-event` with `text_delta`, `thinking_delta`, `toolcall_start`, `tool_execution_start/end`. File `@mentions` and clickable `@path:line` links.
+- **Embedded Terminal:** `portable-pty` + `xterm.js` with login-shell env, snapshot/replay on re-open, resize observer.
+- **Journal / Action Log:** `append_journal` / `list_journal_events` in Rust.
+- **CLI / OS Entry:** Basic `get_initial_file` works manually from terminal. `install_cli_integration` installs shim + Finder service via `osascript`. Needs maturation.
+
 ## Architecture Decision
 
 Use global Pi as engine first.
@@ -78,26 +94,56 @@ Important: global Pi mode is sandbox-scoped, not a true OS jail.
 
 ## Immediate Dev Sequence
 
-### 1. App launch path / CLI open support
+### ✅ DONE — Sandbox Terminal / CLI Env
 
-Goal: Wenmei can open a folder/file as the active sandbox.
+- Center Terminal mode with embedded PTY (`portable-pty` + `xterm.js`).
+- Login-shell env loading (`zsh`/`bash`).
+- Session snapshot/replay on re-open.
+- Resize observer.
+
+Still needed (defer to Settings phase):
+- Add diagnostics for `PATH`, `node`, `git`, `pi`, provider auth.
+- Ensure Pi uses the same env as Terminal.
+
+### ✅ DONE — Pi Panel Router (Hybrid)
+
+- `GlobalPiRpcEngine` plumbing: `pi_panel_start`, `prompt`, `abort`, `restart`, `stop`.
+- JSONL stdin/stdout framing over `ChildStdin`.
+- Event streaming: `pi-rpc-event` with `agent_start`, `agent_end`, `message_update` (text_delta, thinking_delta), `tool_execution_start/end`, `error`, `response`.
+- Session dir: `<vault>/.wenmei/pi-sessions/<sandbox-id>`.
+- Local slash commands remain as first-class router: `/format`, `/find`, `/generate`, `/summarize`, `/outline`, `/actions`, `/explain`, `/rewrite`, `/delete`, `/vaults`, `/sandboxes`, `/sandbox`, `/log`, `/journal`, `/thinking`.
+- Natural-language and `@file` mentions route to Pi RPC.
+- Thinking level control (`global` / `off` / `minimal` / `low` / `medium` / `high` / `xhigh`).
+
+### 1. CLI and OS Entry (CURRENT HIGH PRIORITY)
+
+Goal: Wenmei can open a folder/file as the active sandbox from any terminal, and eventually from the OS.
+
+Current state: manual `wenmei /path` works from a separate terminal window. Tested with:
+```bash
+wenmei /Users/river/.openclaw/workspace/notes/research-v2/21st-dev.md
+```
+But the full installation flow and OS-level double-click are not yet mature.
 
 Implement:
 
-- Parse startup args in Tauri/Rust.
-- Support folder path: open as active vault + sandbox.
-- Support markdown file path: open parent folder as active vault/sandbox and select file.
-- Support `--new-window` later if simple; otherwise defer.
-- Add frontend init handling for startup-selected file.
+- Enrich CLI arg parsing in Rust (robust folder vs file vs flag discrimination).
+- Support `--new-window` flag.
+- First-run prompt to install CLI shim to `/usr/local/bin/wenmei`.
+- Mature `install_cli_integration` — replace basic `osascript` with reliable install + PATH detection.
+- Test end-to-end: dmg → first run → install CLI → `wenmei /path` from any terminal → correct vault + file opened.
+- Polish frontend init handling for startup-selected file.
 
 Acceptance:
 
 ```bash
+wenmei /path/to/folder
+wenmei /path/to/file.md
+wenmei --new-window /path/to/folder
 open -na Wenmei.app --args /path/to/folder
-open -na Wenmei.app --args /path/to/file.md
 ```
 
-### 2. Native join-folder dialog
+### 2. Native Join-Folder Dialog
 
 Replace `window.prompt()` in `Header.tsx`.
 
@@ -113,34 +159,7 @@ Acceptance:
 - Header `+` opens native folder picker.
 - Selecting folder opens it as active vault.
 
-### 3. Open Sandbox Terminal via system Terminal
-
-Use the user's system terminal as the default tradeoff. Do not build integrated PTY or command-console now.
-
-Implement:
-
-- Add Terminal icon in header immediately left of Paper mode.
-- Clicking Terminal opens macOS Terminal.app at the active sandbox cwd.
-- The launched terminal starts interactive `pi` automatically when global Pi is available.
-- When the user exits Pi, the shell remains open in the sandbox folder.
-- If Pi is missing, show a message in the terminal explaining how to configure global Pi.
-
-Expected liberty:
-
-- User gets a real terminal experience immediately.
-- User can use interactive Pi normally.
-- User can code/build/test inside the sandbox.
-- User can exit Pi and continue with normal shell commands in the same sandbox.
-- Wenmei trades strict sandbox security for convenience here; global Pi is sandbox-scoped by cwd, not jailed.
-
-Acceptance:
-
-- Terminal button opens Terminal.app.
-- Terminal cwd is active sandbox path.
-- Terminal runs `pi` automatically if available.
-- After exiting Pi, terminal stays open at sandbox shell prompt.
-
-### 4. Pi diagnostics / Wenmei settings foundation
+### 3. Pi Diagnostics / Wenmei Settings Foundation
 
 Implement compact Wenmei settings and diagnostics. Do not build Pi setup inside Wenmei.
 
@@ -164,65 +183,77 @@ Acceptance:
 - If Pi is missing/unconfigured, Wenmei tells the user to run/configure Pi directly.
 - Wenmei does not collect provider API keys, perform model login, or manage Pi packages.
 
-### 5. GlobalPiRpcEngine
+### 4. GlobalPiRpcEngine — Reduce Local Dependency
 
-Implement real Pi RPC streaming.
+As Pi's intelligence and harness maturity grow, migrate more slash commands from local handlers to Pi RPC:
 
-Rust side:
-
-- Spawn global Pi process with strict cwd and session dir.
-- JSONL stdin/stdout framing.
-- Keep process lifecycle per active sandbox/session.
-- Abort/stop support.
-
-Frontend side:
-
-- Send natural language prompt from PiPanel.
-- Stream assistant text/events into PiPanel.
-- Allow Pi to use global skills/extensions/packages in the sandbox context.
-- Keep existing local commands as fallback only.
+- `/summarize`, `/rewrite`, `/outline`, `/explain` → Pi RPC with file context.
+- `/actions` → Pi RPC extraction.
+- Keep `/format`, `/find`, `/delete`, `/vaults`, `/sandboxes`, `/sandbox`, `/log`, `/journal` as local (fast, deterministic, no tokens).
+- Add Pi capability probe before enabling agent mode.
+- Add `BundledPiEngine` research for later stable distribution.
 
 Acceptance:
-
-- User types natural language into PiPanel.
-- Wenmei streams real Pi answer.
-- Pi can invoke global skills, e.g. attention-research, from panel workflow.
+- Pi handles open-ended tasks; local commands handle file-system bookkeeping.
 - Session files land under `<vault>/.wenmei/pi-sessions/<sandbox-id>`.
-- Pi-created markdown/artifacts appear in the file tree and can be rendered by Wenmei.
+- Pi-created markdown/artifacts appear in the file tree.
 
-### 6. Finder Service script
+### 5. Pi Panel Modes + Agentic Document UX
 
-After launch path works:
+- **Actions mode:** Diffs, file mutations, commands, confirmations, action log as a visual workflow surface.
+- **Memory mode:** Session/sandbox/vault memory browser, compacted summaries, clear/export.
+- **Diff preview/apply flow:** Pi proposes → Wenmei shows diff → user confirms → apply.
+- **Selection-aware Pi prompts:** Highlight text in editor → ask Pi about selection.
+- **Clickable search results** in Pi output.
+- **Current-file, sandbox, and vault memory display** in right panel.
 
-- Add a script/doc for macOS Services > New Wenmei Window.
+### 6. Search Indexing
+
+- Current search is unindexed line-by-line walk.
+- Add content indexing (e.g., `tantivy` or simple trigram index) for fast full-text search across vaults.
+- Keep explicit cross-vault search opt-in.
+
+### 7. Finder Service Script + OS Double-Click
+
+After CLI launch path is mature:
+
+- macOS Services > New Wenmei Window.
 - Command shape:
 
 ```bash
 open -na /Applications/Wenmei.app --args "$SELECTED_PATH"
 ```
 
-Acceptance:
-
-- Right-click folder/file can open Wenmei sandbox.
+- Document/folder association where platform allows.
+- Quick Look markdown preview extension (research).
 
 ## Deliberately Deferred
 
 - Bundled Pi sidecar.
 - True OS jail/container sandbox.
-- PTY terminal.
 - Quick Look markdown extension.
 - Extension marketplace.
 - Multi-root single-window workspace.
+- ~~PTY terminal~~ — **Implemented. Removed from deferred.**
 
 ## Files to Touch First
 
-- `src-tauri/src/main.rs`
-- `src/lib/tauri-bridge.ts`
-- `src/store/appStore.ts`
-- `src/components/Header.tsx`
-- `src/components/PiPanel.tsx`
-- possibly new `src/components/TerminalPanel.tsx`
-- possibly new `src/components/SettingsPanel.tsx`
+### Current Priority (CLI / OS Entry)
+- `src-tauri/src/main.rs` — CLI arg parsing, `get_initial_file` polish, install flow
+- `src-tauri/tauri.conf.json` — deep link / URL scheme if needed
+- `scripts/install-cli.sh` / `scripts/wenmei` — CLI shim maturation
+- `src/components/Header.tsx` — native folder picker, install CLI button
+
+### Next Priority (Settings + Pi Modes)
+- `src-tauri/src/main.rs` — diagnostics probe, settings persistence
+- `src/lib/tauri-bridge.ts` — new commands
+- `src/store/appStore.ts` — settings state
+- `src/components/Header.tsx` — settings trigger
+- `src/components/PiPanel.tsx` — Actions/Memory modes, diff flow
+- new `src/components/SettingsPanel.tsx`
+
+### Keep Clean
+- No Hono/tRPC, MySQL/Drizzle, fake DB docs, large shadcn dump, web backend path.
 
 ## Keep Clean
 
