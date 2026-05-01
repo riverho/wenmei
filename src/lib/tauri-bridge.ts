@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
 // ─── Data Types (mirrors Rust structs) ───
 
@@ -188,8 +189,19 @@ export async function installCliIntegration(): Promise<string> {
   return invoke("install_cli_integration");
 }
 
-export async function cliIntegrationStatus(): Promise<boolean> {
+export interface CliStatus {
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+}
+
+export async function cliIntegrationStatus(): Promise<CliStatus> {
   return invoke("cli_integration_status");
+}
+
+export async function openFolderDialog(): Promise<string | null> {
+  const result = await open({ directory: true });
+  return result ?? null;
 }
 
 export async function setWorkspacePath(newPath: string): Promise<void> {

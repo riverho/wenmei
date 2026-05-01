@@ -9,6 +9,7 @@ import {
   listFiles,
   listSandboxes,
   listVaults,
+  openFolderDialog,
   promoteActiveWorkspace,
   readFile,
   setActiveVault,
@@ -117,9 +118,9 @@ export default function Header() {
   }
 
   async function handleJoinVault() {
-    const path = window.prompt("Folder path to join as a vault");
-    if (!path?.trim()) return;
-    const vault = await addVault(path.trim());
+    const path = await openFolderDialog();
+    if (!path) return;
+    const vault = await addVault(path);
     await setActiveVault(vault.id);
     await refreshVaultState(true);
   }
@@ -142,22 +143,27 @@ export default function Header() {
     }
   }
 
-  // Shell integration install: only show button when not yet installed.
-  const [cliInstalled, setCliInstalled] = useState<boolean | null>(null);
+  // Shell integration install
+  const [cliStatus, setCliStatus] = useState<{ installed: boolean; path: string | null; version: string | null } | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
   useEffect(() => {
     cliIntegrationStatus()
-      .then(setCliInstalled)
-      .catch(() => setCliInstalled(false));
+      .then(setCliStatus)
+      .catch(() => setCliStatus({ installed: false, path: null, version: null }));
   }, []);
   async function handleInstallCli() {
     if (installing) return;
     setInstalling(true);
+    setInstallError(null);
     try {
-      await installCliIntegration();
-      setCliInstalled(true);
+      const result = await installCliIntegration();
+      window.alert(result);
+      const status = await cliIntegrationStatus();
+      setCliStatus(status);
     } catch (err) {
-      window.alert(`Install failed: ${err}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      setInstallError(msg);
     } finally {
       setInstalling(false);
     }
@@ -317,19 +323,30 @@ export default function Header() {
           </button>
         )}
 
-        {cliInstalled === false && (
+        {cliStatus && !cliStatus.installed && (
           <button
             onClick={handleInstallCli}
             disabled={installing}
-            className="hidden sm:flex items-center justify-center w-8 h-8 rounded transition-all duration-200 hover:-translate-y-0.5"
+            className="hidden sm:flex items-center justify-center px-2 h-8 rounded text-xs transition-all duration-200 hover:-translate-y-0.5"
             style={{
-              color: "var(--text-secondary)",
+              color: "var(--accent-teal)",
+              background: "var(--surface-2)",
               opacity: installing ? 0.5 : 1,
             }}
             title="Install wenmei CLI + Finder service"
           >
-            <Link2 size={15} />
+            <Link2 size={13} className="mr-1" />
+            {installing ? "Installing…" : "Install CLI"}
           </button>
+        )}
+        {installError && (
+          <span
+            className="hidden sm:inline text-[10px] truncate max-w-[120px]"
+            style={{ color: "var(--accent-rose)" }}
+            title={installError}
+          >
+            {installError}
+          </span>
         )}
 
         {/* Open sandbox terminal */}

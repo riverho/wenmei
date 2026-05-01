@@ -83,8 +83,11 @@ function AppContent() {
             if (mounted) {
               setActiveFile(file.path, file.content, file.name);
             }
-          } catch {
-            // File may have been deleted
+          } catch (err) {
+            console.warn(`Could not open startup file "${fileToOpen}":`, err);
+            // If the file no longer exists, clear the active file so the user
+            // doesn't see a stale state.
+            if (mounted) setActiveFile(null, "", "");
           }
         }
       } catch (err) {

@@ -1372,10 +1372,34 @@ fn get_initial_file(state: State<'_, WenmeiState>) -> Result<Option<String>, Str
     Ok(state.initial_file.lock().unwrap().take())
 }
 
-/// True when the wenmei CLI shim is already on PATH at /usr/local/bin/wenmei.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CliStatus {
+    pub installed: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+}
+
+/// Check whether the wenmei CLI shim is available on PATH.
+/// Returns the resolved path and a short version probe if found.
 #[tauri::command]
-fn cli_integration_status() -> bool {
-    std::path::Path::new("/usr/local/bin/wenmei").exists()
+fn cli_integration_status() -> CliStatus {
+    let path = which::which("wenmei").ok().map(|p| p.to_string_lossy().to_string());
+    let version = path.as_ref().and_then(|p| {
+        let output = std::process::Command::new(p)
+            .arg("--version")
+            .output()
+            .ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let text = if stdout.trim().is_empty() { stderr } else { stdout };
+        let text = text.trim();
+        if text.is_empty() { None } else { Some(text.to_string()) }
+    });
+    CliStatus {
+        installed: path.is_some(),
+        path,
+        version,
+    }
 }
 
 /// Locate a bundled script. Tauri may place resources directly under
@@ -1396,29 +1420,59 @@ fn find_bundled_script(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
 }
 
 /// Install the `wenmei` CLI shim to /usr/local/bin and the macOS Finder
-/// service. CLI install requests admin via osascript when needed; Finder
-/// service install runs as the current user.
+/// service.
+///
+/// Strategy:
+/// 1. Try copying directly to /usr/local/bin (no sudo needed if writable).
+/// 2. If that fails, fall back to osascript admin dialog.
+/// 3. Always run the Finder service installer as the current user.
 #[tauri::command]
 fn install_cli_integration(app: AppHandle) -> Result<String, String> {
     let shim = find_bundled_script(&app, "wenmei")?;
     let finder = find_bundled_script(&app, "install-finder-service.sh")?;
 
-    let shell_cmd = format!(
-        "mkdir -p /usr/local/bin && cp {src} /usr/local/bin/wenmei && chmod +x /usr/local/bin/wenmei",
-        src = shell_quote(&shim.to_string_lossy()),
-    );
-    let osa = format!(
-        "do shell script \"{}\" with administrator privileges",
-        shell_cmd.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let cli_status = ProcessCommand::new("osascript")
-        .arg("-e")
-        .arg(&osa)
-        .status()
-        .map_err(|e| format!("osascript failed: {}", e))?;
-    if !cli_status.success() {
-        return Err("CLI install was cancelled or failed".into());
-    }
+    let dest = std::path::PathBuf::from("/usr/local/bin/wenmei");
+
+    // Attempt 1: direct copy without elevated privileges
+    let direct_ok = || -> Result<(), std::io::Error> {
+        std::fs::create_dir_all("/usr/local/bin")?;
+        std::fs::copy(&shim, &dest)?;
+        let mut perms = std::fs::metadata(&dest)?.permissions();
+        perms.set_readonly(false);
+        std::fs::set_permissions(&dest, perms)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&dest)?.permissions();
+            perms.set_mode(perms.mode() | 0o111); // add executable bits
+            std::fs::set_permissions(&dest, perms)?;
+        }
+        Ok(())
+    };
+
+    let used_sudo = match direct_ok() {
+        Ok(()) => false,
+        Err(e) => {
+            eprintln!("Direct install failed (will try admin dialog): {}", e);
+            let shell_cmd = format!(
+                "mkdir -p /usr/local/bin && cp {src} /usr/local/bin/wenmei && chmod +x /usr/local/bin/wenmei",
+                src = shell_quote(&shim.to_string_lossy()),
+            );
+            let osa = format!(
+                "do shell script \"{}\" with administrator privileges",
+                shell_cmd.replace('\\', "\\\\").replace('"', "\\\"")
+            );
+            let cli_status = ProcessCommand::new("osascript")
+                .arg("-e")
+                .arg(&osa)
+                .status()
+                .map_err(|e| format!("osascript failed: {}", e))?;
+            if !cli_status.success() {
+                return Err("CLI install was cancelled or failed".into());
+            }
+            true
+        }
+    };
 
     let finder_status = ProcessCommand::new("bash")
         .arg(&finder)
@@ -1428,7 +1482,11 @@ fn install_cli_integration(app: AppHandle) -> Result<String, String> {
         return Err("Finder service installer exited non-zero".into());
     }
 
-    Ok("Installed wenmei CLI to /usr/local/bin and Finder service to ~/Library/Services".into())
+    let method = if used_sudo { "via admin dialog" } else { "directly" };
+    Ok(format!(
+        "Installed wenmei CLI {} to /usr/local/bin and Finder service to ~/Library/Services",
+        method
+    ))
 }
 
 #[tauri::command]
