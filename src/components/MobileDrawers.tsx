@@ -72,9 +72,30 @@ export function MobileMenuButton() {
         style={{ color: "var(--text-secondary)" }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="1" y="3" width="14" height="1.5" rx="0.75" fill="currentColor" />
-          <rect x="1" y="7.25" width="14" height="1.5" rx="0.75" fill="currentColor" />
-          <rect x="1" y="11.5" width="14" height="1.5" rx="0.75" fill="currentColor" />
+          <rect
+            x="1"
+            y="3"
+            width="14"
+            height="1.5"
+            rx="0.75"
+            fill="currentColor"
+          />
+          <rect
+            x="1"
+            y="7.25"
+            width="14"
+            height="1.5"
+            rx="0.75"
+            fill="currentColor"
+          />
+          <rect
+            x="1"
+            y="11.5"
+            width="14"
+            height="1.5"
+            rx="0.75"
+            fill="currentColor"
+          />
         </svg>
       </button>
       <button
@@ -85,8 +106,22 @@ export function MobileMenuButton() {
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <rect x="1" y="2" width="6" height="5.5" rx="1" fill="currentColor" />
           <rect x="9" y="2" width="6" height="5.5" rx="1" fill="currentColor" />
-          <rect x="1" y="8.5" width="6" height="5.5" rx="1" fill="currentColor" />
-          <rect x="9" y="8.5" width="6" height="5.5" rx="1" fill="currentColor" />
+          <rect
+            x="1"
+            y="8.5"
+            width="6"
+            height="5.5"
+            rx="1"
+            fill="currentColor"
+          />
+          <rect
+            x="9"
+            y="8.5"
+            width="6"
+            height="5.5"
+            rx="1"
+            fill="currentColor"
+          />
         </svg>
       </button>
     </div>

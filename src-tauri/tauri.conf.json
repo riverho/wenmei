@@ -44,8 +44,11 @@
     ],
     "resources": [
       "../scripts/wenmei",
+      "../scripts/install.sh",
       "../scripts/install-cli.sh",
-      "../scripts/install-finder-service.sh"
+      "../scripts/install-finder-service.sh",
+      "../scripts/install-quicklook.sh",
+      "../scripts/verify.sh"
     ],
     "fileAssociations": [
       {

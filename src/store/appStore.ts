@@ -9,6 +9,13 @@ import type {
 } from "@/lib/tauri-bridge";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
+export type LightboxVariant =
+  | "onboarding"
+  | "settings"
+  | "pi-chat"
+  | "alert"
+  | "custom"
+  | null;
 
 interface AppState {
   // Layout
@@ -54,6 +61,17 @@ interface AppState {
   mobileMenuOpen: boolean;
   mobilePiOpen: boolean;
 
+  // Lightbox
+  firstRunAt: string | null;
+  onboardingCompleted: boolean;
+  lightboxOpen: boolean;
+  lightboxVariant: LightboxVariant;
+  lightboxTitle: string;
+  lightboxSize: "sm" | "md" | "lg" | "xl" | "full";
+
+  // Onboarding install results
+  installResults: Record<string, "idle" | "installing" | "done" | "error">;
+
   // Paper mode backup
   paperPreviousMode: ViewMode;
 
@@ -84,6 +102,17 @@ interface AppState {
   setIsProcessing: (val: boolean) => void;
   setMobileMenuOpen: (open: boolean) => void;
   setMobilePiOpen: (open: boolean) => void;
+  openLightbox: (
+    variant: LightboxVariant,
+    title: string,
+    size?: "sm" | "md" | "lg" | "xl" | "full"
+  ) => void;
+  closeLightbox: () => void;
+  setOnboardingCompleted: (completed: boolean) => void;
+  setInstallResult: (
+    key: string,
+    status: "idle" | "installing" | "done" | "error"
+  ) => void;
   enterPaperMode: () => void;
   exitPaperMode: () => void;
   togglePanel: (panel: "left" | "right") => void;
@@ -133,6 +162,13 @@ export const useAppStore = create<AppState>()(
       isProcessing: false,
       mobileMenuOpen: false,
       mobilePiOpen: false,
+      firstRunAt: null,
+      onboardingCompleted: false,
+      lightboxOpen: false,
+      lightboxVariant: null,
+      lightboxTitle: "",
+      lightboxSize: "md",
+      installResults: { cli: "idle", finder: "idle", quicklook: "idle" },
       paperPreviousMode: "edit",
 
       setLeftPanelOpen: open => set({ leftPanelOpen: open }),
@@ -206,6 +242,21 @@ export const useAppStore = create<AppState>()(
       setIsProcessing: val => set({ isProcessing: val }),
       setMobileMenuOpen: open => set({ mobileMenuOpen: open }),
       setMobilePiOpen: open => set({ mobilePiOpen: open }),
+      openLightbox: (variant, title, size = "md") =>
+        set({
+          lightboxOpen: true,
+          lightboxVariant: variant,
+          lightboxTitle: title,
+          lightboxSize: size,
+        }),
+      closeLightbox: () =>
+        set({ lightboxOpen: false, lightboxVariant: null, lightboxTitle: "" }),
+      setOnboardingCompleted: completed =>
+        set({ onboardingCompleted: completed }),
+      setInstallResult: (key, status) =>
+        set(state => ({
+          installResults: { ...state.installResults, [key]: status },
+        })),
       enterPaperMode: () => {
         const prev =
           get().mode === "paper" || get().mode === "terminal"
@@ -239,6 +290,8 @@ export const useAppStore = create<AppState>()(
       },
       applyPersistedState: state => {
         set({
+          firstRunAt: state.first_run_at,
+          onboardingCompleted: state.onboarding_completed,
           leftPanelOpen: state.left_panel_open,
           rightPanelOpen: state.right_panel_open,
           mode:
@@ -270,6 +323,8 @@ export const useAppStore = create<AppState>()(
         }
       },
       getPersistedState: () => ({
+        first_run_at: get().firstRunAt,
+        onboarding_completed: get().onboardingCompleted,
         left_panel_open: get().leftPanelOpen,
         right_panel_open: get().rightPanelOpen,
         view_mode: get().mode === "terminal" ? "edit" : get().mode,

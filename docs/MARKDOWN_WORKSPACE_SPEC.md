@@ -793,6 +793,7 @@ Execution detail lives in `DEV_PLAN.md`. Compact handoff context lives in `CONTE
 - Session snapshot/replay on re-open.
 
 Still needed:
+
 - Add diagnostics for `PATH`, `node`, `git`, `pi`, provider auth.
 - Ensure Pi uses the same env as Terminal.
 
@@ -804,6 +805,7 @@ Still needed:
 - Natural-language prompts already route to Pi RPC.
 
 Still needed:
+
 - Reduce reliance on local slash-command handlers as Pi autonomy grows.
 - Probe Pi version/capabilities before enabling agent mode.
 - Later: `BundledPiEngine` for stable distribution.
@@ -861,6 +863,7 @@ Diagnostics:
 - `PATH`, `node`, `git`
 
 Acceptance:
+
 - Wenmei can show if global Pi is available.
 - If Pi is missing/unconfigured, Wenmei tells the user to run/configure Pi directly.
 

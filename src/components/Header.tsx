@@ -1,11 +1,8 @@
-import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import {
   addVault,
   authorizeActiveWorkspace,
-  cliIntegrationStatus,
   getAppState,
-  installCliIntegration,
   listFiles,
   listSandboxes,
   listVaults,
@@ -31,7 +28,9 @@ import {
   PanelRightOpen,
   Command,
   Menu,
-  Link2,
+  Bot,
+  CheckCircle2,
+  Info,
 } from "lucide-react";
 
 function findFirstFile(nodes: FileNode[]): FileNode | null {
@@ -78,6 +77,33 @@ export default function Header() {
   const isPaper = mode === "paper";
   const isTerminal = mode === "terminal";
   const activeVault = vaults.find(vault => vault.id === activeVaultId);
+  const agentState =
+    openMode === "document"
+      ? {
+          label: "Agent",
+          icon: Bot,
+          color: "var(--accent-rose)",
+          title:
+            "Not in agentic scope. Authorize this folder as a registry sandbox.",
+          onClick: () => handleAuthorizeWorkspace(false),
+        }
+      : metadataMode !== "local"
+        ? {
+            label: "Agent",
+            icon: Bot,
+            color: "var(--accent-teal)",
+            title:
+              "In agentic scope. Promote this sandbox to a local Wenmei vault.",
+            onClick: () => handleAuthorizeWorkspace(true),
+          }
+        : {
+            label: "Agent",
+            icon: CheckCircle2,
+            color: "var(--accent-teal)",
+            title: "Agentic scope is active with local vault metadata.",
+            onClick: undefined,
+          };
+  const AgentIcon = agentState.icon;
 
   function cycleTheme() {
     const next =
@@ -140,32 +166,6 @@ export default function Header() {
       window.dispatchEvent(new CustomEvent("wenmei-workspace-authorized"));
     } catch (err) {
       window.alert(`Authorization failed: ${err}`);
-    }
-  }
-
-  // Shell integration install
-  const [cliStatus, setCliStatus] = useState<{ installed: boolean; path: string | null; version: string | null } | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [installError, setInstallError] = useState<string | null>(null);
-  useEffect(() => {
-    cliIntegrationStatus()
-      .then(setCliStatus)
-      .catch(() => setCliStatus({ installed: false, path: null, version: null }));
-  }, []);
-  async function handleInstallCli() {
-    if (installing) return;
-    setInstalling(true);
-    setInstallError(null);
-    try {
-      const result = await installCliIntegration();
-      window.alert(result);
-      const status = await cliIntegrationStatus();
-      setCliStatus(status);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setInstallError(msg);
-    } finally {
-      setInstalling(false);
     }
   }
 
@@ -294,60 +294,28 @@ export default function Header() {
           <Command size={15} />
         </button>
 
-        {/* Install shell integration (only when not yet installed) */}
-        {openMode === "document" && (
-          <button
-            onClick={() => handleAuthorizeWorkspace(false)}
-            className="hidden md:flex items-center justify-center px-2 h-8 rounded text-xs transition-all duration-200 hover:-translate-y-0.5"
-            style={{
-              color: "var(--accent-teal)",
-              background: "var(--surface-2)",
-            }}
-            title="Authorize this folder as a registry sandbox without creating .wenmei"
-          >
-            Authorize
-          </button>
-        )}
-
-        {openMode !== "document" && metadataMode !== "local" && (
-          <button
-            onClick={() => handleAuthorizeWorkspace(true)}
-            className="hidden md:flex items-center justify-center px-2 h-8 rounded text-xs transition-all duration-200 hover:-translate-y-0.5"
-            style={{
-              color: "var(--text-secondary)",
-              background: "var(--surface-2)",
-            }}
-            title="Promote this sandbox to a local Wenmei vault and create .wenmei"
-          >
-            Promote
-          </button>
-        )}
-
-        {cliStatus && !cliStatus.installed && (
-          <button
-            onClick={handleInstallCli}
-            disabled={installing}
-            className="hidden sm:flex items-center justify-center px-2 h-8 rounded text-xs transition-all duration-200 hover:-translate-y-0.5"
-            style={{
-              color: "var(--accent-teal)",
-              background: "var(--surface-2)",
-              opacity: installing ? 0.5 : 1,
-            }}
-            title="Install wenmei CLI + Finder service"
-          >
-            <Link2 size={13} className="mr-1" />
-            {installing ? "Installing…" : "Install CLI"}
-          </button>
-        )}
-        {installError && (
-          <span
-            className="hidden sm:inline text-[10px] truncate max-w-[120px]"
-            style={{ color: "var(--accent-rose)" }}
-            title={installError}
-          >
-            {installError}
-          </span>
-        )}
+        {/* Agent scope status/action */}
+        <button
+          onClick={agentState.onClick}
+          disabled={!agentState.onClick}
+          className="hidden md:flex items-center justify-center gap-1.5 px-2 h-8 rounded text-xs transition-all duration-200 enabled:hover:-translate-y-0.5 disabled:cursor-default"
+          style={{
+            color: "var(--text-secondary)",
+            background: "var(--surface-2)",
+          }}
+          title={agentState.title}
+        >
+          <AgentIcon size={13} style={{ color: agentState.color }} />
+          <span>{agentState.label}</span>
+        </button>
+        <span
+          className="hidden md:flex items-center justify-center w-6 h-8 cursor-help"
+          style={{ color: "var(--text-tertiary)" }}
+          title="Agent states: rose means this folder is not authorized for the agent harness. Teal means agentic scope is active through the sandbox registry. Teal check means this is a promoted local vault with local metadata."
+          aria-label="Agent state meaning"
+        >
+          <Info size={13} />
+        </span>
 
         {/* Open sandbox terminal */}
         <button

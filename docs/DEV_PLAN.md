@@ -102,6 +102,7 @@ Important: global Pi mode is sandbox-scoped, not a true OS jail.
 - Resize observer.
 
 Still needed (defer to Settings phase):
+
 - Add diagnostics for `PATH`, `node`, `git`, `pi`, provider auth.
 - Ensure Pi uses the same env as Terminal.
 
@@ -120,9 +121,11 @@ Still needed (defer to Settings phase):
 Goal: Wenmei can open a folder/file as the active sandbox from any terminal, and eventually from the OS.
 
 Current state: manual `wenmei /path` works from a separate terminal window. Tested with:
+
 ```bash
 wenmei /Users/river/.openclaw/workspace/notes/research-v2/21st-dev.md
 ```
+
 But the full installation flow and OS-level double-click are not yet mature.
 
 Implement:
@@ -194,6 +197,7 @@ As Pi's intelligence and harness maturity grow, migrate more slash commands from
 - Add `BundledPiEngine` research for later stable distribution.
 
 Acceptance:
+
 - Pi handles open-ended tasks; local commands handle file-system bookkeeping.
 - Session files land under `<vault>/.wenmei/pi-sessions/<sandbox-id>`.
 - Pi-created markdown/artifacts appear in the file tree.
@@ -239,12 +243,14 @@ open -na /Applications/Wenmei.app --args "$SELECTED_PATH"
 ## Files to Touch First
 
 ### Current Priority (CLI / OS Entry)
+
 - `src-tauri/src/main.rs` — CLI arg parsing, `get_initial_file` polish, install flow
 - `src-tauri/tauri.conf.json` — deep link / URL scheme if needed
 - `scripts/install-cli.sh` / `scripts/wenmei` — CLI shim maturation
 - `src/components/Header.tsx` — native folder picker, install CLI button
 
 ### Next Priority (Settings + Pi Modes)
+
 - `src-tauri/src/main.rs` — diagnostics probe, settings persistence
 - `src/lib/tauri-bridge.ts` — new commands
 - `src/store/appStore.ts` — settings state
@@ -253,6 +259,7 @@ open -na /Applications/Wenmei.app --args "$SELECTED_PATH"
 - new `src/components/SettingsPanel.tsx`
 
 ### Keep Clean
+
 - No Hono/tRPC, MySQL/Drizzle, fake DB docs, large shadcn dump, web backend path.
 
 ## Keep Clean

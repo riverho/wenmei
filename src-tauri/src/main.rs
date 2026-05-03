@@ -59,6 +59,10 @@ pub struct Sandbox {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppState {
+    #[serde(default)]
+    pub first_run_at: Option<String>,
+    #[serde(default)]
+    pub onboarding_completed: bool,
     pub left_panel_open: bool,
     pub right_panel_open: bool,
     pub view_mode: String,
@@ -96,6 +100,8 @@ impl AppState {
             is_active: true,
         };
         Self {
+            first_run_at: Some(chrono::Utc::now().to_rfc3339()),
+            onboarding_completed: false,
             left_panel_open: true,
             right_panel_open: true,
             view_mode: "edit".to_string(),
@@ -261,7 +267,15 @@ fn parse_launch_intent() -> LaunchIntent {
     let mut command = "open".to_string();
     if matches!(
         args[0].as_str(),
-        "open" | "edit" | "create" | "new" | "mkdir" | "sandbox" | "vault" | "promote" | "composite"
+        "open"
+            | "edit"
+            | "create"
+            | "new"
+            | "mkdir"
+            | "sandbox"
+            | "vault"
+            | "promote"
+            | "composite"
     ) {
         command = args.remove(0);
     }
@@ -339,9 +353,7 @@ fn ensure_active_root_sandbox(app_state: &mut AppState, vault_id: &str) -> Strin
         .sandboxes
         .iter()
         .find(|sandbox| {
-            sandbox.vault_id == vault_id
-                && sandbox.kind == "vault"
-                && sandbox.root_path == "/"
+            sandbox.vault_id == vault_id && sandbox.kind == "vault" && sandbox.root_path == "/"
         })
         .map(|sandbox| sandbox.id.clone());
 
@@ -368,7 +380,11 @@ fn ensure_active_root_sandbox(app_state: &mut AppState, vault_id: &str) -> Strin
 fn init_vault_meta(path: &Path) {
     let meta = path.join(".wenmei");
     let _ = fs::create_dir_all(meta.join("terminal").join("logs"));
-    let _ = fs::create_dir_all(meta.join("pi-sessions").join("default-root").join("terminal"));
+    let _ = fs::create_dir_all(
+        meta.join("pi-sessions")
+            .join("default-root")
+            .join("terminal"),
+    );
     let _ = fs::create_dir_all(meta.join("pi-sessions").join("default-root").join("panel"));
     let _ = fs::create_dir_all(meta.join("trash"));
     let vault_json = meta.join("vault.json");
@@ -378,7 +394,10 @@ fn init_vault_meta(path: &Path) {
             "created_at": chrono::Utc::now().to_rfc3339(),
             "default_sandbox_id": "default-root"
         });
-        let _ = fs::write(vault_json, serde_json::to_string_pretty(&raw).unwrap_or_default());
+        let _ = fs::write(
+            vault_json,
+            serde_json::to_string_pretty(&raw).unwrap_or_default(),
+        );
     }
     let journal = meta.join("journal.jsonl");
     if !journal.exists() {
@@ -447,7 +466,11 @@ fn upsert_registry_sandbox(
     }
 
     let sandbox = AuthorizedSandbox {
-        id: registry_id_for(if kind == "composite" { "composite" } else { "sandbox" }),
+        id: registry_id_for(if kind == "composite" {
+            "composite"
+        } else {
+            "sandbox"
+        }),
         display_name: display_name.unwrap_or_else(|| root_display_name(&primary)),
         kind: kind.to_string(),
         roots: root_strings,
@@ -489,7 +512,12 @@ fn ensure_active_workspace(
     sandbox_id: Option<String>,
 ) {
     let root_str = root.to_string_lossy().to_string();
-    let vault_id = if let Some(existing) = app_state.vaults.iter().find(|v| v.path == root_str).cloned() {
+    let vault_id = if let Some(existing) = app_state
+        .vaults
+        .iter()
+        .find(|v| v.path == root_str)
+        .cloned()
+    {
         existing.id
     } else {
         let id = format!("vault-{}", chrono::Local::now().timestamp_millis());
@@ -562,6 +590,9 @@ impl WenmeiState {
             .ok()
             .and_then(|raw| serde_json::from_str::<AppState>(&raw).ok())
             .unwrap_or_else(|| AppState::with_default_vault(fallback_vault.clone()));
+        if loaded.first_run_at.is_none() {
+            loaded.first_run_at = Some(chrono::Utc::now().to_rfc3339());
+        }
 
         let mut initial_file_rel: Option<String> = None;
 
@@ -609,13 +640,14 @@ impl WenmeiState {
             }
         } else if let Some(root) = launch.root.clone() {
             fs::create_dir_all(&root).unwrap_or_default();
-            let (open_mode, metadata_mode, auth_status, sandbox_kind, auth_source) = match launch.mode {
-                LaunchMode::Document => ("document", "global", "none", "document", "document"),
-                LaunchMode::Sandbox => ("sandbox", "global", "authorized", "sandbox", "cli"),
-                LaunchMode::Vault => ("vault", "local", "promoted", "vault", "cli"),
-                LaunchMode::Promote => ("vault", "local", "promoted", "vault", "promote"),
-                _ => ("vault", "local", "promoted", "vault", "cli"),
-            };
+            let (open_mode, metadata_mode, auth_status, sandbox_kind, auth_source) =
+                match launch.mode {
+                    LaunchMode::Document => ("document", "global", "none", "document", "document"),
+                    LaunchMode::Sandbox => ("sandbox", "global", "authorized", "sandbox", "cli"),
+                    LaunchMode::Vault => ("vault", "local", "promoted", "vault", "cli"),
+                    LaunchMode::Promote => ("vault", "local", "promoted", "vault", "promote"),
+                    _ => ("vault", "local", "promoted", "vault", "cli"),
+                };
 
             if metadata_mode == "local" {
                 init_vault_meta(&root);
@@ -721,7 +753,13 @@ pub struct TerminalContext {
 fn safe_meta_name(value: &str) -> String {
     value
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -806,6 +844,13 @@ fn panel_pi_session_dir(ctx: &TerminalContext) -> PathBuf {
         .join("panel")
 }
 
+fn context_switch_requires_reset(surface: &str, current: &str, next: &str) -> String {
+    format!(
+        "[ERR_CONTEXT_SWITCH_REQUIRES_RESET] {} is already running in {}. Reset it to start in the focused sandbox at {}.",
+        surface, current, next
+    )
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct TerminalOutput {
     pub data: Vec<u8>,
@@ -863,7 +908,10 @@ fn append_journal_event(
 ) -> Result<(), String> {
     let app_state = state.app_state.lock().unwrap();
     let vault_id = app_state.active_vault_id.clone();
-    let sandbox_id = app_state.active_sandbox_id.clone().unwrap_or_else(|| format!("{}-root", vault_id));
+    let sandbox_id = app_state
+        .active_sandbox_id
+        .clone()
+        .unwrap_or_else(|| format!("{}-root", vault_id));
     drop(app_state);
     let ctx = active_terminal_context(state)?;
     let event = JournalEvent {
@@ -883,12 +931,21 @@ fn append_journal_event(
     let mut raw = serde_json::to_string(&event).map_err(|e| e.to_string())?;
     raw.push('\n');
     use std::fs::OpenOptions;
-    let mut file = OpenOptions::new().create(true).append(true).open(path).map_err(|e| e.to_string())?;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
     file.write_all(raw.as_bytes()).map_err(|e| e.to_string())
 }
 
 fn emit_files_changed(app: &AppHandle, reason: &str) {
-    let _ = app.emit("sandbox-files-changed", SandboxFilesChanged { reason: reason.to_string() });
+    let _ = app.emit(
+        "sandbox-files-changed",
+        SandboxFilesChanged {
+            reason: reason.to_string(),
+        },
+    );
 }
 
 #[tauri::command]
@@ -900,11 +957,21 @@ fn append_journal(
     metadata: Option<serde_json::Value>,
     state: State<'_, WenmeiState>,
 ) -> Result<(), String> {
-    append_journal_event(&state, &kind, &source, path, summary, metadata.unwrap_or_else(|| serde_json::json!({})))
+    append_journal_event(
+        &state,
+        &kind,
+        &source,
+        path,
+        summary,
+        metadata.unwrap_or_else(|| serde_json::json!({})),
+    )
 }
 
 #[tauri::command]
-fn list_journal_events(limit: Option<usize>, state: State<'_, WenmeiState>) -> Result<Vec<JournalEvent>, String> {
+fn list_journal_events(
+    limit: Option<usize>,
+    state: State<'_, WenmeiState>,
+) -> Result<Vec<JournalEvent>, String> {
     let ctx = active_terminal_context(&state)?;
     let raw = fs::read_to_string(journal_path(&ctx)).unwrap_or_default();
     let mut events: Vec<JournalEvent> = raw
@@ -983,12 +1050,12 @@ fn reject_unsafe_rel(path: &str) -> Result<PathBuf, String> {
     let normalized = path.trim().trim_start_matches('/');
     let rel = PathBuf::from(normalized);
     if rel.is_absolute() {
-        return Err("Absolute paths are not allowed inside a vault".to_string());
+        return Err("[ERR_UNSAFE_PATH] Absolute paths are not allowed inside a vault".to_string());
     }
     for component in rel.components() {
         match component {
             Component::ParentDir | Component::Prefix(_) | Component::RootDir => {
-                return Err("Path escapes the active vault".to_string());
+                return Err("[ERR_VAULT_ESCAPE] Path escapes the active vault".to_string());
             }
             _ => {}
         }
@@ -1011,7 +1078,11 @@ fn ensure_parent(path: &Path) -> Result<(), String> {
 fn relative_path(full: &Path, base: &Path) -> String {
     let rel = full.strip_prefix(base).unwrap_or(full).to_string_lossy();
     let out = rel.replace('\\', "/");
-    if out.is_empty() { "/".to_string() } else { out }
+    if out.is_empty() {
+        "/".to_string()
+    } else {
+        out
+    }
 }
 
 fn build_tree_recursive(dir: &Path, workspace: &Path, state: &AppState) -> Vec<FileNode> {
@@ -1040,10 +1111,14 @@ fn build_tree_recursive(dir: &Path, workspace: &Path, state: &AppState) -> Vec<F
         let full_path = entry.path();
         let rel = relative_path(&full_path, workspace);
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-        let modified_at = entry.metadata().ok().and_then(|m| m.modified().ok()).map(|t| {
-            let datetime: chrono::DateTime<chrono::Local> = t.into();
-            datetime.format("%Y-%m-%d %H:%M").to_string()
-        });
+        let modified_at = entry
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .map(|t| {
+                let datetime: chrono::DateTime<chrono::Local> = t.into();
+                datetime.format("%Y-%m-%d %H:%M").to_string()
+            });
 
         if is_dir {
             nodes.push(FileNode {
@@ -1077,8 +1152,14 @@ fn unique_child(parent: &Path, name: &str) -> PathBuf {
     if !candidate.exists() {
         return candidate;
     }
-    let stem = Path::new(name).file_stem().and_then(|s| s.to_str()).unwrap_or(name);
-    let ext = Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let stem = Path::new(name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(name);
+    let ext = Path::new(name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
     for i in 1..1000 {
         let next = if ext.is_empty() {
             format!("{}-{}", stem, i)
@@ -1105,8 +1186,13 @@ fn list_files(state: State<'_, WenmeiState>) -> Result<Vec<FileNode>, String> {
 fn read_file(path: String, state: State<'_, WenmeiState>) -> Result<FileContent, String> {
     let vault = active_vault(&state)?;
     let full_path = resolve_path(&vault, &path)?;
-    let content = fs::read_to_string(&full_path).map_err(|e| format!("Failed to read file: {}", e))?;
-    let name = full_path.file_name().and_then(|n| n.to_str()).unwrap_or("untitled").to_string();
+    let content =
+        fs::read_to_string(&full_path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let name = full_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("untitled")
+        .to_string();
 
     {
         let mut app_state = state.app_state.lock().unwrap();
@@ -1116,23 +1202,44 @@ fn read_file(path: String, state: State<'_, WenmeiState>) -> Result<FileContent,
         app_state.recent_files.truncate(10);
     }
     save_state(&state)?;
-    Ok(FileContent { path, content, name })
+    Ok(FileContent {
+        path,
+        content,
+        name,
+    })
 }
 
 #[tauri::command]
-fn write_file(path: String, content: String, app: AppHandle, state: State<'_, WenmeiState>) -> Result<(), String> {
+fn write_file(
+    path: String,
+    content: String,
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+) -> Result<(), String> {
     let vault = active_vault(&state)?;
     let full_path = resolve_path(&vault, &path)?;
     ensure_parent(&full_path)?;
     fs::write(&full_path, content).map_err(|e| format!("Failed to write file: {}", e))?;
     log_action(&state, format!("wrote {}", path));
-    let _ = append_journal_event(&state, "file.updated", "file-panel", Some(path.clone()), format!("Updated {}", path), serde_json::json!({}));
+    let _ = append_journal_event(
+        &state,
+        "file.updated",
+        "file-panel",
+        Some(path.clone()),
+        format!("Updated {}", path),
+        serde_json::json!({}),
+    );
     emit_files_changed(&app, "file.updated");
     save_state(&state)
 }
 
 #[tauri::command]
-fn create_file(parent_path: String, name: String, app: AppHandle, state: State<'_, WenmeiState>) -> Result<String, String> {
+fn create_file(
+    parent_path: String,
+    name: String,
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+) -> Result<String, String> {
     let vault = active_vault(&state)?;
     let parent = resolve_path(&vault, &parent_path)?;
     fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
@@ -1140,31 +1247,57 @@ fn create_file(parent_path: String, name: String, app: AppHandle, state: State<'
     fs::write(&full_path, "").map_err(|e| format!("Failed to create file: {}", e))?;
     let rel = relative_path(&full_path, &PathBuf::from(&vault.path));
     log_action(&state, format!("created {}", rel));
-    let _ = append_journal_event(&state, "file.created", "file-panel", Some(rel.clone()), format!("Created {}", rel), serde_json::json!({}));
+    let _ = append_journal_event(
+        &state,
+        "file.created",
+        "file-panel",
+        Some(rel.clone()),
+        format!("Created {}", rel),
+        serde_json::json!({}),
+    );
     emit_files_changed(&app, "file.created");
     save_state(&state)?;
     Ok(rel)
 }
 
 #[tauri::command]
-fn create_folder(parent_path: String, name: String, app: AppHandle, state: State<'_, WenmeiState>) -> Result<String, String> {
+fn create_folder(
+    parent_path: String,
+    name: String,
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+) -> Result<String, String> {
     let vault = active_vault(&state)?;
     let parent = resolve_path(&vault, &parent_path)?;
     let full_path = unique_child(&parent, &name);
     fs::create_dir_all(&full_path).map_err(|e| format!("Failed to create folder: {}", e))?;
     let rel = relative_path(&full_path, &PathBuf::from(&vault.path));
     log_action(&state, format!("created folder {}", rel));
-    let _ = append_journal_event(&state, "file.created", "file-panel", Some(rel.clone()), format!("Created folder {}", rel), serde_json::json!({"folder": true}));
+    let _ = append_journal_event(
+        &state,
+        "file.created",
+        "file-panel",
+        Some(rel.clone()),
+        format!("Created folder {}", rel),
+        serde_json::json!({"folder": true}),
+    );
     emit_files_changed(&app, "file.created");
     save_state(&state)?;
     Ok(rel)
 }
 
 #[tauri::command]
-fn rename_file(old_path: String, new_name: String, app: AppHandle, state: State<'_, WenmeiState>) -> Result<String, String> {
+fn rename_file(
+    old_path: String,
+    new_name: String,
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+) -> Result<String, String> {
     let vault = active_vault(&state)?;
     let old_full = resolve_path(&vault, &old_path)?;
-    let parent = old_full.parent().ok_or_else(|| "Invalid file path".to_string())?;
+    let parent = old_full
+        .parent()
+        .ok_or_else(|| "Invalid file path".to_string())?;
     let new_full = unique_child(parent, &new_name);
     fs::rename(&old_full, &new_full).map_err(|e| format!("Failed to rename: {}", e))?;
     let rel = relative_path(&new_full, &PathBuf::from(&vault.path));
@@ -1177,7 +1310,14 @@ fn rename_file(old_path: String, new_name: String, app: AppHandle, state: State<
         app_state.recent_files.retain(|p| p != &old_path);
     }
     log_action(&state, format!("renamed {} to {}", old_path, rel));
-    let _ = append_journal_event(&state, "file.renamed", "file-panel", Some(rel.clone()), format!("Renamed {} to {}", old_path, rel), serde_json::json!({"from": old_path}));
+    let _ = append_journal_event(
+        &state,
+        "file.renamed",
+        "file-panel",
+        Some(rel.clone()),
+        format!("Renamed {} to {}", old_path, rel),
+        serde_json::json!({"from": old_path}),
+    );
     emit_files_changed(&app, "file.renamed");
     save_state(&state)?;
     Ok(rel)
@@ -1203,7 +1343,10 @@ fn delete_file(path: String, app: AppHandle, state: State<'_, WenmeiState>) -> R
             .join(safe_meta_name(&vault.id))
     };
     fs::create_dir_all(&trash_dir).map_err(|e| e.to_string())?;
-    let name = full_path.file_name().and_then(|n| n.to_str()).unwrap_or("deleted");
+    let name = full_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("deleted");
     let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let target = unique_child(&trash_dir, &format!("{}-{}", ts, name));
     fs::rename(&full_path, &target).map_err(|e| format!("Failed to move to trash: {}", e))?;
@@ -1216,13 +1359,25 @@ fn delete_file(path: String, app: AppHandle, state: State<'_, WenmeiState>) -> R
         app_state.recent_files.retain(|p| p != &path);
     }
     log_action(&state, format!("moved {} to vault trash", path));
-    let _ = append_journal_event(&state, "file.deleted", "file-panel", Some(path.clone()), format!("Moved {} to vault trash", path), serde_json::json!({"trash": target.to_string_lossy()}));
+    let _ = append_journal_event(
+        &state,
+        "file.deleted",
+        "file-panel",
+        Some(path.clone()),
+        format!("Moved {} to vault trash", path),
+        serde_json::json!({"trash": target.to_string_lossy()}),
+    );
     emit_files_changed(&app, "file.deleted");
     save_state(&state)
 }
 
 #[tauri::command]
-fn move_file(source: String, target_folder: String, app: AppHandle, state: State<'_, WenmeiState>) -> Result<String, String> {
+fn move_file(
+    source: String,
+    target_folder: String,
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+) -> Result<String, String> {
     let vault = active_vault(&state)?;
     let source_full = resolve_path(&vault, &source)?;
     let target_dir = resolve_path(&vault, &target_folder)?;
@@ -1230,7 +1385,9 @@ fn move_file(source: String, target_folder: String, app: AppHandle, state: State
     if !source_full.exists() {
         return Err("Source does not exist".to_string());
     }
-    let source_parent = source_full.parent().ok_or_else(|| "Invalid source".to_string())?;
+    let source_parent = source_full
+        .parent()
+        .ok_or_else(|| "Invalid source".to_string())?;
     if source_parent == target_dir.as_path() {
         return Err("noop".to_string());
     }
@@ -1245,12 +1402,21 @@ fn move_file(source: String, target_folder: String, app: AppHandle, state: State
     }
 
     fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
-    let file_name = source_full.file_name().ok_or_else(|| "Invalid source".to_string())?;
+    let file_name = source_full
+        .file_name()
+        .ok_or_else(|| "Invalid source".to_string())?;
     let target_full = unique_child(&target_dir, &file_name.to_string_lossy());
     fs::rename(&source_full, &target_full).map_err(|e| format!("Failed to move: {}", e))?;
     let rel = relative_path(&target_full, &PathBuf::from(&vault.path));
     log_action(&state, format!("moved {} to {}", source, rel));
-    let _ = append_journal_event(&state, "file.moved", "file-panel", Some(rel.clone()), format!("Moved {} to {}", source, rel), serde_json::json!({"from": source}));
+    let _ = append_journal_event(
+        &state,
+        "file.moved",
+        "file-panel",
+        Some(rel.clone()),
+        format!("Moved {} to {}", source, rel),
+        serde_json::json!({"from": source}),
+    );
     emit_files_changed(&app, "file.moved");
     save_state(&state)?;
     Ok(rel)
@@ -1268,7 +1434,10 @@ fn toggle_pin(path: String, state: State<'_, WenmeiState>) -> Result<bool, Strin
             true
         }
     };
-    log_action(&state, format!("{} {}", if is_pinned { "pinned" } else { "unpinned" }, path));
+    log_action(
+        &state,
+        format!("{} {}", if is_pinned { "pinned" } else { "unpinned" }, path),
+    );
     save_state(&state)?;
     Ok(is_pinned)
 }
@@ -1284,13 +1453,19 @@ fn get_recent_files(state: State<'_, WenmeiState>) -> Result<Vec<String>, String
 }
 
 #[tauri::command]
-fn search_workspace(query: String, state: State<'_, WenmeiState>) -> Result<Vec<SearchResult>, String> {
+fn search_workspace(
+    query: String,
+    state: State<'_, WenmeiState>,
+) -> Result<Vec<SearchResult>, String> {
     let vault = active_vault(&state)?;
     search_vaults(query, vec![vault])
 }
 
 #[tauri::command]
-fn search_all_vaults(query: String, state: State<'_, WenmeiState>) -> Result<Vec<SearchResult>, String> {
+fn search_all_vaults(
+    query: String,
+    state: State<'_, WenmeiState>,
+) -> Result<Vec<SearchResult>, String> {
     let registry = load_registry(&state.registry_file);
     let authorized_roots: Vec<String> = registry
         .sandboxes
@@ -1355,7 +1530,13 @@ fn get_app_state(state: State<'_, WenmeiState>) -> Result<AppState, String> {
 fn save_app_state(new_state: AppState, state: State<'_, WenmeiState>) -> Result<(), String> {
     {
         let mut app_state = state.app_state.lock().unwrap();
-        *app_state = new_state;
+        let mut next_state = new_state;
+        if next_state.first_run_at.is_none() {
+            next_state.first_run_at = app_state.first_run_at.clone();
+        }
+        next_state.onboarding_completed =
+            app_state.onboarding_completed || next_state.onboarding_completed;
+        *app_state = next_state;
     }
     save_state(&state)
 }
@@ -1383,7 +1564,9 @@ pub struct CliStatus {
 /// Returns the resolved path and a short version probe if found.
 #[tauri::command]
 fn cli_integration_status() -> CliStatus {
-    let path = which::which("wenmei").ok().map(|p| p.to_string_lossy().to_string());
+    let path = which::which("wenmei")
+        .ok()
+        .map(|p| p.to_string_lossy().to_string());
     let version = path.as_ref().and_then(|p| {
         let output = std::process::Command::new(p)
             .arg("--version")
@@ -1391,9 +1574,17 @@ fn cli_integration_status() -> CliStatus {
             .ok()?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let text = if stdout.trim().is_empty() { stderr } else { stdout };
+        let text = if stdout.trim().is_empty() {
+            stderr
+        } else {
+            stdout
+        };
         let text = text.trim();
-        if text.is_empty() { None } else { Some(text.to_string()) }
+        if text.is_empty() {
+            None
+        } else {
+            Some(text.to_string())
+        }
     });
     CliStatus {
         installed: path.is_some(),
@@ -1482,11 +1673,183 @@ fn install_cli_integration(app: AppHandle) -> Result<String, String> {
         return Err("Finder service installer exited non-zero".into());
     }
 
-    let method = if used_sudo { "via admin dialog" } else { "directly" };
+    let method = if used_sudo {
+        "via admin dialog"
+    } else {
+        "directly"
+    };
     Ok(format!(
         "Installed wenmei CLI {} to /usr/local/bin and Finder service to ~/Library/Services",
         method
     ))
+}
+
+#[tauri::command]
+fn run_install_script(script_name: String, app: AppHandle) -> Result<String, String> {
+    let script = find_bundled_script(&app, &script_name)?;
+    let output = ProcessCommand::new("bash")
+        .arg(&script)
+        .output()
+        .map_err(|e| format!("failed to run {}: {}", script_name, e))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
+#[tauri::command]
+fn complete_onboarding(state: State<'_, WenmeiState>) -> Result<(), String> {
+    let mut app_state = state.app_state.lock().unwrap();
+    app_state.onboarding_completed = true;
+    drop(app_state);
+    save_state(&state)
+}
+
+#[derive(serde::Deserialize)]
+struct PtyCommand {
+    cmd: String,
+    label: String,
+}
+
+#[derive(serde::Serialize)]
+struct PtyResult {
+    failed: bool,
+}
+
+#[tauri::command]
+async fn pty_run_commands(
+    commands: Vec<PtyCommand>,
+    window: tauri::Window,
+    _app: tauri::AppHandle,
+) -> Result<PtyResult, String> {
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut cmd_builder = CommandBuilder::new("/bin/zsh");
+    let script = commands
+        .iter()
+        .map(|c| c.cmd.clone())
+        .collect::<Vec<_>>()
+        .join(" && ");
+    cmd_builder.arg("-c");
+    cmd_builder.arg(&script);
+
+    let mut child = pair
+        .slave
+        .spawn_command(cmd_builder)
+        .map_err(|e| e.to_string())?;
+    drop(pair.slave);
+
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let window_clone = window.clone();
+
+    thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let data = buf[..n].to_vec();
+                    if let Ok(text) = String::from_utf8(data.clone()) {
+                        let _ = window_clone.emit("pty-output", text);
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+    drop(writer);
+
+    Ok(PtyResult {
+        failed: !status.success(),
+    })
+}
+
+const WELCOME_MD: &str = include_str!("../templates/Welcome.md");
+
+#[derive(serde::Serialize)]
+struct EnsureDefaultVaultResult {
+    is_new: bool,
+    welcome_created: bool,
+    vault_path: String,
+    welcome_path: String,
+}
+
+#[tauri::command]
+fn ensure_default_vault(state: State<'_, WenmeiState>) -> Result<EnsureDefaultVaultResult, String> {
+    let docs =
+        dirs::document_dir().ok_or_else(|| "Could not find Documents directory".to_string())?;
+    let vault_path = docs.join("Wenmei");
+    let welcome_path = vault_path.join("Welcome.md");
+    let is_new = !vault_path.exists();
+    let welcome_created = !welcome_path.exists();
+    let vault_path_str = vault_path.to_string_lossy().to_string();
+
+    fs::create_dir_all(&vault_path).map_err(|e| e.to_string())?;
+
+    if welcome_created {
+        fs::write(&welcome_path, WELCOME_MD).map_err(|e| e.to_string())?;
+    }
+
+    init_vault_meta(&vault_path);
+
+    {
+        let mut app_state = state.app_state.lock().unwrap();
+        let vault_id = if let Some(existing) = app_state
+            .vaults
+            .iter()
+            .find(|vault| vault.path == vault_path_str)
+            .cloned()
+        {
+            existing.id
+        } else {
+            let id = if app_state.vaults.iter().any(|vault| vault.id == "default") {
+                format!("vault-{}", chrono::Local::now().timestamp_millis())
+            } else {
+                "default".to_string()
+            };
+            app_state.vaults.push(Vault {
+                id: id.clone(),
+                name: "Wenmei".to_string(),
+                path: vault_path_str.clone(),
+                is_active: false,
+            });
+            id
+        };
+
+        for vault in &mut app_state.vaults {
+            vault.is_active = vault.id == vault_id;
+        }
+        app_state.active_vault_id = vault_id.clone();
+        app_state.last_active_file = Some("/Welcome.md".to_string());
+        app_state.open_folders = vec!["/".to_string()];
+        app_state.open_mode = "vault".to_string();
+        app_state.metadata_mode = "local".to_string();
+        app_state.sandbox_auth_status = "promoted".to_string();
+        ensure_active_root_sandbox(&mut app_state, &vault_id);
+    }
+
+    save_state(&state)?;
+
+    Ok(EnsureDefaultVaultResult {
+        is_new,
+        welcome_created,
+        vault_path: vault_path.to_string_lossy().to_string(),
+        welcome_path: "/Welcome.md".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -1496,7 +1859,11 @@ fn set_workspace_path(new_path: String, state: State<'_, WenmeiState>) -> Result
     init_vault_meta(&path);
     let mut registry = load_registry(&state.registry_file);
     let id = format!("vault-{}", chrono::Local::now().timestamp_millis());
-    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("Vault").to_string();
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Vault")
+        .to_string();
     let sandbox = upsert_registry_sandbox(
         &mut registry,
         "vault",
@@ -1512,7 +1879,12 @@ fn set_workspace_path(new_path: String, state: State<'_, WenmeiState>) -> Result
         for vault in &mut app_state.vaults {
             vault.is_active = false;
         }
-        app_state.vaults.push(Vault { id: id.clone(), name, path: new_path, is_active: true });
+        app_state.vaults.push(Vault {
+            id: id.clone(),
+            name,
+            path: new_path,
+            is_active: true,
+        });
         app_state.active_vault_id = id.clone();
         app_state.last_active_file = None;
         app_state.open_folders = vec!["/".to_string()];
@@ -1550,7 +1922,11 @@ fn add_vault(path: String, state: State<'_, WenmeiState>) -> Result<Vault, Strin
     let id = format!("vault-{}", chrono::Local::now().timestamp_millis());
     let vault = Vault {
         id,
-        name: vault_path.file_name().and_then(|n| n.to_str()).unwrap_or("Vault").to_string(),
+        name: vault_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Vault")
+            .to_string(),
         path,
         is_active: false,
     };
@@ -1593,9 +1969,17 @@ fn set_active_vault(id: String, state: State<'_, WenmeiState>) -> Result<(), Str
             ensure_active_workspace(
                 &mut app_state,
                 &root,
-                if auth.metadata_mode == "local" { "vault" } else { "sandbox" },
+                if auth.metadata_mode == "local" {
+                    "vault"
+                } else {
+                    "sandbox"
+                },
                 &auth.metadata_mode,
-                if auth.metadata_mode == "local" { "promoted" } else { "authorized" },
+                if auth.metadata_mode == "local" {
+                    "promoted"
+                } else {
+                    "authorized"
+                },
                 &auth.kind,
                 Some(auth.id.clone()),
             );
@@ -1630,7 +2014,12 @@ fn list_sandboxes(state: State<'_, WenmeiState>) -> Result<Vec<Sandbox>, String>
 }
 
 #[tauri::command]
-fn create_sandbox(name: String, root_path: String, kind: String, state: State<'_, WenmeiState>) -> Result<Sandbox, String> {
+fn create_sandbox(
+    name: String,
+    root_path: String,
+    kind: String,
+    state: State<'_, WenmeiState>,
+) -> Result<Sandbox, String> {
     let vault = active_vault(&state)?;
     let full_root = resolve_path(&vault, &root_path)?;
     let mut registry = load_registry(&state.registry_file);
@@ -1650,9 +2039,16 @@ fn create_sandbox(name: String, root_path: String, kind: String, state: State<'_
         vault_id: vault.id,
         root_path,
         kind,
-        is_active: false,
+        is_active: true,
     };
-    state.app_state.lock().unwrap().sandboxes.push(sandbox.clone());
+    {
+        let mut app_state = state.app_state.lock().unwrap();
+        for existing in &mut app_state.sandboxes {
+            existing.is_active = false;
+        }
+        app_state.active_sandbox_id = Some(sandbox.id.clone());
+        app_state.sandboxes.push(sandbox.clone());
+    }
     log_action(&state, format!("created sandbox {}", sandbox.name));
     save_state(&state)?;
     Ok(sandbox)
@@ -1703,11 +2099,19 @@ fn authorize_active_workspace(
     let mut registry = load_registry(&state.registry_file);
     let sandbox = upsert_registry_sandbox(
         &mut registry,
-        if metadata_mode == "local" { "vault" } else { "sandbox" },
+        if metadata_mode == "local" {
+            "vault"
+        } else {
+            "sandbox"
+        },
         vec![root.clone()],
         Some(vault.name.clone()),
         &metadata_mode,
-        if metadata_mode == "local" { "promote" } else { "app" },
+        if metadata_mode == "local" {
+            "promote"
+        } else {
+            "app"
+        },
     )
     .ok_or_else(|| "Cannot authorize workspace without a root".to_string())?;
     save_registry_file(&state.registry_file, &registry)?;
@@ -1717,9 +2121,17 @@ fn authorize_active_workspace(
         ensure_active_workspace(
             &mut app_state,
             &root,
-            if metadata_mode == "local" { "vault" } else { "sandbox" },
+            if metadata_mode == "local" {
+                "vault"
+            } else {
+                "sandbox"
+            },
             &metadata_mode,
-            if metadata_mode == "local" { "promoted" } else { "authorized" },
+            if metadata_mode == "local" {
+                "promoted"
+            } else {
+                "authorized"
+            },
             &sandbox.kind,
             Some(sandbox.id.clone()),
         );
@@ -1798,20 +2210,45 @@ fn emit_pi_rpc_line(app: &AppHandle, line: &str) {
 }
 
 #[tauri::command]
-fn pi_panel_start(app: AppHandle, state: State<'_, WenmeiState>, thinking: Option<String>) -> Result<PiPanelStarted, String> {
-    if let Some(session) = state.pi_rpc.lock().unwrap().as_ref() {
-        return Ok(PiPanelStarted {
-            cwd: session.cwd.clone(),
-            session_dir: session.session_dir.clone(),
-            reused: true,
-            thinking: session.thinking.clone(),
-        });
-    }
-
+fn pi_panel_start(
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+    thinking: Option<String>,
+    force_restart: Option<bool>,
+) -> Result<PiPanelStarted, String> {
     let ctx = active_terminal_context(&state)?;
     let cwd = ctx.cwd.clone();
-    fs::create_dir_all(&cwd).map_err(|e| e.to_string())?;
+    let desired_cwd = cwd.to_string_lossy().to_string();
     let session_dir = panel_pi_session_dir(&ctx);
+    let desired_session_dir = session_dir.to_string_lossy().to_string();
+
+    {
+        let mut current = state.pi_rpc.lock().unwrap();
+        if let Some(session) = current.as_ref() {
+            if session.cwd == desired_cwd && session.session_dir == desired_session_dir {
+                return Ok(PiPanelStarted {
+                    cwd: session.cwd.clone(),
+                    session_dir: session.session_dir.clone(),
+                    reused: true,
+                    thinking: session.thinking.clone(),
+                });
+            }
+
+            if !force_restart.unwrap_or(false) {
+                return Err(context_switch_requires_reset(
+                    "Pi Panel",
+                    &session.cwd,
+                    &desired_cwd,
+                ));
+            }
+        }
+
+        if let Some(session) = current.take() {
+            let _ = session.child.lock().unwrap().kill();
+        }
+    }
+
+    fs::create_dir_all(&cwd).map_err(|e| e.to_string())?;
     fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
 
     let pi_executable = find_pi_executable()?;
@@ -1822,7 +2259,10 @@ fn pi_panel_start(app: AppHandle, state: State<'_, WenmeiState>, thinking: Optio
         session_dir.to_string_lossy().to_string(),
         "--continue".to_string(),
     ];
-    if let Some(level) = thinking.as_ref().filter(|s| !s.trim().is_empty() && *s != "global") {
+    if let Some(level) = thinking
+        .as_ref()
+        .filter(|s| !s.trim().is_empty() && *s != "global")
+    {
         args.push("--thinking".to_string());
         args.push(level.clone());
     }
@@ -1830,17 +2270,38 @@ fn pi_panel_start(app: AppHandle, state: State<'_, WenmeiState>, thinking: Optio
         .args(args)
         .current_dir(&cwd)
         .env("PATH", process_path())
-        .env("LANG", std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()))
-        .env("LC_CTYPE", std::env::var("LC_CTYPE").unwrap_or_else(|_| "UTF-8".to_string()))
+        .env(
+            "LANG",
+            std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()),
+        )
+        .env(
+            "LC_CTYPE",
+            std::env::var("LC_CTYPE").unwrap_or_else(|_| "UTF-8".to_string()),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Failed to start global Pi RPC at {}: {}", pi_executable.to_string_lossy(), e))?;
+        .map_err(|e| {
+            format!(
+                "Failed to start global Pi RPC at {}: {}",
+                pi_executable.to_string_lossy(),
+                e
+            )
+        })?;
 
-    let stdin = child.stdin.take().ok_or_else(|| "Pi RPC stdin unavailable".to_string())?;
-    let stdout = child.stdout.take().ok_or_else(|| "Pi RPC stdout unavailable".to_string())?;
-    let stderr = child.stderr.take().ok_or_else(|| "Pi RPC stderr unavailable".to_string())?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "Pi RPC stdin unavailable".to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Pi RPC stdout unavailable".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Pi RPC stderr unavailable".to_string())?;
 
     let child = Arc::new(Mutex::new(child));
     {
@@ -1848,8 +2309,8 @@ fn pi_panel_start(app: AppHandle, state: State<'_, WenmeiState>, thinking: Optio
         *current = Some(PiRpcSession {
             writer: Arc::new(Mutex::new(stdin)),
             child,
-            cwd: cwd.to_string_lossy().to_string(),
-            session_dir: session_dir.to_string_lossy().to_string(),
+            cwd: desired_cwd.clone(),
+            session_dir: desired_session_dir.clone(),
             thinking: thinking.clone().filter(|s| s != "global"),
         });
     }
@@ -1886,28 +2347,51 @@ fn pi_panel_start(app: AppHandle, state: State<'_, WenmeiState>, thinking: Optio
     thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line in reader.lines().map_while(Result::ok) {
-            let _ = app_stderr.emit("pi-rpc-event", PiRpcEvent {
-                event: serde_json::json!({"type":"stderr","message": line}),
-            });
+            let _ = app_stderr.emit(
+                "pi-rpc-event",
+                PiRpcEvent {
+                    event: serde_json::json!({"type":"stderr","message": line}),
+                },
+            );
         }
     });
 
-    log_action(&state, format!("started Pi Panel RPC at {} (session: {})", cwd.to_string_lossy(), session_dir.to_string_lossy()));
+    log_action(
+        &state,
+        format!(
+            "started Pi Panel RPC at {} (session: {})",
+            cwd.to_string_lossy(),
+            session_dir.to_string_lossy()
+        ),
+    );
     let _ = save_state(&state);
 
     Ok(PiPanelStarted {
-        cwd: cwd.to_string_lossy().to_string(),
-        session_dir: session_dir.to_string_lossy().to_string(),
+        cwd: desired_cwd,
+        session_dir: desired_session_dir,
         reused: false,
         thinking: thinking.filter(|s| s != "global"),
     })
 }
 
 #[tauri::command]
-fn pi_panel_prompt(state: State<'_, WenmeiState>, id: String, message: String) -> Result<(), String> {
-    let _ = append_journal_event(&state, "pi.prompt", "pi-panel", None, message.chars().take(120).collect(), serde_json::json!({"id": id}));
+fn pi_panel_prompt(
+    state: State<'_, WenmeiState>,
+    id: String,
+    message: String,
+) -> Result<(), String> {
+    let _ = append_journal_event(
+        &state,
+        "pi.prompt",
+        "pi-panel",
+        None,
+        message.chars().take(120).collect(),
+        serde_json::json!({"id": id}),
+    );
     let current = state.pi_rpc.lock().unwrap();
-    let session = current.as_ref().ok_or_else(|| "Pi Panel RPC is not running".to_string())?;
+    let session = current
+        .as_ref()
+        .ok_or_else(|| "Pi Panel RPC is not running".to_string())?;
     let payload = serde_json::json!({
         "id": id,
         "type": "prompt",
@@ -1915,23 +2399,33 @@ fn pi_panel_prompt(state: State<'_, WenmeiState>, id: String, message: String) -
         "streamingBehavior": "followUp"
     });
     let mut writer = session.writer.lock().unwrap();
-    writer.write_all(payload.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    writer
+        .write_all(payload.to_string().as_bytes())
+        .map_err(|e| e.to_string())?;
     writer.write_all(b"\n").map_err(|e| e.to_string())?;
     writer.flush().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn pi_panel_restart(app: AppHandle, state: State<'_, WenmeiState>, thinking: Option<String>) -> Result<PiPanelStarted, String> {
+fn pi_panel_restart(
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+    thinking: Option<String>,
+) -> Result<PiPanelStarted, String> {
     let _ = pi_panel_stop(state.clone());
-    pi_panel_start(app, state, thinking)
+    pi_panel_start(app, state, thinking, Some(true))
 }
 
 #[tauri::command]
 fn pi_panel_abort(state: State<'_, WenmeiState>) -> Result<(), String> {
     let current = state.pi_rpc.lock().unwrap();
-    let session = current.as_ref().ok_or_else(|| "Pi Panel RPC is not running".to_string())?;
+    let session = current
+        .as_ref()
+        .ok_or_else(|| "Pi Panel RPC is not running".to_string())?;
     let mut writer = session.writer.lock().unwrap();
-    writer.write_all(br#"{"type":"abort"}"#).map_err(|e| e.to_string())?;
+    writer
+        .write_all(br#"{"type":"abort"}"#)
+        .map_err(|e| e.to_string())?;
     writer.write_all(b"\n").map_err(|e| e.to_string())?;
     writer.flush().map_err(|e| e.to_string())
 }
@@ -1951,27 +2445,48 @@ fn terminal_start(
     state: State<'_, WenmeiState>,
     rows: u16,
     cols: u16,
+    force_restart: Option<bool>,
 ) -> Result<TerminalStarted, String> {
-    if let Some(session) = state.terminal.lock().unwrap().as_ref() {
-        let _ = session.master.lock().unwrap().resize(PtySize {
-            rows: rows.max(8),
-            cols: cols.max(20),
-            pixel_width: 0,
-            pixel_height: 0,
-        });
-        return Ok(TerminalStarted {
-            cwd: session.cwd.clone(),
-            log_file: session.log_file.clone(),
-            reused: true,
-            snapshot: session.backlog.lock().unwrap().clone(),
-        });
-    }
-
     let ctx = active_terminal_context(&state)?;
     let cwd = ctx.cwd.clone();
-    fs::create_dir_all(&cwd).map_err(|e| e.to_string())?;
     let log_file = terminal_log_file(&ctx);
+    let desired_cwd = cwd.to_string_lossy().to_string();
+    let desired_log_file = log_file.to_string_lossy().to_string();
     let pi_session_dir = terminal_pi_session_dir(&ctx);
+
+    {
+        let mut current = state.terminal.lock().unwrap();
+        if let Some(session) = current.as_ref() {
+            if session.cwd == desired_cwd && session.log_file == desired_log_file {
+                let _ = session.master.lock().unwrap().resize(PtySize {
+                    rows: rows.max(8),
+                    cols: cols.max(20),
+                    pixel_width: 0,
+                    pixel_height: 0,
+                });
+                return Ok(TerminalStarted {
+                    cwd: session.cwd.clone(),
+                    log_file: session.log_file.clone(),
+                    reused: true,
+                    snapshot: session.backlog.lock().unwrap().clone(),
+                });
+            }
+
+            if !force_restart.unwrap_or(false) {
+                return Err(context_switch_requires_reset(
+                    "Terminal",
+                    &session.cwd,
+                    &desired_cwd,
+                ));
+            }
+        }
+
+        if let Some(session) = current.take() {
+            let _ = session.child.lock().unwrap().kill();
+        }
+    }
+
+    fs::create_dir_all(&cwd).map_err(|e| e.to_string())?;
     if let Some(parent) = log_file.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -1996,8 +2511,14 @@ fn terminal_start(
     cmd.cwd(&cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-    cmd.env("LANG", std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()));
-    cmd.env("LC_CTYPE", std::env::var("LC_CTYPE").unwrap_or_else(|_| "UTF-8".to_string()));
+    cmd.env(
+        "LANG",
+        std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()),
+    );
+    cmd.env(
+        "LC_CTYPE",
+        std::env::var("LC_CTYPE").unwrap_or_else(|_| "UTF-8".to_string()),
+    );
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);
@@ -2007,8 +2528,6 @@ fn terminal_start(
     let master: Arc<Mutex<Box<dyn MasterPty + Send>>> = Arc::new(Mutex::new(pair.master));
     let child = Arc::new(Mutex::new(child));
     let backlog = Arc::new(Mutex::new(Vec::<u8>::new()));
-    let cwd_for_session = cwd.to_string_lossy().to_string();
-    let log_file_for_session = log_file.to_string_lossy().to_string();
 
     {
         let mut current = state.terminal.lock().unwrap();
@@ -2016,8 +2535,8 @@ fn terminal_start(
             writer: Arc::new(Mutex::new(writer)),
             child,
             master: master.clone(),
-            cwd: cwd_for_session.clone(),
-            log_file: log_file_for_session.clone(),
+            cwd: desired_cwd.clone(),
+            log_file: desired_log_file.clone(),
             backlog: backlog.clone(),
         });
     }
@@ -2044,7 +2563,8 @@ fn terminal_start(
                     let _ = app_for_read.emit(
                         "terminal-output",
                         TerminalOutput {
-                            data: format!("\r\n[Wenmei terminal read error: {}]\r\n", e).into_bytes(),
+                            data: format!("\r\n[Wenmei terminal read error: {}]\r\n", e)
+                                .into_bytes(),
                         },
                     );
                     break;
@@ -2053,15 +2573,28 @@ fn terminal_start(
         }
     });
 
-
-    log_action(&state, format!("opened embedded terminal at {} (log: {})", cwd.to_string_lossy(), log_file.to_string_lossy()));
-    let _ = append_journal_event(&state, "terminal.started", "terminal", None, format!("Terminal started at {}", cwd.to_string_lossy()), serde_json::json!({"log_file": log_file_for_session}));
+    log_action(
+        &state,
+        format!(
+            "opened embedded terminal at {} (log: {})",
+            cwd.to_string_lossy(),
+            log_file.to_string_lossy()
+        ),
+    );
+    let _ = append_journal_event(
+        &state,
+        "terminal.started",
+        "terminal",
+        None,
+        format!("Terminal started at {}", cwd.to_string_lossy()),
+        serde_json::json!({"log_file": desired_log_file.clone()}),
+    );
     emit_files_changed(&app, "terminal.started");
     let _ = save_state(&state);
 
     Ok(TerminalStarted {
-        cwd: cwd_for_session,
-        log_file: log_file_for_session,
+        cwd: desired_cwd,
+        log_file: desired_log_file,
         reused: false,
         snapshot: vec![],
     })
@@ -2070,16 +2603,22 @@ fn terminal_start(
 #[tauri::command]
 fn terminal_write(state: State<'_, WenmeiState>, data: String) -> Result<(), String> {
     let current = state.terminal.lock().unwrap();
-    let session = current.as_ref().ok_or_else(|| "Terminal is not running".to_string())?;
+    let session = current
+        .as_ref()
+        .ok_or_else(|| "Terminal is not running".to_string())?;
     let mut writer = session.writer.lock().unwrap();
-    writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+    writer
+        .write_all(data.as_bytes())
+        .map_err(|e| e.to_string())?;
     writer.flush().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn terminal_resize(state: State<'_, WenmeiState>, rows: u16, cols: u16) -> Result<(), String> {
     let current = state.terminal.lock().unwrap();
-    let session = current.as_ref().ok_or_else(|| "Terminal is not running".to_string())?;
+    let session = current
+        .as_ref()
+        .ok_or_else(|| "Terminal is not running".to_string())?;
     let master = session.master.lock().unwrap();
     master
         .resize(PtySize {
@@ -2120,7 +2659,12 @@ fn vault_file_signature(vault_path: &str) -> Vec<String> {
         }
         if entry.file_type().is_file() {
             if let Ok(meta) = entry.metadata() {
-                let modified = meta.modified().ok().and_then(|m| m.elapsed().ok()).map(|e| e.as_secs()).unwrap_or(0);
+                let modified = meta
+                    .modified()
+                    .ok()
+                    .and_then(|m| m.elapsed().ok())
+                    .map(|e| e.as_secs())
+                    .unwrap_or(0);
                 out.push(format!("{}:{}:{}", rel, meta.len(), modified));
             }
         }
@@ -2196,7 +2740,7 @@ fn reveal_in_folder(path: String, state: State<'_, WenmeiState>) -> Result<(), S
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(WenmeiState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -2250,7 +2794,97 @@ fn main() {
             terminal_stop,
             copy_file_path,
             reveal_in_folder,
+            run_install_script,
+            complete_onboarding,
+            pty_run_commands,
+            ensure_default_vault,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Opened { urls } = event {
+            for url in urls {
+                if let Ok(path) = url.to_file_path() {
+                    let path_str = path.to_string_lossy().to_string();
+
+                    let (emit_path, is_inside_vault) = if let Some(state) = app_handle.try_state::<WenmeiState>() {
+                        if let Ok(mut app_state) = state.app_state.lock() {
+                            // Check ALL vaults (not just active) for containment
+                            let found = app_state.vaults.iter().find_map(|vault| {
+                                let vault_path = PathBuf::from(&vault.path);
+                                path.strip_prefix(&vault_path).ok().map(|rel| (vault, rel))
+                            });
+
+                            if let Some((_vault, rel)) = found {
+                                // File is inside a vault — emit vault-relative path
+                                let rel_str = rel.to_string_lossy();
+                                (format!("/{}", rel_str), true)
+                            } else {
+                                // File is outside all vaults — add its parent as a new vault
+                                let parent = path.parent().unwrap_or(&path);
+                                let parent_str = parent.to_string_lossy().to_string();
+                                let vault_path_str = parent_str.clone();
+
+                                // Create vault record
+                                let id = format!("vault-{}", chrono::Local::now().timestamp_millis());
+                                let name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("Vault").to_string();
+
+                                let vault = Vault {
+                                    id: id.clone(),
+                                    name,
+                                    path: vault_path_str.clone(),
+                                    is_active: true,
+                                };
+
+                                // Deactivate all other vaults, activate this one
+                                for v in &mut app_state.vaults {
+                                    v.is_active = false;
+                                }
+                                app_state.vaults.push(vault.clone());
+                                app_state.active_vault_id = id.clone();
+
+                                // Ensure .wenmei meta dir exists
+                                let meta_root = PathBuf::from(&vault_path_str).join(".wenmei");
+                                let _ = fs::create_dir_all(meta_root.join("terminal").join("logs"));
+                                let _ = fs::create_dir_all(meta_root.join("pi-sessions").join("default-root").join("terminal"));
+                                let _ = fs::create_dir_all(meta_root.join("pi-sessions").join("default-root").join("panel"));
+                                let _ = fs::create_dir_all(meta_root.join("trash"));
+
+                                // Emit info event so frontend knows a new vault was auto-created
+                                let _ = app_handle.emit("app-error", serde_json::json!({
+                                    "code": "AUTO_VAULT_CREATED",
+                                    "component": "run_event",
+                                    "vault_path": vault_path_str,
+                                    "message": format!("Created vault from '{}' and opening file.", path.file_name().and_then(|n| n.to_str()).unwrap_or(&path_str)),
+                                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                                }));
+
+                                // Store vault-relative path so readFile can find it
+                                let rel_path = path.strip_prefix(parent).unwrap_or(&path);
+                                let rel_str = rel_path.to_string_lossy();
+                                (format!("/{}", rel_str), true)
+                            }
+                        } else {
+                            (path_str.clone(), false)
+                        }
+                    } else {
+                        (path_str.clone(), false)
+                    };
+
+                    // Only store the path if it's inside a vault
+                    if is_inside_vault {
+                        if let Some(state) = app_handle.try_state::<WenmeiState>() {
+                            if let Ok(mut initial_file) = state.initial_file.lock() {
+                                *initial_file = Some(emit_path.clone());
+                            }
+                        }
+                    }
+
+                    // Notify the frontend
+                    let _ = app_handle.emit("os-file-opened", emit_path);
+                }
+            }
+        }
+    });
 }

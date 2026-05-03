@@ -26,3 +26,8 @@ Build clean. Bundle: src-tauri/target/release/bundle/macos/Wenmei.app
    case: symlinks in the path could mismatch; not bullet-proofed yet.
   - Finder service won't appear immediately on some macOS versions — System Settings → Keyboard → Keyboard Shortcuts → Services →
   Files and Folders to enable it manually if needed.
+
+
+  Data Storage:
+  ~/Library/Application Support/Wenmei/state.json << Zustand state localStorage
+  ~/Library/Application Support/Wenmei/state.json/sandboxes.json << Sandbox record

@@ -1,6 +1,6 @@
 /* Markdown Preview Styles */
 .md-h1 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 38px;
   font-weight: 400;
   line-height: 1.2;
@@ -10,7 +10,7 @@
 }
 
 .md-h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 28px;
   font-weight: 400;
   line-height: 1.3;
@@ -22,7 +22,7 @@
 }
 
 .md-h3 {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 20px;
   font-weight: 600;
   line-height: 1.4;
@@ -33,7 +33,7 @@
 .md-h4,
 .md-h5,
 .md-h6 {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.4;
@@ -42,7 +42,7 @@
 }
 
 .md-p {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 16px;
   line-height: 1.7;
   margin: 0 0 16px 0;
@@ -74,14 +74,14 @@
 }
 
 .md-code {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--text-primary);
 }
 
 .inline-code {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   padding: 2px 6px;
   border-radius: 4px;
@@ -96,7 +96,7 @@
 }
 
 .md-li {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 16px;
   line-height: 1.7;
   margin: 6px 0;
@@ -148,4 +148,66 @@
 
 .prose-paper .md-blockquote p {
   font-size: 17px;
+}
+
+/* Images */
+.md-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 20px 0;
+  display: block;
+}
+
+/* Tables */
+.md-table-wrap {
+  overflow-x: auto;
+  margin: 20px 0;
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.md-th {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 600;
+  padding: 10px 14px;
+  border: 1px solid var(--surface-3);
+}
+
+.md-td {
+  padding: 8px 14px;
+  border: 1px solid var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.md-tbody .md-tr:nth-child(even) {
+  background: var(--surface-0);
+}
+
+/* Task list checkbox */
+.md-task {
+  margin-right: 6px;
+  width: 13px;
+  height: 13px;
+  accent-color: var(--accent-teal);
+  vertical-align: middle;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Paper mode overrides */
+.prose-paper .md-img {
+  border-radius: 12px;
+  margin: 28px 0;
+}
+
+.prose-paper .md-table {
+  font-size: 16px;
 }

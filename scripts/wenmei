@@ -76,6 +76,19 @@ open_wenmei() {
   if [ -z "$target" ]; then
     open -na "$app_target"
   else
+    # Default: use open -a so macOS routes the file through Apple Events
+    # (avoids multiple instances when the app is already running).
+    open -a "$app_target" "$target"
+  fi
+}
+
+open_wenmei_new_window() {
+  local target="${1:-}"
+  local app_target
+  app_target="$(resolve_app_target)"
+  if [ -z "$target" ]; then
+    open -na "$app_target"
+  else
     open -na "$app_target" --args "$target"
   fi
 }
@@ -92,11 +105,12 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
   exit 0
 fi
 
+new_window=0
 args=()
 for arg in "$@"; do
   case "$arg" in
     --new-window)
-      # Wenmei currently opens a fresh app instance/window for every CLI target.
+      new_window=1
       ;;
     *)
       args+=("$arg")
@@ -153,7 +167,11 @@ case "$command" in
   open)
     for raw in "$@"; do
       target="$(abs_existing "$raw")" || die "no such file or directory: $raw"
-      open_wenmei "$target"
+      if [ "$new_window" = "1" ]; then
+        open_wenmei_new_window "$target"
+      else
+        open_wenmei "$target"
+      fi
     done
     ;;
   create)

@@ -5,20 +5,20 @@
 @layer base {
   :root {
     /* Wenmei Light Theme */
-    --surface-0: #F6F4F2;
-    --surface-1: #FFFFFF;
-    --surface-2: #EAE7E3;
-    --surface-3: #D9D5CF;
+    --surface-0: #f6f4f2;
+    --surface-1: #ffffff;
+    --surface-2: #eae7e3;
+    --surface-3: #d9d5cf;
     --surface-glass: rgba(255, 255, 255, 0.65);
     --text-primary: #111111;
-    --text-secondary: #5C5C5C;
-    --text-tertiary: #9A9590;
+    --text-secondary: #5c5c5c;
+    --text-tertiary: #9a9590;
     --accent-teal: #008673;
-    --accent-rose: #C24A4A;
-    --syntax-keyword: #AF00DB;
-    --syntax-string: #A31515;
+    --accent-rose: #c24a4a;
+    --syntax-keyword: #af00db;
+    --syntax-string: #a31515;
     --syntax-comment: #008000;
-    --syntax-bg: #F5F5F5;
+    --syntax-bg: #f5f5f5;
 
     /* shadcn compatibility */
     --background: 30 8% 96%;
@@ -45,20 +45,20 @@
 
   .dark {
     /* Wenmei Dark Theme */
-    --surface-0: #0F0F0F;
+    --surface-0: #0f0f0f;
     --surface-1: #141414;
-    --surface-2: #1A1A1A;
-    --surface-3: #2A2A2A;
+    --surface-2: #1a1a1a;
+    --surface-3: #2a2a2a;
     --surface-glass: rgba(30, 30, 30, 0.75);
-    --text-primary: #F0F0F0;
-    --text-secondary: #A0A0A0;
-    --text-tertiary: #6E6E6E;
-    --accent-teal: #00D9B5;
-    --accent-rose: #FF6B6B;
-    --syntax-keyword: #C586C0;
-    --syntax-string: #CE9178;
-    --syntax-comment: #6A9955;
-    --syntax-bg: #1E1E1E;
+    --text-primary: #f0f0f0;
+    --text-secondary: #a0a0a0;
+    --text-tertiary: #6e6e6e;
+    --accent-teal: #00d9b5;
+    --accent-rose: #ff6b6b;
+    --syntax-keyword: #c586c0;
+    --syntax-string: #ce9178;
+    --syntax-comment: #6a9955;
+    --syntax-bg: #1e1e1e;
 
     /* shadcn compatibility */
     --background: 0 0% 6%;
@@ -88,7 +88,11 @@
     @apply border-border;
   }
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family:
+      "Inter",
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
     background: var(--surface-0);
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
@@ -102,13 +106,13 @@
 
 @layer components {
   .editor-font {
-    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   }
   .terminal-font {
-    font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+    font-family: "Geist Mono", "JetBrains Mono", monospace;
   }
   .display-font {
-    font-family: 'Playfair Display', 'Georgia', serif;
+    font-family: "Playfair Display", "Georgia", serif;
   }
 
   /* Custom scrollbar */
@@ -128,17 +132,38 @@
   }
 
   /* Syntax highlighting */
-  .syntax-keyword { color: var(--syntax-keyword); }
-  .syntax-string { color: var(--syntax-string); }
-  .syntax-comment { color: var(--syntax-comment); font-style: italic; }
-  .syntax-number { color: #098658; }
-  .syntax-function { color: #795E26; }
+  .syntax-keyword {
+    color: var(--syntax-keyword);
+  }
+  .syntax-string {
+    color: var(--syntax-string);
+  }
+  .syntax-comment {
+    color: var(--syntax-comment);
+    font-style: italic;
+  }
+  .syntax-number {
+    color: #098658;
+  }
+  .syntax-function {
+    color: #795e26;
+  }
 
-  .dark .syntax-keyword { color: #C586C0; }
-  .dark .syntax-string { color: #CE9178; }
-  .dark .syntax-comment { color: #6A9955; }
-  .dark .syntax-number { color: #B5CEA8; }
-  .dark .syntax-function { color: #DCDCAA; }
+  .dark .syntax-keyword {
+    color: #c586c0;
+  }
+  .dark .syntax-string {
+    color: #ce9178;
+  }
+  .dark .syntax-comment {
+    color: #6a9955;
+  }
+  .dark .syntax-number {
+    color: #b5cea8;
+  }
+  .dark .syntax-function {
+    color: #dcdcaa;
+  }
 }
 
 /* Paper mode animations */
@@ -187,20 +212,33 @@
 }
 
 @keyframes wenmei-text-glitch {
-  0%, 100% {
-    text-shadow: 3px 0 0 rgba(0, 217, 181, 0.7), -3px 0 0 rgba(194, 74, 74, 0.7), 0 0 0 transparent;
+  0%,
+  100% {
+    text-shadow:
+      3px 0 0 rgba(0, 217, 181, 0.7),
+      -3px 0 0 rgba(194, 74, 74, 0.7),
+      0 0 0 transparent;
     transform: skew(-1deg, -1deg);
   }
   25% {
-    text-shadow: -3px 0 0 rgba(0, 217, 181, 0.7), 3px 0 0 rgba(194, 74, 74, 0.7), 0 0 0 transparent;
+    text-shadow:
+      -3px 0 0 rgba(0, 217, 181, 0.7),
+      3px 0 0 rgba(194, 74, 74, 0.7),
+      0 0 0 transparent;
     transform: skew(1deg, 1deg);
   }
   50% {
-    text-shadow: 2px 0 0 rgba(0, 217, 181, 0.5), -2px 0 0 rgba(194, 74, 74, 0.5), 0 0 0 transparent;
+    text-shadow:
+      2px 0 0 rgba(0, 217, 181, 0.5),
+      -2px 0 0 rgba(194, 74, 74, 0.5),
+      0 0 0 transparent;
     transform: skew(-0.5deg, 0.5deg);
   }
   75% {
-    text-shadow: -2px 0 0 rgba(0, 217, 181, 0.5), 2px 0 0 rgba(194, 74, 74, 0.5), 0 0 0 transparent;
+    text-shadow:
+      -2px 0 0 rgba(0, 217, 181, 0.5),
+      2px 0 0 rgba(194, 74, 74, 0.5),
+      0 0 0 transparent;
     transform: skew(0.5deg, -0.5deg);
   }
 }
@@ -228,8 +266,13 @@
 
 /* Cursor blink for Pi terminal */
 @keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 .cursor-blink {

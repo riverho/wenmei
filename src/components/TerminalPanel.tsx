@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/lib/tauri-events";
+import { useAppStore } from "@/store/appStore";
 import {
   terminalResize,
   terminalStart,
@@ -14,10 +15,21 @@ interface TerminalOutputPayload {
   data: number[];
 }
 
+const CONTEXT_RESET_ERROR = "[ERR_CONTEXT_SWITCH_REQUIRES_RESET]";
+
+function resetMessage(error: unknown) {
+  return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
+}
+
 export default function TerminalPanel() {
+  const { activeVaultId, activeSandboxId } = useAppStore();
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const startRef = useRef<((forceRestart?: boolean) => Promise<void>) | null>(
+    null
+  );
+  const contextRef = useRef<TerminalStarted | null>(null);
   const [context, setContext] = useState<TerminalStarted | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +44,8 @@ export default function TerminalPanel() {
     const term = new Terminal({
       cursorBlink: true,
       allowProposedApi: false,
-      fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+      fontFamily:
+        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
       fontSize: 13,
       lineHeight: 1.35,
       scrollback: 5000,
@@ -68,8 +81,8 @@ export default function TerminalPanel() {
     termRef.current = term;
     fitRef.current = fit;
 
-    const writeDisposable = term.onData((data) => {
-      terminalWrite(data).catch((err) => {
+    const writeDisposable = term.onData(data => {
+      terminalWrite(data).catch(err => {
         term.writeln(`\r\n[Wenmei terminal write failed: ${String(err)}]`);
       });
     });
@@ -77,38 +90,62 @@ export default function TerminalPanel() {
     function resize() {
       if (!termRef.current || !fitRef.current) return;
       fitRef.current.fit();
-      terminalResize(termRef.current.rows, termRef.current.cols).catch(() => {});
+      terminalResize(termRef.current.rows, termRef.current.cols).catch(
+        () => {}
+      );
     }
 
-    async function start() {
+    async function start(forceRestart = false) {
       try {
-        unlistenOutput = await listen<TerminalOutputPayload>("terminal-output", (event) => {
-          term.write(new Uint8Array(event.payload.data));
-        });
-        unlistenExit = await listen("terminal-exit", () => {
-          term.writeln("\r\n[Wenmei terminal session ended]");
-        });
+        setError(null);
+        if (!unlistenOutput) {
+          unlistenOutput = await listen<TerminalOutputPayload>(
+            "terminal-output",
+            event => {
+              term.write(new Uint8Array(event.payload.data));
+            }
+          );
+        }
+        if (!unlistenExit) {
+          unlistenExit = await listen("terminal-exit", () => {
+            term.writeln("\r\n[Wenmei terminal session ended]");
+          });
+        }
 
-        const started = await terminalStart(term.rows, term.cols);
+        const started = await terminalStart(term.rows, term.cols, forceRestart);
         if (started.reused && started.snapshot.length > 0) {
           term.write(new Uint8Array(started.snapshot));
         }
+        contextRef.current = started;
         if (!disposed) setContext(started);
 
+        resizeObserver?.disconnect();
         resizeObserver = new ResizeObserver(resize);
         if (hostRef.current) resizeObserver.observe(hostRef.current);
         window.setTimeout(resize, 100);
       } catch (err) {
+        if (!forceRestart && String(err).includes(CONTEXT_RESET_ERROR)) {
+          const confirmed = window.confirm(
+            `${resetMessage(err)}\n\nReset the running terminal and start it in the focused sandbox?`
+          );
+          if (confirmed && !disposed) {
+            await start(true);
+            return;
+          }
+        }
         const message = String(err);
         if (!disposed) setError(message);
         term.writeln(`\r\n[Wenmei terminal failed: ${message}]`);
       }
     }
 
+    startRef.current = start;
     start();
 
     return () => {
       disposed = true;
+      startRef.current = null;
+      contextRef.current = null;
       writeDisposable.dispose();
       resizeObserver?.disconnect();
       unlistenOutput?.();
@@ -119,17 +156,38 @@ export default function TerminalPanel() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!contextRef.current) return;
+    startRef.current?.();
+  }, [activeVaultId, activeSandboxId]);
+
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: "#0a0d10" }}>
+    <div
+      className="flex flex-col h-full overflow-hidden"
+      style={{ background: "#0a0d10" }}
+    >
       <div
         className="flex items-center justify-between gap-3 px-4 py-2 border-b text-xs"
-        style={{ borderColor: "var(--surface-3)", color: "var(--text-tertiary)" }}
+        style={{
+          borderColor: "var(--surface-3)",
+          color: "var(--text-tertiary)",
+        }}
       >
         <div className="truncate">
-          <span style={{ color: "var(--accent-teal)" }}>Embedded Wenmei Terminal</span>
-          {context ? <span className="ml-2">{context.cwd}</span> : <span className="ml-2">starting…</span>}
+          <span style={{ color: "var(--accent-teal)" }}>
+            Embedded Wenmei Terminal
+          </span>
+          {context ? (
+            <span className="ml-2">{context.cwd}</span>
+          ) : (
+            <span className="ml-2">starting…</span>
+          )}
         </div>
-        {context && <div className="hidden lg:block truncate">log: {context.log_file}</div>}
+        {context && (
+          <div className="hidden lg:block truncate">
+            log: {context.log_file}
+          </div>
+        )}
         {error && <div style={{ color: "#f87171" }}>{error}</div>}
       </div>
       <div ref={hostRef} className="flex-1 min-h-0 p-2" />

@@ -57,16 +57,13 @@ export default function CenterPanel() {
     [isDragging]
   );
 
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      const el = e.currentTarget;
-      const total = el.scrollHeight - el.clientHeight;
-      if (total > 0) {
-        setProgress(Math.round((el.scrollTop / total) * 100));
-      }
-    },
-    []
-  );
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const total = el.scrollHeight - el.clientHeight;
+    if (total > 0) {
+      setProgress(Math.round((el.scrollTop / total) * 100));
+    }
+  }, []);
 
   const isPaper = mode === "paper";
 
@@ -122,7 +119,7 @@ export default function CenterPanel() {
           className="flex-1 overflow-y-auto wenmei-scroll py-16 px-8"
           onScroll={handleScroll}
         >
-          <div className="mx-auto" style={{ maxWidth: "680px" }}>
+          <div className="mx-auto" style={{ width: "70%", maxWidth: "70%" }}>
             <div
               className="prose-paper"
               dangerouslySetInnerHTML={{
@@ -157,7 +154,7 @@ export default function CenterPanel() {
       <textarea
         ref={textareaRef}
         value={activeFileContent}
-        onChange={(e) => setActiveFileContent(e.target.value)}
+        onChange={e => setActiveFileContent(e.target.value)}
         className="editor-textarea flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll"
         style={{
           background: "var(--surface-1)",
@@ -216,7 +213,7 @@ export default function CenterPanel() {
         </div>
         <textarea
           value={activeFileContent}
-          onChange={(e) => setActiveFileContent(e.target.value)}
+          onChange={e => setActiveFileContent(e.target.value)}
           className="flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll"
           style={{
             background: "var(--surface-1)",
@@ -235,9 +232,7 @@ export default function CenterPanel() {
         className="shrink-0 cursor-col-resize transition-colors duration-150 relative flex items-center justify-center"
         style={{
           width: isDragging ? "6px" : "4px",
-          background: isDragging
-            ? "var(--accent-teal)"
-            : "var(--surface-3)",
+          background: isDragging ? "var(--accent-teal)" : "var(--surface-3)",
         }}
         onMouseDown={() => setIsDragging(true)}
       >
@@ -246,9 +241,7 @@ export default function CenterPanel() {
           style={{
             width: isDragging ? "14px" : "10px",
             height: isDragging ? "14px" : "10px",
-            background: isDragging
-              ? "var(--accent-teal)"
-              : "var(--surface-3)",
+            background: isDragging ? "var(--accent-teal)" : "var(--surface-3)",
             transition: "all 0.15s",
           }}
         />

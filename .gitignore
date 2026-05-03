@@ -12,6 +12,9 @@ node_modules
 .pnp
 .pnp.js
 
+#Design
+app_design
+
 # Build outputs
 dist
 dist-ssr
@@ -45,6 +48,7 @@ db/migrations/*.sql
 # Test coverage
 coverage/
 .nyc_output/
+src/mocks
 
 # Tauri / Rust
 src-tauri/target/

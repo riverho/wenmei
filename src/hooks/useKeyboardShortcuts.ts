@@ -12,6 +12,7 @@ export function useKeyboardShortcuts() {
     setMobileMenuOpen,
     setMobilePiOpen,
     setPiInput,
+    openLightbox,
   } = useAppStore();
 
   useEffect(() => {
@@ -36,15 +37,21 @@ export function useKeyboardShortcuts() {
       if (meta && e.key === "2") {
         prevent();
         // Focus editor
-        const editor = document.querySelector(".editor-textarea") as HTMLElement;
+        const editor = document.querySelector(
+          ".editor-textarea"
+        ) as HTMLElement;
         editor?.focus();
         return;
       }
 
-      // Cmd/Ctrl + 3 — Focus/Toggle right panel
+      // Cmd/Ctrl + 3 — Focus/Toggle right panel + focus Pi input
       if (meta && e.key === "3") {
         prevent();
         togglePanel("right");
+        setTimeout(() => {
+          const piInput = document.querySelector(".pi-input") as HTMLElement;
+          piInput?.focus();
+        }, 100);
         return;
       }
 
@@ -90,7 +97,9 @@ export function useKeyboardShortcuts() {
       // Cmd/Ctrl + B — Search / Find
       if (meta && e.key.toLowerCase() === "b") {
         prevent();
-        const searchInput = document.querySelector(".file-search-input") as HTMLElement;
+        const searchInput = document.querySelector(
+          ".file-search-input"
+        ) as HTMLElement;
         searchInput?.focus();
         return;
       }
@@ -110,7 +119,9 @@ export function useKeyboardShortcuts() {
       if (meta && !shift && e.key.toLowerCase() === "n") {
         prevent();
         // Handled by FileTree component
-        const newFileBtn = document.querySelector(".new-file-btn") as HTMLElement;
+        const newFileBtn = document.querySelector(
+          ".new-file-btn"
+        ) as HTMLElement;
         newFileBtn?.click();
         return;
       }
@@ -118,7 +129,9 @@ export function useKeyboardShortcuts() {
       // Cmd/Ctrl + Shift + N — New folder
       if (meta && shift && e.key.toLowerCase() === "n") {
         prevent();
-        const newFolderBtn = document.querySelector(".new-folder-btn") as HTMLElement;
+        const newFolderBtn = document.querySelector(
+          ".new-folder-btn"
+        ) as HTMLElement;
         newFolderBtn?.click();
         return;
       }
@@ -126,7 +139,9 @@ export function useKeyboardShortcuts() {
       // Cmd/Ctrl + , — Toggle theme
       if (meta && e.key === ",") {
         prevent();
-        const themeBtn = document.querySelector(".theme-toggle-btn") as HTMLElement;
+        const themeBtn = document.querySelector(
+          ".theme-toggle-btn"
+        ) as HTMLElement;
         themeBtn?.click();
         return;
       }
@@ -148,6 +163,45 @@ export function useKeyboardShortcuts() {
         setMobilePiOpen(false);
       }
 
+      // Space — scroll one screen down (edit/preview/paper)
+      if (e.key === " " && !meta && !e.shiftKey && e.target === document.body) {
+        e.preventDefault();
+        const el = document.querySelector(".wenmei-scroll") as HTMLElement;
+        if (el) {
+          el.scrollBy({ top: el.clientHeight, behavior: "smooth" });
+        }
+        return;
+      }
+
+      // ArrowUp — scroll 10 rows up
+      if (e.key === "ArrowUp" && !meta && e.target === document.body) {
+        e.preventDefault();
+        const el = document.querySelector(".wenmei-scroll") as HTMLElement;
+        if (el) {
+          const lineHeight = 24;
+          el.scrollBy({ top: -lineHeight * 10, behavior: "smooth" });
+        }
+        return;
+      }
+
+      // ArrowDown — scroll 10 rows down
+      if (e.key === "ArrowDown" && !meta && e.target === document.body) {
+        e.preventDefault();
+        const el = document.querySelector(".wenmei-scroll") as HTMLElement;
+        if (el) {
+          const lineHeight = 24;
+          el.scrollBy({ top: lineHeight * 10, behavior: "smooth" });
+        }
+        return;
+      }
+
+      // Cmd/Ctrl + 9 — Re-open onboarding (debug)
+      if (meta && e.key === "9") {
+        prevent();
+        openLightbox("onboarding", "Welcome to Wenmei", "md");
+        return;
+      }
+
       // Cmd/Ctrl + Shift + F — Workspace search in Pi
       if (meta && shift && e.key.toLowerCase() === "f") {
         prevent();
@@ -163,5 +217,16 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, togglePanel, setMode, enterPaperMode, exitPaperMode, cycleMode, setMobileMenuOpen, setMobilePiOpen, setPiInput]);
+  }, [
+    mode,
+    togglePanel,
+    setMode,
+    enterPaperMode,
+    exitPaperMode,
+    cycleMode,
+    setMobileMenuOpen,
+    setMobilePiOpen,
+    setPiInput,
+    openLightbox,
+  ]);
 }

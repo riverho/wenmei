@@ -6,7 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/lib/tauri-events";
 import { useAppStore } from "@/store/appStore";
 import {
   createFile,
@@ -49,6 +49,7 @@ const SLASH_COMMANDS = [
   { cmd: "/outline", desc: "Extract heading structure", icon: List },
   { cmd: "/actions", desc: "Extract todo items", icon: Check },
   { cmd: "/find", desc: "Search workspace", icon: Search },
+  { cmd: "/write", desc: "Write new file from prompt", icon: Sparkles },
   { cmd: "/generate", desc: "Create from prompt", icon: Sparkles },
   { cmd: "/explain", desc: "Describe structure", icon: FileText },
   { cmd: "/delete", desc: "Move current file to vault trash", icon: Trash2 },
@@ -63,6 +64,12 @@ const SLASH_COMMANDS = [
   { cmd: "/journal", desc: "Show sandbox journal", icon: Clock },
   { cmd: "/thinking", desc: "Set thinking level", icon: Sparkles },
 ];
+
+const CONTEXT_RESET_ERROR = "[ERR_CONTEXT_SWITCH_REQUIRES_RESET]";
+
+function resetMessage(error: unknown) {
+  return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
+}
 
 function message(
   type: PiMessage["type"],
@@ -147,15 +154,15 @@ function expandPiSlashCommand(
     : "\n\nNo active file is selected.";
 
   if (/^\/summarize\b/i.test(trimmed))
-    return `Summarize the active document clearly and concisely.${fileContext}`;
+    return `${trimmed}\n\nSummarize the active document clearly and concisely.${fileContext}`;
   if (/^\/rewrite\b/i.test(trimmed))
-    return `Rewrite the active document for clarity. Do not modify files directly unless asked; return the proposed rewrite or patch.${fileContext}`;
+    return `${trimmed}\n\nRewrite the active document following the request above. You can read and write files as needed.${fileContext}`;
   if (/^\/outline\b/i.test(trimmed))
-    return `Extract and improve the outline of the active document.${fileContext}`;
+    return `${trimmed}\n\nExtract and improve the outline of the active document.${fileContext}`;
   if (/^\/actions\b/i.test(trimmed))
-    return `Extract concrete action items from the active document.${fileContext}`;
+    return `${trimmed}\n\nExtract concrete action items from the active document.${fileContext}`;
   if (/^\/explain\b/i.test(trimmed))
-    return `Explain the active document and its role in this vault.${fileContext}`;
+    return `${trimmed}\n\nExplain the active document and its role in this vault.${fileContext}`;
   return trimmed;
 }
 
@@ -167,6 +174,8 @@ export default function PiPanel() {
     activeFileContent,
     activeFilePath,
     fileTree,
+    activeVaultId,
+    activeSandboxId,
     setActiveFile,
     setActiveFileContent,
     setFileTree,
@@ -199,6 +208,23 @@ export default function PiPanel() {
   const [runDetails, setRunDetails] = useState<string[]>([]);
   const [activeStreamText, setActiveStreamText] = useState("");
   const activeAssistantIdRef = useRef<string | null>(null);
+
+  const startPiForFocusedSandbox = useCallback(
+    async (forceRestart = false) => {
+      try {
+        return await piPanelStart(thinkingLevel, forceRestart);
+      } catch (err) {
+        if (!forceRestart && String(err).includes(CONTEXT_RESET_ERROR)) {
+          const confirmed = window.confirm(
+            `${resetMessage(err)}\n\nReset the running Pi Panel session and start it in the focused sandbox?`
+          );
+          if (confirmed) return piPanelStart(thinkingLevel, true);
+        }
+        throw err;
+      }
+    },
+    [thinkingLevel]
+  );
 
   const files = useMemo(() => flattenFiles(fileTree), [fileTree]);
   const mentionMatches = useMemo(
@@ -287,9 +313,9 @@ export default function PiPanel() {
           `${all ? "Cross-vault" : "Active-vault"} search for "${term}":\n${renderResults(results)}`
         );
       }
-      if (lower.startsWith("/generate")) {
+      if (lower.startsWith("/write") || lower.startsWith("/generate")) {
         const prompt =
-          trimmed.replace(/^\/generate/i, "").trim() || "Untitled note";
+          trimmed.replace(/^\/(write|generate)/i, "").trim() || "Untitled note";
         const slug =
           prompt
             .toLowerCase()
@@ -352,7 +378,7 @@ export default function PiPanel() {
         setSandboxes(await listSandboxes());
         return message(
           "action",
-          `Created sandbox ${sandbox.name} at ${sandbox.root_path}. This is the VSCode-style workspace boundary harness: commands can target a folder sandbox without taking over the full vault.`
+          `Created and focused sandbox ${sandbox.name} at ${sandbox.root_path}. Terminal and Pi Panel will use this focused sandbox boundary.`
         );
       }
       if (lower.startsWith("/log")) {
@@ -405,7 +431,7 @@ export default function PiPanel() {
 
       return message(
         "chat",
-        `Available desktop commands:\n/format\n/summarize\n/rewrite\n/outline\n/actions\n/find <term> [--all]\n/generate <prompt>\n/explain\n/delete\n/vaults\n/sandboxes\n/sandbox <name>\n/log\n/journal\n/thinking <level>`
+        `Available desktop commands:\n/format\n/summarize\n/rewrite\n/outline\n/actions\n/find <term> [--all]\n/write <prompt>\n/generate <prompt>\n/explain\n/delete\n/vaults\n/sandboxes\n/sandbox <name>\n/log\n/journal\n/thinking <level>`
       );
     },
     [
@@ -481,6 +507,7 @@ export default function PiPanel() {
     setPiInput("");
     setShowCommands(false);
 
+    const mentionExpanded = await expandFileMentionsForPrompt(currentInput);
     const isSlash = currentInput.trim().startsWith("/");
     const goesToPi = !isSlash || isPiSlashCommand(currentInput);
 
@@ -507,10 +534,14 @@ export default function PiPanel() {
     setTypedResponses(prev => ({ ...prev, [assistantId]: "" }));
 
     try {
-      await piPanelStart();
+      await startPiForFocusedSandbox();
       const expanded = isPiSlashCommand(currentInput)
-        ? expandPiSlashCommand(currentInput, activeFilePath, activeFileContent)
-        : await expandFileMentionsForPrompt(currentInput);
+        ? expandPiSlashCommand(
+            mentionExpanded,
+            activeFilePath,
+            activeFileContent
+          )
+        : mentionExpanded;
       await appendJournal(
         "pi.prompt",
         "pi-panel",
@@ -540,6 +571,7 @@ export default function PiPanel() {
     activeFilePath,
     activeFileContent,
     expandFileMentionsForPrompt,
+    startPiForFocusedSandbox,
   ]);
 
   const openLinkedFile = useCallback(
@@ -622,12 +654,7 @@ export default function PiPanel() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-        return;
-      }
-
+      // Mention palette — intercept Enter/Tab before submit
       if (mentionOpen) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
@@ -639,12 +666,13 @@ export default function PiPanel() {
           setMentionIndex(i => Math.max(i - 1, 0));
           return;
         }
-        if (
-          (e.key === "Enter" || e.key === "Tab") &&
-          mentionMatches[mentionIndex]
-        ) {
+        if (e.key === "Enter" || e.key === "Tab") {
           e.preventDefault();
-          insertMention(mentionMatches[mentionIndex]);
+          if (mentionMatches[mentionIndex]) {
+            insertMention(mentionMatches[mentionIndex]);
+          } else {
+            setMentionOpen(false);
+          }
           return;
         }
         if (e.key === "Escape") {
@@ -653,7 +681,7 @@ export default function PiPanel() {
         }
       }
 
-      // Slash command navigation
+      // Slash command palette — intercept Enter before submit
       if (showCommands) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
@@ -665,12 +693,20 @@ export default function PiPanel() {
           setCommandIndex(i => Math.max(i - 1, -1));
           return;
         }
-        if (e.key === "Enter" && commandIndex >= 0) {
+        if (e.key === "Enter") {
           e.preventDefault();
-          const cmd = SLASH_COMMANDS[commandIndex];
-          setPiInput(cmd.cmd + " ");
-          setShowCommands(false);
-          setCommandIndex(-1);
+          if (commandIndex >= 0) {
+            const query = piInput.slice(1).toLowerCase();
+            const filtered = SLASH_COMMANDS.filter(
+              c => c.cmd.includes(query) || c.desc.toLowerCase().includes(query)
+            );
+            const cmd = filtered[commandIndex];
+            if (cmd) {
+              setPiInput(cmd.cmd + " ");
+              setShowCommands(false);
+              setCommandIndex(-1);
+            }
+          }
           return;
         }
         if (e.key === "Escape") {
@@ -678,6 +714,13 @@ export default function PiPanel() {
           setCommandIndex(-1);
           return;
         }
+      }
+
+      // Main Enter — submit
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+        return;
       }
 
       // Show command palette on /
@@ -730,7 +773,7 @@ export default function PiPanel() {
 
     async function startPi() {
       try {
-        const started = await piPanelStart(thinkingLevel);
+        const started = await startPiForFocusedSandbox();
         if (mounted)
           setPiStatus(
             `${started.reused ? "connected" : "started"} · thinking ${started.thinking ?? "global"}`
@@ -861,7 +904,7 @@ export default function PiPanel() {
     startPi();
 
     const handleWorkspaceAuthorized = () => {
-      piPanelStart(thinkingLevel)
+      startPiForFocusedSandbox()
         .then(started => {
           if (!mounted) return;
           setPiStatus(
@@ -896,8 +939,11 @@ export default function PiPanel() {
     setFileTree,
     setIsProcessing,
     typeResponse,
+    activeVaultId,
+    activeSandboxId,
     thinkingLevel,
     addRunDetail,
+    startPiForFocusedSandbox,
   ]);
 
   // Auto-scroll to bottom

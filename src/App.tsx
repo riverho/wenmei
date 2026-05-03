@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useEffect, type MouseEvent as ReactMouseEvent } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { listen, type UnlistenFn } from "@/lib/tauri-events";
 import { useAppStore } from "@/store/appStore";
 import {
   listFiles,
@@ -18,14 +18,13 @@ import Header from "./components/Header";
 import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
 import PiPanel from "./components/PiPanel";
-import {
-  MobileFileDrawer,
-  MobilePiSheet,
-} from "./components/MobileDrawers";
+import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
+import Lightbox from "./components/Lightbox";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import "./App.css";
 
 function AppContent() {
+  const [initialized, setInitialized] = useState(false);
   const {
     activeFilePath,
     setActiveFile,
@@ -39,6 +38,7 @@ function AppContent() {
     setActionLog,
     theme,
     mode,
+    openLightbox,
   } = useAppStore();
 
   // Keyboard shortcuts
@@ -59,13 +59,14 @@ function AppContent() {
         if (mounted) setFileTree(tree);
 
         // Load pinned/recent and desktop harness state
-        const [pinned, recent, vaults, sandboxes, actionLog] = await Promise.all([
-          getPinnedFiles(),
-          getRecentFiles(),
-          listVaults(),
-          listSandboxes(),
-          getActionLog(),
-        ]);
+        const [pinned, recent, vaults, sandboxes, actionLog] =
+          await Promise.all([
+            getPinnedFiles(),
+            getRecentFiles(),
+            listVaults(),
+            listSandboxes(),
+            getActionLog(),
+          ]);
         if (mounted) {
           setPinnedFiles(pinned);
           setRecentFiles(recent);
@@ -90,8 +91,14 @@ function AppContent() {
             if (mounted) setActiveFile(null, "", "");
           }
         }
+
+        if (mounted && !persisted.onboarding_completed) {
+          openLightbox("onboarding", "Welcome to Wenmei", "md");
+        }
       } catch (err) {
         console.error("Failed to init:", err);
+      } finally {
+        if (mounted) setInitialized(true);
       }
     }
 
@@ -104,23 +111,25 @@ function AppContent() {
 
   // Auto-save app state on changes
   useEffect(() => {
+    if (!initialized) return;
     const timer = setTimeout(() => {
       const state = getPersistedState();
       saveAppState(state).catch(() => {});
     }, 500);
     return () => clearTimeout(timer);
   }, [
-    useAppStore((s) => s.leftPanelOpen),
-    useAppStore((s) => s.rightPanelOpen),
-    useAppStore((s) => s.mode),
-    useAppStore((s) => s.theme),
-    useAppStore((s) => s.leftPanelWidth),
-    useAppStore((s) => s.rightPanelWidth),
-    useAppStore((s) => s.splitRatio),
-    useAppStore((s) => s.openFolders),
-    useAppStore((s) => s.pinnedFiles),
-    useAppStore((s) => s.recentFiles),
+    useAppStore(s => s.leftPanelOpen),
+    useAppStore(s => s.rightPanelOpen),
+    useAppStore(s => s.mode),
+    useAppStore(s => s.theme),
+    useAppStore(s => s.leftPanelWidth),
+    useAppStore(s => s.rightPanelWidth),
+    useAppStore(s => s.splitRatio),
+    useAppStore(s => s.openFolders),
+    useAppStore(s => s.pinnedFiles),
+    useAppStore(s => s.recentFiles),
     activeFilePath,
+    initialized,
   ]);
 
   // Apply theme class
@@ -139,7 +148,9 @@ function AppContent() {
   // Refresh file tree when switching back from paper mode
   useEffect(() => {
     if (mode !== "paper") {
-      listFiles().then((tree) => setFileTree(tree)).catch(() => {});
+      listFiles()
+        .then(tree => setFileTree(tree))
+        .catch(() => {});
     }
   }, [mode]);
 
@@ -147,12 +158,29 @@ function AppContent() {
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
     listen("sandbox-files-changed", () => {
-      listFiles().then((tree) => setFileTree(tree)).catch(() => {});
-    }).then((fn) => {
+      listFiles()
+        .then(tree => setFileTree(tree))
+        .catch(() => {});
+    }).then(fn => {
       unlisten = fn;
     });
     return () => unlisten?.();
   }, [setFileTree]);
+
+  // Handle OS-level file open events (Finder double-click, open -a, etc.)
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    listen<string>("os-file-opened", event => {
+      const path = event.payload;
+      if (!path) return;
+      readFile(path)
+        .then(file => setActiveFile(file.path, file.content, file.name))
+        .catch(err => console.warn(`Could not open OS file "${path}":`, err));
+    }).then(fn => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, [setActiveFile]);
 
   return (
     <div
@@ -177,6 +205,9 @@ function AppContent() {
       {/* Mobile Drawers */}
       <MobileFileDrawer />
       <MobilePiSheet />
+
+      {/* Lightbox (onboarding, settings, etc.) */}
+      <Lightbox />
     </div>
   );
 }
@@ -189,7 +220,10 @@ function LeftPanel() {
     const startX = e.clientX;
     const startWidth = leftPanelWidth;
     const onMove = (event: MouseEvent) => {
-      const next = Math.max(180, Math.min(520, startWidth + event.clientX - startX));
+      const next = Math.max(
+        180,
+        Math.min(520, startWidth + event.clientX - startX)
+      );
       setLeftPanelWidth(next);
     };
     const onUp = () => {
@@ -208,7 +242,9 @@ function LeftPanel() {
         opacity: leftPanelOpen ? 1 : 0,
       }}
     >
-      <div className="flex-1 min-w-0 overflow-hidden">{leftPanelOpen && <FileTree />}</div>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        {leftPanelOpen && <FileTree />}
+      </div>
       {leftPanelOpen && (
         <div
           onMouseDown={startResize}

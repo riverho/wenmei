@@ -55,7 +55,12 @@ interface FileTreeItemProps {
   onStartRename: (path: string, name: string) => void;
   onCancelRename: () => void;
   onSetRenameValue: (val: string) => void;
-  onContextMenu: (node: FileNode, rect: DOMRect) => void;
+  onContextMenu: (
+    node: FileNode,
+    rect: DOMRect,
+    mouseX?: number,
+    mouseY?: number
+  ) => void;
   onMoveClick: (node: FileNode) => void;
   searchSets: SearchSets | null;
 }
@@ -87,7 +92,8 @@ function FileTreeItem({
   const isSelected = node.path === selectedPath;
   const isOpen =
     node.node_type === "folder" &&
-    (openFolders.includes(node.path) || (searchSets?.expanded.has(node.path) ?? false));
+    (openFolders.includes(node.path) ||
+      (searchSets?.expanded.has(node.path) ?? false));
   const isEditing = isRenaming === node.path;
   const menuOpen = contextMenuPath === node.path;
 
@@ -98,7 +104,7 @@ function FileTreeItem({
     e.stopPropagation();
     if (!isSelected) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    onContextMenu(node, rect);
+    onContextMenu(node, rect, e.clientX, e.clientY);
   };
 
   return (
@@ -110,13 +116,13 @@ function FileTreeItem({
           background: isActive
             ? "rgba(0, 134, 115, 0.08)"
             : isSelected
-            ? "var(--surface-2)"
-            : "transparent",
+              ? "var(--surface-2)"
+              : "transparent",
           borderLeft: isActive
             ? "2px solid var(--accent-teal)"
             : isSelected
-            ? "2px solid var(--text-tertiary)"
-            : "2px solid transparent",
+              ? "2px solid var(--text-tertiary)"
+              : "2px solid transparent",
         }}
         onClick={() => {
           onSelect(node.path);
@@ -153,8 +159,8 @@ function FileTreeItem({
               borderColor: "var(--accent-teal)",
             }}
             value={renameValue}
-            onChange={(e) => onSetRenameValue(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => onSetRenameValue(e.target.value)}
+            onKeyDown={e => {
               if (e.key === "Enter") {
                 onRename(node.path, renameValue);
               } else if (e.key === "Escape") {
@@ -162,7 +168,7 @@ function FileTreeItem({
               }
             }}
             onBlur={() => onCancelRename()}
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           />
         ) : (
           <span
@@ -200,7 +206,7 @@ function FileTreeItem({
             background: "var(--surface-1)",
             border: "1px solid var(--surface-3)",
           }}
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
         >
           {node.node_type === "file" && (
             <button
@@ -283,7 +289,7 @@ function FileTreeItem({
         node.children &&
         node.children.length > 0 && (
           <div>
-            {node.children.map((child) => (
+            {node.children.map(child => (
               <FileTreeItem
                 key={child.id}
                 node={child}
@@ -339,8 +345,13 @@ export default function FileTree() {
   const [newFolderName, setNewFolderName] = useState("");
 
   const [contextMenuPath, setContextMenuPath] = useState<string | null>(null);
-  const [contextMenuPos, setContextMenuPos] = useState<{ left: number; top: number } | null>(null);
-  const [selectedPath, setSelectedPath] = useState<string | null>(activeFilePath);
+  const [contextMenuPos, setContextMenuPos] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    activeFilePath
+  );
 
   // Hydration sync: when activeFilePath arrives async (store restore), adopt it as the initial selection
   useEffect(() => {
@@ -374,9 +385,9 @@ export default function FileTree() {
       const tree = await listFiles();
       setFileTree(tree);
       const pinned = tree
-        .flatMap((n) => [n, ...(n.children || [])])
-        .filter((n) => n.is_pinned)
-        .map((n) => n.path);
+        .flatMap(n => [n, ...(n.children || [])])
+        .filter(n => n.is_pinned)
+        .map(n => n.path);
       setPinnedFiles(pinned);
     },
     [setFileTree, setPinnedFiles]
@@ -392,10 +403,12 @@ export default function FileTree() {
         await renameFile(path, newName);
         await refreshTree();
         const slash = path.lastIndexOf("/");
-        const newPath = slash >= 0 ? path.slice(0, slash + 1) + newName : newName;
-        setSelectedPath((prev) => {
+        const newPath =
+          slash >= 0 ? path.slice(0, slash + 1) + newName : newName;
+        setSelectedPath(prev => {
           if (prev === path) return newPath;
-          if (prev?.startsWith(path + "/")) return newPath + prev.slice(path.length);
+          if (prev?.startsWith(path + "/"))
+            return newPath + prev.slice(path.length);
           return prev;
         });
         cancelRename();
@@ -421,7 +434,7 @@ export default function FileTree() {
         if (activeFilePath === path) {
           setActiveFile(null, "", "");
         }
-        setSelectedPath((prev) =>
+        setSelectedPath(prev =>
           prev === path || prev?.startsWith(path + "/") ? null : prev
         );
       } catch (err) {
@@ -451,6 +464,10 @@ export default function FileTree() {
     }
     setNewFileParent(null);
     setNewFileName("");
+    setTimeout(() => {
+      const editor = document.querySelector(".editor-textarea") as HTMLElement;
+      editor?.focus();
+    }, 100);
   }, [newFileName, newFileParent, refreshTree, setActiveFile]);
 
   const handleCreateFolder = useCallback(async (parent: string) => {
@@ -502,9 +519,10 @@ export default function FileTree() {
             setActiveFile(null, "", "");
           }
         }
-        setSelectedPath((prev) => {
+        setSelectedPath(prev => {
           if (prev === source) return newPath;
-          if (prev?.startsWith(source + "/")) return newPath + prev.slice(source.length);
+          if (prev?.startsWith(source + "/"))
+            return newPath + prev.slice(source.length);
           return prev;
         });
       } catch (err) {
@@ -516,7 +534,7 @@ export default function FileTree() {
 
   // Global context menu handlers
   const handleContextMenu = useCallback(
-    (node: FileNode, rect: DOMRect) => {
+    (node: FileNode, rect: DOMRect, mouseX?: number, mouseY?: number) => {
       if (rect.width === 0 && rect.height === 0) {
         // sentinel: close menu
         setContextMenuPath(null);
@@ -525,13 +543,22 @@ export default function FileTree() {
       }
       const menuWidth = 180;
       const menuHeight = 220;
-      let left = rect.left;
-      let top = rect.bottom + 4;
+      // Use mouse position if available, otherwise fall back to item rect
+      let left = mouseX ?? rect.left;
+      let top = (mouseY ?? rect.bottom) + (mouseY === undefined ? 4 : 0);
+      // Keep within viewport horizontally
       if (left + menuWidth > window.innerWidth) {
         left = window.innerWidth - menuWidth - 8;
       }
+      if (left < 8) {
+        left = 8;
+      }
+      // Keep within viewport vertically
       if (top + menuHeight > window.innerHeight) {
-        top = rect.top - menuHeight - 4;
+        top = (mouseY ?? rect.top) - menuHeight - 4;
+      }
+      if (top < 8) {
+        top = 8;
       }
       setContextMenuPath(node.path);
       setContextMenuPos({ left, top });
@@ -618,11 +645,11 @@ export default function FileTree() {
   }, [fileTree]);
 
   const pinnedItems = useMemo(
-    () => allNodes.filter((n) => n.is_pinned),
+    () => allNodes.filter(n => n.is_pinned),
     [allNodes]
   );
   const recentItems = useMemo(
-    () => allNodes.filter((n) => n.is_recent),
+    () => allNodes.filter(n => n.is_recent),
     [allNodes]
   );
 
@@ -648,7 +675,7 @@ export default function FileTree() {
             type="text"
             placeholder="Search files... (Ctrl+B)"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={e => setSearchQuery(e.target.value)}
             className="file-search-input bg-transparent text-sm w-full outline-none"
             style={{ color: "var(--text-primary)" }}
           />
@@ -713,8 +740,8 @@ export default function FileTree() {
               border: "1px solid var(--accent-teal)",
             }}
             value={newFileName}
-            onChange={(e) => setNewFileName(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setNewFileName(e.target.value)}
+            onKeyDown={e => {
               if (e.key === "Enter") submitNewFile();
               else if (e.key === "Escape") {
                 setNewFileParent(null);
@@ -741,8 +768,8 @@ export default function FileTree() {
               border: "1px solid var(--accent-teal)",
             }}
             value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setNewFolderName(e.target.value)}
+            onKeyDown={e => {
               if (e.key === "Enter") submitNewFolder();
               else if (e.key === "Escape") {
                 setNewFolderParent(null);
@@ -766,7 +793,7 @@ export default function FileTree() {
             <Pin size={10} />
             Pinned
           </div>
-          {pinnedItems.map((item) => (
+          {pinnedItems.map(item => (
             <div
               key={item.id}
               className="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors"
@@ -815,7 +842,7 @@ export default function FileTree() {
           >
             Recent
           </div>
-          {recentItems.slice(0, 5).map((item) => (
+          {recentItems.slice(0, 5).map(item => (
             <div
               key={item.id}
               className="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors"
@@ -831,10 +858,7 @@ export default function FileTree() {
               }}
               onClick={() => handleSelectFile(item.path)}
             >
-              <FileText
-                size={11}
-                style={{ color: "var(--text-tertiary)" }}
-              />
+              <FileText size={11} style={{ color: "var(--text-tertiary)" }} />
               <span
                 className="text-sm truncate"
                 style={{
@@ -863,7 +887,7 @@ export default function FileTree() {
         >
           Files
         </div>
-        {fileTree.map((node) => (
+        {fileTree.map(node => (
           <FileTreeItem
             key={node.id}
             node={node}
@@ -896,7 +920,7 @@ export default function FileTree() {
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center"
           style={{ background: "rgba(0,0,0,0.4)" }}
-          onClick={(e) => {
+          onClick={e => {
             if (e.target === e.currentTarget) setMoveModalNode(null);
           }}
         >
@@ -907,8 +931,14 @@ export default function FileTree() {
               border: "1px solid var(--surface-3)",
             }}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--surface-3)" }}>
-              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b"
+              style={{ borderColor: "var(--surface-3)" }}
+            >
+              <h3
+                className="text-sm font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 Move "{moveModalNode.name}" to...
               </h3>
               <button
@@ -924,7 +954,10 @@ export default function FileTree() {
                 onClick={() => {
                   if (
                     isValidDropTarget(
-                      { path: moveModalNode.path, isFolder: moveModalNode.node_type === "folder" },
+                      {
+                        path: moveModalNode.path,
+                        isFolder: moveModalNode.node_type === "folder",
+                      },
                       "/"
                     )
                   ) {
@@ -934,7 +967,10 @@ export default function FileTree() {
                 }}
                 disabled={
                   !isValidDropTarget(
-                    { path: moveModalNode.path, isFolder: moveModalNode.node_type === "folder" },
+                    {
+                      path: moveModalNode.path,
+                      isFolder: moveModalNode.node_type === "folder",
+                    },
                     "/"
                   )
                 }
@@ -944,9 +980,12 @@ export default function FileTree() {
                 <Folder size={13} style={{ color: "var(--text-tertiary)" }} />
                 <span className="truncate">Root</span>
               </button>
-              {allFolders.map((folder) => {
+              {allFolders.map(folder => {
                 const valid = isValidDropTarget(
-                  { path: moveModalNode.path, isFolder: moveModalNode.node_type === "folder" },
+                  {
+                    path: moveModalNode.path,
+                    isFolder: moveModalNode.node_type === "folder",
+                  },
                   folder.path
                 );
                 return (
@@ -965,13 +1004,19 @@ export default function FileTree() {
                       paddingLeft: `${16 + folder.depth * 14}px`,
                     }}
                   >
-                    <Folder size={13} style={{ color: "var(--text-tertiary)" }} />
+                    <Folder
+                      size={13}
+                      style={{ color: "var(--text-tertiary)" }}
+                    />
                     <span className="truncate">{folder.name}</span>
                   </button>
                 );
               })}
             </div>
-            <div className="px-4 py-3 border-t flex justify-end" style={{ borderColor: "var(--surface-3)" }}>
+            <div
+              className="px-4 py-3 border-t flex justify-end"
+              style={{ borderColor: "var(--surface-3)" }}
+            >
               <button
                 onClick={() => setMoveModalNode(null)}
                 className="px-3 py-1.5 rounded text-xs font-medium"

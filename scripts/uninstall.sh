@@ -12,6 +12,10 @@
 #                   ~/Library/Application Support/com.wenmei.desktop
 #                   ~/Library/Caches/com.wenmei.desktop
 #                   ~/Library/Preferences/com.wenmei.desktop.plist
+#                   ~/Library/WebKit/com.wenmei.desktop
+#                   plus sandboxed WebKit/container variants if present
+#                   This clears the desktop app's localStorage, including
+#                   Zustand key `wenmei-store`.
 #   --yes / -y      Skip confirmation prompts
 #
 # This script never touches user vault contents or `.wenmei/` folders inside
@@ -47,19 +51,24 @@ declare -a actions=()
 CLI="/usr/local/bin/wenmei"
 SERVICE="$HOME/Library/Services/Open in New Wenmei Window.workflow"
 APP="/Applications/Wenmei.app"
+USER_APP="$HOME/Applications/Wenmei.app"
 STATE_PATHS=(
   "$HOME/Library/Application Support/Wenmei"
   "$HOME/Library/Application Support/com.wenmei.desktop"
   "$HOME/Library/Caches/com.wenmei.desktop"
   "$HOME/Library/Preferences/com.wenmei.desktop.plist"
   "$HOME/Library/WebKit/com.wenmei.desktop"
+  "$HOME/Library/HTTPStorages/com.wenmei.desktop"
+  "$HOME/Library/Cookies/com.wenmei.desktop.binarycookies"
   "$HOME/Library/Saved Application State/com.wenmei.desktop.savedState"
+  "$HOME/Library/Containers/com.wenmei.desktop"
 )
 
 [ -e "$CLI" ] && actions+=("remove $CLI (requires sudo)")
 [ -e "$SERVICE" ] && actions+=("remove $SERVICE")
-if [ "$REMOVE_APP" = "1" ] && [ -e "$APP" ]; then
-  actions+=("remove $APP")
+if [ "$REMOVE_APP" = "1" ]; then
+  [ -e "$APP" ] && actions+=("remove $APP")
+  [ -e "$USER_APP" ] && actions+=("remove $USER_APP")
 fi
 if [ "$PURGE_STATE" = "1" ]; then
   for p in "${STATE_PATHS[@]}"; do
@@ -73,10 +82,10 @@ if [ "${#actions[@]}" -eq 0 ]; then
   echo "Hints:"
   [ ! -e "$CLI" ] && echo "  - $CLI is already absent."
   [ ! -e "$SERVICE" ] && echo "  - Finder service already absent."
-  [ "$REMOVE_APP" = "0" ] && [ -e "$APP" ] && \
-    echo "  - $APP exists; pass --remove-app to delete it."
+  [ "$REMOVE_APP" = "0" ] && { [ -e "$APP" ] || [ -e "$USER_APP" ]; } && \
+    echo "  - App exists in Applications; pass --remove-app to delete it."
   [ "$PURGE_STATE" = "0" ] && \
-    echo "  - Pass --purge-state to also remove app config + caches."
+    echo "  - Pass --purge-state to also remove app config, caches, and desktop WebView localStorage/Zustand state."
   exit 0
 fi
 
@@ -109,12 +118,20 @@ if [ -e "$SERVICE" ]; then
 fi
 
 # Remove app
-if [ "$REMOVE_APP" = "1" ] && [ -e "$APP" ]; then
-  if [ -w "$(dirname "$APP")" ]; then
-    rm -rf "$APP" && echo "Removed $APP"
-  else
-    sudo rm -rf "$APP" && echo "Removed $APP"
+remove_app() {
+  local target="$1"
+  if [ -e "$target" ]; then
+    if [ -w "$(dirname "$target")" ]; then
+      rm -rf "$target" && echo "Removed $target"
+    else
+      sudo rm -rf "$target" && echo "Removed $target"
+    fi
   fi
+}
+
+if [ "$REMOVE_APP" = "1" ]; then
+  remove_app "$APP"
+  remove_app "$USER_APP"
 fi
 
 # Purge app-managed state
@@ -124,7 +141,13 @@ if [ "$PURGE_STATE" = "1" ]; then
       rm -rf "$p" && echo "Removed $p"
     fi
   done
+  echo "Purged desktop WebView storage; Zustand localStorage key 'wenmei-store' is cleared for the Tauri app."
 fi
 
 echo
 echo "Done."
+if [ "$PURGE_STATE" = "1" ]; then
+  echo
+  echo "Browser dev note: if you ran plain npm run dev in Chrome/Safari, clear that browser origin separately:"
+  echo "  localStorage.removeItem('wenmei-store'); localStorage.removeItem('wenmei-mock-app-state'); location.reload();"
+fi
