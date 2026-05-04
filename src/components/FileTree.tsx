@@ -352,13 +352,13 @@ export default function FileTree() {
   const [selectedPath, setSelectedPath] = useState<string | null>(
     activeFilePath
   );
-
-  // Hydration sync: when activeFilePath arrives async (store restore), adopt it as the initial selection
-  useEffect(() => {
-    if (activeFilePath && selectedPath === null) {
+  const [hydratedFor, setHydratedFor] = useState<string | null>(activeFilePath);
+  if (activeFilePath !== hydratedFor) {
+    setHydratedFor(activeFilePath);
+    if (selectedPath === null && activeFilePath !== null) {
       setSelectedPath(activeFilePath);
     }
-  }, [activeFilePath, selectedPath]);
+  }
 
   const [moveModalNode, setMoveModalNode] = useState<FileNode | null>(null);
 

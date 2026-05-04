@@ -20,6 +20,11 @@ export default function CenterPanel() {
     splitRatio,
   } = useAppStore();
 
+  const [paperZoom, setPaperZoom] = useState(() => {
+    const saved = localStorage.getItem("wenmei-paper-zoom");
+    return saved ? Math.max(50, Math.min(200, parseInt(saved, 10))) : 100;
+  });
+
   const isDarkMode =
     theme === "system"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -64,6 +69,35 @@ export default function CenterPanel() {
       setProgress(Math.round((el.scrollTop / total) * 100));
     }
   }, []);
+
+  // Paper mode zoom via Cmd+/-
+  useEffect(() => {
+    if (mode !== "paper") return;
+    const handler = (e: KeyboardEvent) => {
+      if (!e.metaKey) return;
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        setPaperZoom(z => {
+          const next = Math.min(200, z + 10);
+          localStorage.setItem("wenmei-paper-zoom", String(next));
+          return next;
+        });
+      } else if (e.key === "-") {
+        e.preventDefault();
+        setPaperZoom(z => {
+          const next = Math.max(50, z - 10);
+          localStorage.setItem("wenmei-paper-zoom", String(next));
+          return next;
+        });
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setPaperZoom(100);
+        localStorage.setItem("wenmei-paper-zoom", "100");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [mode]);
 
   const isPaper = mode === "paper";
 
@@ -114,6 +148,21 @@ export default function CenterPanel() {
           {getReadingTime(activeFileContent)}
         </div>
 
+        {/* Zoom indicator */}
+        {paperZoom !== 100 && (
+          <div
+            className="absolute bottom-6 right-6 text-[10px] px-2 py-1 rounded-full z-10 select-none"
+            style={{
+              background: "var(--surface-glass)",
+              backdropFilter: "blur(12px)",
+              color: "var(--text-tertiary)",
+              border: "1px solid var(--surface-3)",
+            }}
+          >
+            {paperZoom}%
+          </div>
+        )}
+
         {/* Document */}
         <div
           className="flex-1 overflow-y-auto wenmei-scroll py-16 px-8"
@@ -122,6 +171,7 @@ export default function CenterPanel() {
           <div className="mx-auto" style={{ width: "70%", maxWidth: "70%" }}>
             <div
               className="prose-paper"
+              style={{ fontSize: `${paperZoom}%` }}
               dangerouslySetInnerHTML={{
                 __html: renderMarkdownHTML(activeFileContent),
               }}

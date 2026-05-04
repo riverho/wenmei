@@ -1,13 +1,14 @@
-# Welcome to Wenmei
+# Welcome to Wenmei 文美🎋
 
 Your calm, folder-native thinking environment. Markdown files stay as plain files - no database, no proprietary format.
 
 ## Getting Started
-
-- **Add a vault** - Click the folder icon in the sidebar, or drag any folder onto the window
-- **Create notes** - Right-click a folder -> New file. Files are plain `.md`
-- **Search** - Press `Cmd+K` to search across all vaults
-- **AI thinking** - Open a Pi panel (`Cmd+P`) to think alongside an AI on your files
+- **Papaer Mode** - `Cmd-P` or click 📖 icon on top to view document 🍬
+- **Add a vault** - Click the `+` folder icon in the sidebar
+- **Create notes** - Click `New file` button  `Cmd+N`. Files are plain `.md`
+- **Search** - `Cmd-B` to shortlist in File Panel, or open Pi Panel and enter `/find` to search in vault
+- **AI thinking** - Open a Pi panel (`Cmd+3`) to think alongside an AI on your files
+- **Activate Pi Agent** - `Cmd+`` in terminal with vault folder
 
 ## How it Works
 
@@ -38,12 +39,12 @@ You usually do not need to edit these files directly. They are hidden from Wenme
 
 ## Quick Reference
 
-| Action        | Shortcut |
-| ------------- | -------- |
-| Search        | `Cmd+K`  |
-| New file      | `Cmd+N`  |
-| Pi panel      | `Cmd+P`  |
-| Toggle panels | `Cmd+\`  |
+| Action | Shortcut |
+|--------|----------|
+| Search | `Cmd+B` |
+| New file | `Cmd+N` |
+| Pi panel | `Cmd+P` |
+| Toggle panels | `Cmd+\` |
 
 ## Keyboard Navigation
 
@@ -60,4 +61,4 @@ You usually do not need to edit these files directly. They are hidden from Wenme
 
 ---
 
-_This file lives in `~/Documents/Wenmei/` by default. Move it anywhere - Wenmei will follow._
+*This file lives in `~/Documents/Wenmei/` by default. Move it anywhere - Wenmei will follow.*

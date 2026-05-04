@@ -26,6 +26,9 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 portable-pty = "0.9.0"
 which = "6"
+tracing = "0.1.40"
+tracing-appender = "0.2.3"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [features]
 default = ["custom-protocol"]

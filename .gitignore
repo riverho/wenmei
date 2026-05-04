@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.png
 
 # Dependencies
 node_modules
@@ -56,3 +57,9 @@ src-tauri/gen/schemas/
 
 # Local tool settings
 .claude/
+
+# Agent
+AGENTS.md
+
+# Docs
+docs

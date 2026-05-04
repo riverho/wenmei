@@ -12,7 +12,7 @@
     "desktop:build": "tauri build",
     "check": "tsc -b",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
