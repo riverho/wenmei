@@ -70,11 +70,11 @@ export default function CenterPanel() {
     }
   }, []);
 
-  // Paper mode zoom via Cmd+/-
+  // Paper mode zoom via Cmd/Ctrl +/-/0 (Cmd on macOS, Ctrl on Windows/Linux)
   useEffect(() => {
     if (mode !== "paper") return;
     const handler = (e: KeyboardEvent) => {
-      if (!e.metaKey) return;
+      if (!e.metaKey && !e.ctrlKey) return;
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
         setPaperZoom(z => {

@@ -13,10 +13,21 @@ use crate::state::{
     WenmeiState,
 };
 
+#[cfg(not(target_os = "windows"))]
 fn pi_user_bin() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".pi").join("agent").join("bin"))
 }
 
+#[cfg(target_os = "windows")]
+fn process_path() -> String {
+    // Windows: pass the host PATH through verbatim. The PATH separator is `;`
+    // so we cannot reuse the Unix splice/dedupe logic. Pi for Windows is
+    // expected to be on PATH (npm-installed pi.exe lives under
+    // %APPDATA%\npm\pi.cmd, which is on PATH by default).
+    std::env::var("PATH").unwrap_or_default()
+}
+
+#[cfg(not(target_os = "windows"))]
 fn process_path() -> String {
     let mut parts: Vec<String> = vec![
         "/usr/local/bin".to_string(),
@@ -45,28 +56,34 @@ fn find_pi_executable() -> Result<PathBuf, String> {
         }
     }
 
-    if let Ok(path) = std::env::var("PATH") {
-        for dir in path.split(':').filter(|p| !p.is_empty()) {
-            let candidate = PathBuf::from(dir).join("pi");
-            if candidate.exists() {
-                return Ok(candidate);
+    // Cross-platform PATH search via the `which` crate — handles Windows
+    // PATHEXT (.exe / .cmd) and the `;` separator automatically.
+    if let Ok(found) = which::which("pi") {
+        return Ok(found);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut candidates: Vec<PathBuf> = vec![
+            PathBuf::from("/usr/local/bin/pi"),
+            PathBuf::from("/opt/homebrew/bin/pi"),
+        ];
+        if let Some(user_bin) = pi_user_bin() {
+            candidates.push(user_bin.join("pi"));
+        }
+        for path in candidates {
+            if path.exists() {
+                return Ok(path);
             }
         }
     }
 
-    let mut candidates: Vec<PathBuf> = vec![
-        PathBuf::from("/usr/local/bin/pi"),
-        PathBuf::from("/opt/homebrew/bin/pi"),
-    ];
-    if let Some(user_bin) = pi_user_bin() {
-        candidates.push(user_bin.join("pi"));
-    }
-    for path in candidates {
-        if path.exists() {
-            return Ok(path);
-        }
+    #[cfg(target_os = "windows")]
+    {
+        return Err("Global Pi executable not found. Install Pi (npm install -g @mariozechner/pi-coding-agent) and ensure pi.cmd / pi.exe is on PATH.".to_string());
     }
 
+    #[cfg(not(target_os = "windows"))]
     Err("Global Pi executable not found. Expected /usr/local/bin/pi, /opt/homebrew/bin/pi, or ~/.pi/agent/bin/pi. Install/configure Pi globally first.".to_string())
 }
 

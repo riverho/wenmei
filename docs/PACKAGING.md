@@ -3,6 +3,9 @@
 This document covers the standard build → distribute → install procedure for
 the Wenmei desktop app on macOS.
 
+For the Windows build (GitHub Actions, MSI/NSIS) and release tagging
+conventions, see [`CI_CD.md`](./CI_CD.md).
+
 ## Distribution format
 
 Wenmei ships as a **DMG** (`Wenmei_<version>_<arch>.dmg`) containing the
@@ -141,7 +144,8 @@ Bumping the version is two edits:
 - `package.json` → `"version"`
 - `src-tauri/tauri.conf.json` → `"version"`
 
-Both must match. The DMG filename includes the version number.
+Both must match. The DMG filename includes the version number. The version
+bump must also match the release tag — see [`CI_CD.md`](./CI_CD.md#cutting-a-release).
 
 ## Single-instance behavior
 

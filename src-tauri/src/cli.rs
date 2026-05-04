@@ -59,6 +59,13 @@ fn find_bundled_script(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
 
 #[tauri::command]
 pub fn install_cli_integration(app: AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = app;
+        return Err("[ERR_PLATFORM_UNSUPPORTED] CLI integration installer is macOS-only. On Windows, ship a wenmei.cmd shim alongside the .exe and add its directory to PATH manually (or use the MSI installer's PATH option).".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
     let shim = find_bundled_script(&app, "wenmei")?;
     let finder = find_bundled_script(&app, "install-finder-service.sh")?;
 
@@ -123,10 +130,18 @@ pub fn install_cli_integration(app: AppHandle) -> Result<String, String> {
         "Installed wenmei CLI {} to /usr/local/bin and Finder service to ~/Library/Services",
         method
     ))
+    }
 }
 
 #[tauri::command]
 pub fn run_install_script(script_name: String, app: AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (script_name, app);
+        return Err("[ERR_PLATFORM_UNSUPPORTED] Install scripts are bash-based and not available on Windows.".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
     let script = find_bundled_script(&app, &script_name)?;
     let output = ProcessCommand::new("bash")
         .arg(&script)
@@ -136,5 +151,6 @@ pub fn run_install_script(script_name: String, app: AppHandle) -> Result<String,
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
         Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
     }
 }

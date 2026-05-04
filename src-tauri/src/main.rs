@@ -1,3 +1,9 @@
+// Several helpers are only reachable from the !windows branch (terminal/CLI
+// installer). Suppress unused-fn / unread-field lints on Windows builds so
+// the cross-platform compile stays warning-clean without sprinkling allow
+// attrs across each cfg-gated helper.
+#![cfg_attr(target_os = "windows", allow(unused))]
+
 mod logging;
 mod state;
 mod journal;
@@ -79,10 +85,20 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|app_handle, event| {
-        if let tauri::RunEvent::Opened { urls } = event {
-            for url in urls {
-                if let Ok(path) = url.to_file_path() {
+    app.run(|_app_handle, _event| {
+        #[cfg(target_os = "macos")]
+        handle_run_event(_app_handle, _event);
+    });
+}
+
+// macOS-only: Finder file-association arrives as RunEvent::Opened. Other
+// platforms deliver opened paths via CLI args (handled at startup) or via
+// tauri-plugin-single-instance (future work).
+#[cfg(target_os = "macos")]
+fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunEvent) {
+    if let tauri::RunEvent::Opened { urls } = event {
+        for url in urls {
+            if let Ok(path) = url.to_file_path() {
                     let path_str = path.to_string_lossy().to_string();
 
                     let mut needs_save = false;
@@ -183,9 +199,8 @@ fn main() {
                         }
                     }
 
-                    let _ = app_handle.emit("os-file-opened", emit_path);
-                }
+                let _ = app_handle.emit("os-file-opened", emit_path);
             }
         }
-    });
+    }
 }

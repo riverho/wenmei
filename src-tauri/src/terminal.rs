@@ -13,6 +13,7 @@ use crate::state::{
     terminal_pi_session_dir, TerminalSession, WenmeiState,
 };
 
+#[cfg(not(target_os = "windows"))]
 fn terminal_boot_script(cwd: &Path, log_file: &Path, pi_session_dir: &Path) -> String {
     format!(
         r#"SANDBOX_DIR={sandbox_dir}
@@ -105,57 +106,65 @@ pub async fn pty_run_commands(
     window: tauri::Window,
     _app: tauri::AppHandle,
 ) -> Result<PtyResult, String> {
-    let pty_system = native_pty_system();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (commands, window, _app);
+        return Err("[ERR_PLATFORM_UNSUPPORTED] One-shot PTY runner is not yet available on Windows. The macOS implementation invokes /bin/zsh -c <script>; needs a cmd.exe / pwsh equivalent before this can run.".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let pty_system = native_pty_system();
+        let pair = pty_system
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| e.to_string())?;
 
-    let mut cmd_builder = CommandBuilder::new("/bin/zsh");
-    let script = commands
-        .iter()
-        .map(|c| c.cmd.clone())
-        .collect::<Vec<_>>()
-        .join(" && ");
-    cmd_builder.arg("-c");
-    cmd_builder.arg(&script);
+        let mut cmd_builder = CommandBuilder::new("/bin/zsh");
+        let script = commands
+            .iter()
+            .map(|c| c.cmd.clone())
+            .collect::<Vec<_>>()
+            .join(" && ");
+        cmd_builder.arg("-c");
+        cmd_builder.arg(&script);
 
-    let mut child = pair
-        .slave
-        .spawn_command(cmd_builder)
-        .map_err(|e| e.to_string())?;
-    drop(pair.slave);
+        let mut child = pair
+            .slave
+            .spawn_command(cmd_builder)
+            .map_err(|e| e.to_string())?;
+        drop(pair.slave);
 
-    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-    let window_clone = window.clone();
+        let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+        let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+        let window_clone = window.clone();
 
-    thread::spawn(move || {
-        let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    let data = buf[..n].to_vec();
-                    if let Ok(text) = String::from_utf8(data.clone()) {
-                        let _ = window_clone.emit("pty-output", text);
+        thread::spawn(move || {
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let data = buf[..n].to_vec();
+                        if let Ok(text) = String::from_utf8(data.clone()) {
+                            let _ = window_clone.emit("pty-output", text);
+                        }
                     }
+                    Err(_) => break,
                 }
-                Err(_) => break,
             }
-        }
-    });
+        });
 
-    let status = child.wait().map_err(|e| e.to_string())?;
-    drop(writer);
+        let status = child.wait().map_err(|e| e.to_string())?;
+        drop(writer);
 
-    Ok(PtyResult {
-        failed: !status.success(),
-    })
+        Ok(PtyResult {
+            failed: !status.success(),
+        })
+    }
 }
 
 #[tauri::command]
@@ -166,6 +175,13 @@ pub fn terminal_start(
     cols: u16,
     force_restart: Option<bool>,
 ) -> Result<TerminalStarted, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (app, state, rows, cols, force_restart);
+        return Err("[ERR_PLATFORM_UNSUPPORTED] Embedded terminal is not yet available on Windows. The macOS bootstrap script (zsh + Pi launch) needs a cmd.exe / pwsh equivalent.".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
     let ctx = active_terminal_context(&state)?;
     let cwd = ctx.cwd.clone();
     let log_file = terminal_log_file(&ctx);
@@ -317,6 +333,7 @@ pub fn terminal_start(
         reused: false,
         snapshot: vec![],
     })
+    }
 }
 
 #[tauri::command]
