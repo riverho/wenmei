@@ -1,4 +1,4 @@
-# Wenmei🎋文美  — A markdown workspace with an AI that lives in your folder
+# Wenmei🎋文美 — A markdown workspace with an AI that lives in your folder
 
 Wenmei is a desktop thinking environment built on **local markdown**, **sandboxed folders**, and **Pi-AI Agent**.
 
@@ -25,7 +25,6 @@ Pi Panel = Liberty to organize thoughts, folders and researches
 Terminal Mode = The liberty of CLI terminal for more agentic workflow
 Wenmei = window + boundary + memory surface
 ```
-
 
 CLI entry points:
 
@@ -86,6 +85,7 @@ Wenmei sandbox owns:
   file boundary
   UI state
 ```
+
 Global Pi is the engine, not the authority.
 
 Hacker version aims to open source with MIT License.

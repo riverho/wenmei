@@ -1,81 +1,17 @@
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{native_pty_system, MasterPty, PtySize};
 use serde::Serialize;
 use std::fs;
 use std::io::{Read, Write};
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::journal::{append_journal_event, emit_files_changed};
+use crate::platform::Platform;
 use crate::state::{
-    active_terminal_context, log_action, save_state, shell_quote, terminal_log_file,
-    terminal_pi_session_dir, TerminalSession, WenmeiState,
+    active_terminal_context, log_action, save_state, terminal_log_file, terminal_pi_session_dir,
+    TerminalSession, WenmeiState,
 };
-
-#[cfg(not(target_os = "windows"))]
-fn terminal_boot_script(cwd: &Path, log_file: &Path, pi_session_dir: &Path) -> String {
-    format!(
-        r#"SANDBOX_DIR={sandbox_dir}
-LOG_FILE={log_file}
-log() {{
-  /bin/mkdir -p "$(/usr/bin/dirname "$LOG_FILE")" 2>/dev/null || true
-  /bin/echo "[$(/bin/date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE" 2>/dev/null || true
-}}
-clear
-echo 'Wenmei sandbox:'
-echo "$SANDBOX_DIR"
-echo ''
-log "embedded terminal opening cwd=$SANDBOX_DIR"
-if ! cd "$SANDBOX_DIR" 2>/tmp/wenmei-cd-error.$$; then
-  echo 'Wenmei cannot enter this sandbox folder.'
-  echo "Reason: $(cat /tmp/wenmei-cd-error.$$ 2>/dev/null)"
-  echo "Log: $LOG_FILE"
-  log "cd failed: $(cat /tmp/wenmei-cd-error.$$ 2>/dev/null)"
-  /bin/rm -f /tmp/wenmei-cd-error.$$ 2>/dev/null || true
-  exec ${{SHELL:-/bin/zsh}} -l
-fi
-/bin/rm -f /tmp/wenmei-cd-error.$$ 2>/dev/null || true
-if command -v pi >/dev/null 2>&1; then
-  PI_SESSION_DIR={pi_session_dir}
-  /bin/mkdir -p "$PI_SESSION_DIR" 2>/dev/null || true
-  PI_PREFLIGHT="/tmp/wenmei-pi-preflight.$$"
-  if ! pi --version >"$PI_PREFLIGHT" 2>&1; then
-    echo 'Wenmei blocked Pi before it crashed.'
-    echo ''
-    echo 'Global Pi cannot start in this sandbox cwd.'
-    echo 'Most likely cause: macOS privacy permission blocks Node/Pi from reading Documents/Desktop/Downloads.'
-    echo ''
-    echo 'Original error was saved to:'
-    echo "  $LOG_FILE"
-    echo ''
-    log 'blocked pi: pi --version failed in sandbox'
-    /bin/echo '--- pi preflight stderr ---' >> "$LOG_FILE" 2>/dev/null || true
-    /bin/cat "$PI_PREFLIGHT" >> "$LOG_FILE" 2>/dev/null || true
-    /bin/echo '--- end pi preflight stderr ---' >> "$LOG_FILE" 2>/dev/null || true
-    /bin/rm -f "$PI_PREFLIGHT" 2>/dev/null || true
-    exec ${{SHELL:-/bin/zsh}} -l
-  fi
-  pi_version="$(/bin/cat "$PI_PREFLIGHT" 2>/dev/null || echo unknown)"
-  /bin/rm -f "$PI_PREFLIGHT" 2>/dev/null || true
-  log "starting pi version=$pi_version session_dir=$PI_SESSION_DIR"
-  pi --session-dir "$PI_SESSION_DIR" --continue || pi --session-dir "$PI_SESSION_DIR"
-  code=$?
-  log "pi exited code=$code"
-else
-  echo 'Pi not found. Configure global Pi first:'
-  echo '  npm install -g @mariozechner/pi-coding-agent'
-  log 'pi not found'
-fi
-echo ''
-echo 'Exited Pi. Shell remains in Wenmei sandbox.'
-exec ${{SHELL:-/bin/zsh}} -l
-"#,
-        sandbox_dir = shell_quote(&cwd.to_string_lossy()),
-        log_file = shell_quote(&log_file.to_string_lossy()),
-        pi_session_dir = shell_quote(&pi_session_dir.to_string_lossy())
-    )
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TerminalOutput {
@@ -106,65 +42,51 @@ pub async fn pty_run_commands(
     window: tauri::Window,
     _app: tauri::AppHandle,
 ) -> Result<PtyResult, String> {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = (commands, window, _app);
-        return Err("[ERR_PLATFORM_UNSUPPORTED] One-shot PTY runner is not yet available on Windows. The macOS implementation invokes /bin/zsh -c <script>; needs a cmd.exe / pwsh equivalent before this can run.".to_string());
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let pty_system = native_pty_system();
-        let pair = pty_system
-            .openpty(PtySize {
-                rows: 24,
-                cols: 80,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|e| e.to_string())?;
-
-        let mut cmd_builder = CommandBuilder::new("/bin/zsh");
-        let script = commands
-            .iter()
-            .map(|c| c.cmd.clone())
-            .collect::<Vec<_>>()
-            .join(" && ");
-        cmd_builder.arg("-c");
-        cmd_builder.arg(&script);
-
-        let mut child = pair
-            .slave
-            .spawn_command(cmd_builder)
-            .map_err(|e| e.to_string())?;
-        drop(pair.slave);
-
-        let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-        let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-        let window_clone = window.clone();
-
-        thread::spawn(move || {
-            let mut buf = [0u8; 4096];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let data = buf[..n].to_vec();
-                        if let Ok(text) = String::from_utf8(data.clone()) {
-                            let _ = window_clone.emit("pty-output", text);
-                        }
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-
-        let status = child.wait().map_err(|e| e.to_string())?;
-        drop(writer);
-
-        Ok(PtyResult {
-            failed: !status.success(),
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
         })
-    }
+        .map_err(|e| e.to_string())?;
+
+    let script: Vec<String> = commands.iter().map(|c| c.cmd.clone()).collect();
+    let cmd_builder = crate::platform::Current::build_pty_command(&script);
+
+    let mut child = pair
+        .slave
+        .spawn_command(cmd_builder)
+        .map_err(|e| e.to_string())?;
+    drop(pair.slave);
+
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let window_clone = window.clone();
+
+    thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let data = buf[..n].to_vec();
+                    if let Ok(text) = String::from_utf8(data.clone()) {
+                        let _ = window_clone.emit("pty-output", text);
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+    drop(writer);
+
+    Ok(PtyResult {
+        failed: !status.success(),
+    })
 }
 
 #[tauri::command]
@@ -175,13 +97,6 @@ pub fn terminal_start(
     cols: u16,
     force_restart: Option<bool>,
 ) -> Result<TerminalStarted, String> {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = (app, state, rows, cols, force_restart);
-        return Err("[ERR_PLATFORM_UNSUPPORTED] Embedded terminal is not yet available on Windows. The macOS bootstrap script (zsh + Pi launch) needs a cmd.exe / pwsh equivalent.".to_string());
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
     let ctx = active_terminal_context(&state)?;
     let cwd = ctx.cwd.clone();
     let log_file = terminal_log_file(&ctx);
@@ -206,7 +121,6 @@ pub fn terminal_start(
                     snapshot: session.backlog.lock().unwrap().clone(),
                 });
             }
-
             if !force_restart.unwrap_or(false) {
                 return Err(crate::state::context_switch_requires_reset(
                     "Terminal",
@@ -215,7 +129,6 @@ pub fn terminal_start(
                 ));
             }
         }
-
         if let Some(session) = current.take() {
             let _ = session.child.lock().unwrap().kill();
         }
@@ -237,23 +150,11 @@ pub fn terminal_start(
         })
         .map_err(|e| e.to_string())?;
 
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    let boot_script = terminal_boot_script(&cwd, &log_file, &pi_session_dir);
-    let mut cmd = CommandBuilder::new(shell);
-    cmd.arg("-l");
-    cmd.arg("-c");
-    cmd.arg(boot_script);
+    let mut cmd =
+        crate::platform::Current::build_terminal_command(&cwd, &log_file, &pi_session_dir);
     cmd.cwd(&cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-    cmd.env(
-        "LANG",
-        std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()),
-    );
-    cmd.env(
-        "LC_CTYPE",
-        std::env::var("LC_CTYPE").unwrap_or_else(|_| "UTF-8".to_string()),
-    );
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);
@@ -333,7 +234,6 @@ pub fn terminal_start(
         reused: false,
         snapshot: vec![],
     })
-    }
 }
 
 #[tauri::command]

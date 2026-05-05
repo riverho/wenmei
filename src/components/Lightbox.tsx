@@ -24,7 +24,7 @@ import {
 
 const SIZE_CLASSES: Record<string, string> = {
   sm: "max-w-sm",
-  md: "max-w-[420px]",
+  md: "max-w-[460px]",
   lg: "max-w-xl",
   xl: "max-w-3xl",
   full: "max-w-[calc(100vw-32px)] h-[calc(100vh-32px)]",
@@ -32,7 +32,7 @@ const SIZE_CLASSES: Record<string, string> = {
 
 const SIZE_HEIGHTS: Record<string, string> = {
   sm: "max-h-[min(360px,90vh)]",
-  md: "max-h-[min(560px,92vh)]",
+  md: "max-h-[min(600px,92vh)]",
   lg: "max-h-[min(640px,90vh)]",
   xl: "max-h-[min(720px,90vh)]",
   full: "h-full",
@@ -368,38 +368,15 @@ function OnboardingContent() {
 
   return (
     <div className="p-8 space-y-4">
-      <div className="text-center space-y-1.5">
-        <div className="flex items-center justify-center gap-2">
-          <img
-            src="/logo-icon.png"
-            alt="Wenmei"
-            className="w-5 h-5 opacity-80"
-          />
-          <span
-            className="display-font text-base font-medium"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Wenmei
-          </span>
-        </div>
-        <h3
-          className="text-sm font-semibold"
-          style={{ color: "var(--text-primary)" }}
-        >
-          Welcome to Wenmei
-        </h3>
-        <p
-          className="text-[11px] leading-relaxed max-w-[260px] mx-auto"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          Your calm, folder-native thinking environment. Markdown files stay as
-          plain files — no database, no proprietary format.
-        </p>
-      </div>
+      <p
+        className="text-[11px] leading-relaxed text-center"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Your calm, folder-native thinking environment. Markdown files stay as
+        plain files — no database, no proprietary format.
+      </p>
 
-      <div className="h-px" style={{ background: "var(--surface-3)" }} />
-
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <CheckboxRow
           icon={Terminal}
           label="Install CLI"

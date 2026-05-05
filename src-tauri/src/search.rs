@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tauri::State;
 use walkdir::WalkDir;
 
-use crate::state::{relative_path, active_vault, SearchResult, Vault, WenmeiState, load_registry};
+use crate::state::{active_vault, load_registry, relative_path, SearchResult, Vault, WenmeiState};
 
 fn search_vaults(query: String, vaults: Vec<Vault>) -> Result<Vec<SearchResult>, String> {
     let needle = query.to_lowercase();

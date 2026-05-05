@@ -5,9 +5,9 @@ use tauri::State;
 
 use crate::file_ops::resolve_path;
 use crate::state::{
-    active_vault, active_vault_from_state, ensure_active_root_sandbox, load_registry,
-    save_registry_file, upsert_registry_sandbox, ensure_active_workspace, init_vault_meta,
-    save_state, log_action, AuthorizedSandbox, Sandbox, SandboxRegistry, Vault, WenmeiState,
+    active_vault, active_vault_from_state, ensure_active_root_sandbox, ensure_active_workspace,
+    init_vault_meta, load_registry, log_action, save_registry_file, save_state,
+    upsert_registry_sandbox, AuthorizedSandbox, Sandbox, SandboxRegistry, Vault, WenmeiState,
 };
 
 #[derive(Serialize)]
@@ -21,7 +21,9 @@ pub struct EnsureDefaultVaultResult {
 const WELCOME_MD: &str = include_str!("../templates/Welcome.md");
 
 #[tauri::command]
-pub fn ensure_default_vault(state: State<'_, WenmeiState>) -> Result<EnsureDefaultVaultResult, String> {
+pub fn ensure_default_vault(
+    state: State<'_, WenmeiState>,
+) -> Result<EnsureDefaultVaultResult, String> {
     let docs =
         dirs::document_dir().ok_or_else(|| "Could not find Documents directory".to_string())?;
     let vault_path = docs.join("Wenmei");
@@ -151,7 +153,8 @@ pub fn set_workspace_path(new_path: String, state: State<'_, WenmeiState>) -> Re
             });
         }
         for sandbox_state in &mut app_state.sandboxes {
-            sandbox_state.is_active = sandbox_state.id == sandbox.id && sandbox_state.vault_id == id;
+            sandbox_state.is_active =
+                sandbox_state.id == sandbox.id && sandbox_state.vault_id == id;
         }
         app_state.active_sandbox_id = Some(sandbox.id);
     }
@@ -400,7 +403,9 @@ pub fn authorize_active_workspace(
 }
 
 #[tauri::command]
-pub fn promote_active_workspace(state: State<'_, WenmeiState>) -> Result<AuthorizedSandbox, String> {
+pub fn promote_active_workspace(
+    state: State<'_, WenmeiState>,
+) -> Result<AuthorizedSandbox, String> {
     authorize_active_workspace(Some("local".to_string()), state)
 }
 

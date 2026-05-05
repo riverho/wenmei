@@ -1,3 +1,4 @@
+use crate::file_ops::resolve_path;
 use portable_pty::{Child as PtyChild, MasterPty};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -5,7 +6,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child as ProcessChild, ChildStdin};
 use std::sync::{Arc, Mutex};
-use crate::file_ops::resolve_path;
 use tauri::State;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -827,6 +827,7 @@ pub fn active_terminal_context(state: &State<'_, WenmeiState>) -> Result<Termina
     })
 }
 
+#[allow(dead_code)]
 pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }

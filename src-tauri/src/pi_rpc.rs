@@ -8,45 +8,11 @@ use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::journal::append_journal_event;
+use crate::platform::Platform;
 use crate::state::{
     active_terminal_context, log_action, panel_pi_session_dir, save_state, PiRpcSession,
     WenmeiState,
 };
-
-#[cfg(not(target_os = "windows"))]
-fn pi_user_bin() -> Option<PathBuf> {
-    dirs::home_dir().map(|home| home.join(".pi").join("agent").join("bin"))
-}
-
-#[cfg(target_os = "windows")]
-fn process_path() -> String {
-    // Windows: pass the host PATH through verbatim. The PATH separator is `;`
-    // so we cannot reuse the Unix splice/dedupe logic. Pi for Windows is
-    // expected to be on PATH (npm-installed pi.exe lives under
-    // %APPDATA%\npm\pi.cmd, which is on PATH by default).
-    std::env::var("PATH").unwrap_or_default()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn process_path() -> String {
-    let mut parts: Vec<String> = vec![
-        "/usr/local/bin".to_string(),
-        "/opt/homebrew/bin".to_string(),
-    ];
-    if let Some(user_bin) = pi_user_bin() {
-        parts.push(user_bin.to_string_lossy().to_string());
-    }
-    for fallback in ["/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
-        parts.push(fallback.to_string());
-    }
-    let current = std::env::var("PATH").unwrap_or_default();
-    for part in current.split(':').filter(|p| !p.is_empty()) {
-        if !parts.iter().any(|existing| existing == part) {
-            parts.push(part.to_string());
-        }
-    }
-    parts.join(":")
-}
 
 fn find_pi_executable() -> Result<PathBuf, String> {
     if let Ok(path) = std::env::var("WENMEI_PI_PATH") {
@@ -62,29 +28,13 @@ fn find_pi_executable() -> Result<PathBuf, String> {
         return Ok(found);
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let mut candidates: Vec<PathBuf> = vec![
-            PathBuf::from("/usr/local/bin/pi"),
-            PathBuf::from("/opt/homebrew/bin/pi"),
-        ];
-        if let Some(user_bin) = pi_user_bin() {
-            candidates.push(user_bin.join("pi"));
-        }
-        for path in candidates {
-            if path.exists() {
-                return Ok(path);
-            }
+    for path in crate::platform::Current::pi_fallback_paths() {
+        if path.exists() {
+            return Ok(path);
         }
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        return Err("Global Pi executable not found. Install Pi (npm install -g @mariozechner/pi-coding-agent) and ensure pi.cmd / pi.exe is on PATH.".to_string());
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    Err("Global Pi executable not found. Expected /usr/local/bin/pi, /opt/homebrew/bin/pi, or ~/.pi/agent/bin/pi. Install/configure Pi globally first.".to_string())
+    Err(crate::platform::Current::pi_not_found_error())
 }
 
 fn emit_pi_rpc_line(app: &AppHandle, line: &str) {
@@ -170,10 +120,10 @@ pub fn pi_panel_start(
         args.push("--thinking".to_string());
         args.push(level.clone());
     }
-    let mut child = ProcessCommand::new(&pi_executable)
-        .args(args)
+    let mut cmd = ProcessCommand::new(&pi_executable);
+    cmd.args(args)
         .current_dir(&cwd)
-        .env("PATH", process_path())
+        .env("PATH", crate::platform::Current::pi_process_path())
         .env(
             "LANG",
             std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()),
@@ -184,15 +134,17 @@ pub fn pi_panel_start(
         )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| {
-            format!(
-                "Failed to start global Pi RPC at {}: {}",
-                pi_executable.to_string_lossy(),
-                e
-            )
-        })?;
+        .stderr(Stdio::piped());
+    // Prevent cmd.exe / conhost from creating a visible console window when
+    // the Pi executable is a .cmd shim (Windows npm-installed binaries).
+    crate::platform::Current::pi_spawn_flags(&mut cmd);
+    let mut child = cmd.spawn().map_err(|e| {
+        format!(
+            "Failed to start global Pi RPC at {}: {}",
+            pi_executable.to_string_lossy(),
+            e
+        )
+    })?;
 
     let stdin = child
         .stdin

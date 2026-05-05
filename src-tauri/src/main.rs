@@ -1,25 +1,25 @@
-// Several helpers are only reachable from the !windows branch (terminal/CLI
-// installer). Suppress unused-fn / unread-field lints on Windows builds so
-// the cross-platform compile stays warning-clean without sprinkling allow
-// attrs across each cfg-gated helper.
-#![cfg_attr(target_os = "windows", allow(unused))]
+// Hide the console window in release builds on Windows. Debug builds keep it
+// for Tauri/Vite output. The explicit attribute is belt-and-suspenders
+// alongside the tauri_build linker flag.
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 
-mod logging;
-mod state;
-mod journal;
-mod file_ops;
-mod terminal;
-mod pi_rpc;
-mod vault;
-mod search;
-mod polling;
 mod cli;
+mod file_ops;
+mod journal;
+mod logging;
+mod pi_rpc;
+mod platform;
+mod polling;
+mod search;
+mod state;
+mod terminal;
+mod vault;
 
-use std::fs;
-use std::path::PathBuf;
-use tauri::{Emitter, Manager};
-
-use crate::state::{Vault, WenmeiState};
+use crate::platform::Platform;
+use crate::state::WenmeiState;
 
 fn main() {
     let app = tauri::Builder::default()
@@ -85,122 +85,7 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_app_handle, _event| {
-        #[cfg(target_os = "macos")]
-        handle_run_event(_app_handle, _event);
+    app.run(|app_handle, event| {
+        platform::Current::handle_run_event(app_handle, event);
     });
-}
-
-// macOS-only: Finder file-association arrives as RunEvent::Opened. Other
-// platforms deliver opened paths via CLI args (handled at startup) or via
-// tauri-plugin-single-instance (future work).
-#[cfg(target_os = "macos")]
-fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunEvent) {
-    if let tauri::RunEvent::Opened { urls } = event {
-        for url in urls {
-            if let Ok(path) = url.to_file_path() {
-                    let path_str = path.to_string_lossy().to_string();
-
-                    let mut needs_save = false;
-                    let (emit_path, is_inside_vault) = if let Some(state) =
-                        app_handle.try_state::<WenmeiState>()
-                    {
-                        if let Ok(mut app_state) = state.app_state.lock() {
-                            let found = app_state.vaults.iter().find_map(|vault| {
-                                let vault_path = PathBuf::from(&vault.path);
-                                path.strip_prefix(&vault_path).ok().map(|rel| (vault, rel))
-                            });
-
-                            if let Some((_vault, rel)) = found {
-                                let rel_str = rel.to_string_lossy();
-                                (format!("/{}", rel_str), true)
-                            } else {
-                                let parent = path.parent().unwrap_or(&path);
-                                let parent_str = parent.to_string_lossy().to_string();
-                                let vault_path_str = parent_str.clone();
-
-                                let id = format!(
-                                    "vault-{}",
-                                    chrono::Local::now().timestamp_millis()
-                                );
-                                let name = parent
-                                    .file_name()
-                                    .and_then(|n| n.to_str())
-                                    .unwrap_or("Vault")
-                                    .to_string();
-
-                                let vault = Vault {
-                                    id: id.clone(),
-                                    name,
-                                    path: vault_path_str.clone(),
-                                    is_active: true,
-                                };
-
-                                for v in &mut app_state.vaults {
-                                    v.is_active = false;
-                                }
-                                app_state.vaults.push(vault.clone());
-                                app_state.active_vault_id = id.clone();
-                                needs_save = true;
-
-                                let meta_root =
-                                    PathBuf::from(&vault_path_str).join(".wenmei");
-                                let _ = fs::create_dir_all(
-                                    meta_root.join("terminal").join("logs"),
-                                );
-                                let _ = fs::create_dir_all(
-                                    meta_root
-                                        .join("pi-sessions")
-                                        .join("default-root")
-                                        .join("terminal"),
-                                );
-                                let _ = fs::create_dir_all(
-                                    meta_root
-                                        .join("pi-sessions")
-                                        .join("default-root")
-                                        .join("panel"),
-                                );
-                                let _ = fs::create_dir_all(meta_root.join("trash"));
-
-                                let _ = app_handle.emit(
-                                    "app-error",
-                                    serde_json::json!({
-                                        "code": "AUTO_VAULT_CREATED",
-                                        "component": "run_event",
-                                        "vault_path": vault_path_str,
-                                        "message": format!("Created vault from '{}' and opening file.", path.file_name().and_then(|n| n.to_str()).unwrap_or(&path_str)),
-                                        "timestamp": chrono::Utc::now().to_rfc3339(),
-                                    }),
-                                );
-
-                                let rel_path =
-                                    path.strip_prefix(parent).unwrap_or(&path);
-                                let rel_str = rel_path.to_string_lossy();
-                                (format!("/{}", rel_str), true)
-                            }
-                        } else {
-                            (path_str.clone(), false)
-                        }
-                    } else {
-                        (path_str.clone(), false)
-                    };
-
-                    if is_inside_vault {
-                        if let Some(state) = app_handle.try_state::<WenmeiState>() {
-                            if let Ok(mut initial_file) = state.initial_file.lock() {
-                                *initial_file = Some(emit_path.clone());
-                            }
-                        }
-                    }
-
-                    if needs_save {
-                        if let Some(state) = app_handle.try_state::<WenmeiState>() {
-                            let _ = crate::state::save_state(&state);
-                        }
-                    }
-
-                let _ = app_handle.emit("os-file-opened", emit_path);
-            }
-        }
-    }
 }

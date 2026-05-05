@@ -3,6 +3,7 @@ use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, State};
 
 use crate::journal::{append_journal_event, emit_files_changed};
+use crate::platform::Platform;
 use crate::state::{
     active_vault, log_action, relative_path, save_state, AppState, FileContent, FileNode, Vault,
     WenmeiState,
@@ -158,8 +159,11 @@ pub fn list_files(state: State<'_, WenmeiState>) -> Result<Vec<FileNode>, String
 pub fn read_file(path: String, state: State<'_, WenmeiState>) -> Result<FileContent, String> {
     let vault = active_vault(&state)?;
     let full_path = resolve_path(&vault, &path)?;
-    let content =
-        fs::read_to_string(&full_path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let content = fs::read_to_string(&full_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?
+        // Normalize Windows CRLF to LF so the custom markdown parser
+        // doesn't leave stray \r characters on every line.
+        .replace("\r\n", "\n");
     let name = full_path
         .file_name()
         .and_then(|n| n.to_str())
@@ -296,7 +300,11 @@ pub fn rename_file(
 }
 
 #[tauri::command]
-pub fn delete_file(path: String, app: AppHandle, state: State<'_, WenmeiState>) -> Result<(), String> {
+pub fn delete_file(
+    path: String,
+    app: AppHandle,
+    state: State<'_, WenmeiState>,
+) -> Result<(), String> {
     let vault = active_vault(&state)?;
     let full_path = resolve_path(&vault, &path)?;
     if !full_path.exists() {
@@ -434,25 +442,5 @@ pub fn copy_file_path(path: String, state: State<'_, WenmeiState>) -> Result<Str
 pub fn reveal_in_folder(path: String, state: State<'_, WenmeiState>) -> Result<(), String> {
     let vault = active_vault(&state)?;
     let full = resolve_path(&vault, &path)?;
-    let _parent = full.parent().unwrap_or_else(|| Path::new(&vault.path));
-
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open")
-        .args(["-R", &full.to_string_lossy()])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-
-    #[cfg(target_os = "windows")]
-    std::process::Command::new("explorer")
-        .args(["/select,", &full.to_string_lossy()])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-
-    #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open")
-        .arg(&_parent.to_string_lossy().to_string())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    crate::platform::Current::reveal_in_folder(&full)
 }
