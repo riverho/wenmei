@@ -1,6 +1,6 @@
-# Wenmei🎋文美 — A markdown workspace with an AI that lives in your folder
+# Wenmei🎋文美 — A markdown editor with an AI that lives in your folder
 
-Wenmei is a desktop thinking environment built on **local markdown**, **sandboxed folders**, and **Pi-AI Agent**.
+Markdown is beautiful. We read, we write and now we can code too.   Wenmei transforms markdown editor into a desktop thinking environment built on **local markdown**, **sandboxed folders**, and **Pi-AI Agent**.
 
 Markdown files and local folders are the source of truth. Wenmei brings a calm editor, a sandbox-aware file tree, and a Pi/terminal surface into the same folder-native workspace.
 

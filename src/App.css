@@ -211,3 +211,16 @@
 .prose-paper .md-table {
   font-size: 16px;
 }
+
+/* Text selection — explicit WebKit support for macOS */
+.prose-paper,
+.prose-paper * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.select-text,
+.select-text * {
+  -webkit-user-select: text;
+  user-select: text;
+}
