@@ -260,6 +260,12 @@ export interface SandboxRegistry {
 
 // ─── File Operations ───
 
+export type PlatformName = "windows" | "macos" | "linux";
+
+export async function getPlatform(): Promise<PlatformName> {
+  return invoke("get_platform");
+}
+
 export async function listFiles(): Promise<FileNode[]> {
   return invoke("list_files");
 }

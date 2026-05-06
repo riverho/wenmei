@@ -13,6 +13,7 @@ import {
   listSandboxes,
   getActionLog,
   getInitialFile,
+  getPlatform,
 } from "@/lib/tauri-bridge";
 import Header from "./components/Header";
 import FileTree from "./components/FileTree";
@@ -39,6 +40,7 @@ function AppContent() {
     theme,
     mode,
     openLightbox,
+    setPlatform,
   } = useAppStore();
 
   // Keyboard shortcuts
@@ -50,6 +52,10 @@ function AppContent() {
 
     async function init() {
       try {
+        // Detect platform first — needed before onboarding renders
+        const platform = await getPlatform();
+        if (mounted) setPlatform(platform);
+
         // Load persisted UI state
         const persisted = await getAppState();
         if (mounted) applyPersistedState(persisted);
@@ -176,6 +182,23 @@ function AppContent() {
       readFile(path)
         .then(file => setActiveFile(file.path, file.content, file.name))
         .catch(err => console.warn(`Could not open OS file "${path}":`, err));
+    }).then(fn => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, [setActiveFile]);
+
+  // Handle single-instance file open (Windows/Linux double-click while running)
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    listen<string[]>("single-instance", event => {
+      const args = event.payload;
+      // args[0] is the executable; file paths start at args[1]
+      const path = args.find(arg => arg.endsWith(".md") || arg.endsWith(".markdown") || arg.endsWith(".mdown") || arg.endsWith(".mkd"));
+      if (!path) return;
+      readFile(path)
+        .then(file => setActiveFile(file.path, file.content, file.name))
+        .catch(err => console.warn(`Could not open single-instance file "${path}":`, err));
     }).then(fn => {
       unlisten = fn;
     });

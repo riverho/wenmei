@@ -289,6 +289,7 @@ function OnboardingContent() {
     setOnboardingCompleted,
     setActiveFile,
     setVaults,
+    platform,
   } = useAppStore();
   const [page, setPage] = useState<OnboardPage>(1);
   const [selected, setSelected] = useState({
@@ -296,6 +297,7 @@ function OnboardingContent() {
     finder: true,
     quicklook: false,
   });
+  const isMac = platform === "macos";
 
   const isInstalling = Object.values(installResults).some(
     s => s === "installing"
@@ -307,6 +309,23 @@ function OnboardingContent() {
   const anyError = Object.values(installResults).some(s => s === "error");
 
   async function handlePage1Install() {
+    // Non-macOS: use the native CLI integration command
+    if (!isMac) {
+      if (selected.cli) {
+        setInstallResult("cli", "installing");
+        try {
+          await installCliIntegration();
+          setInstallResult("cli", "done");
+        } catch (err) {
+          console.error("CLI install failed:", err);
+          setInstallResult("cli", "error");
+        }
+      }
+      await finishOnboarding();
+      return;
+    }
+
+    // macOS: run shell scripts
     const scripts: { key: OptKey; script: string; name: string }[] = [
       { key: "cli", script: "install-cli.sh", name: "CLI" },
       {
@@ -337,7 +356,7 @@ function OnboardingContent() {
       (selected.finder && finalResults.finder === "error");
 
     if (!page1Failed) {
-      if (selected.quicklook || selected.quicklook) {
+      if (selected.quicklook) {
         setPage(2);
       } else {
         await finishOnboarding();
@@ -380,30 +399,40 @@ function OnboardingContent() {
         <CheckboxRow
           icon={Terminal}
           label="Install CLI"
-          desc="wenmei command for terminal integration"
+          desc={
+            isMac
+              ? "wenmei command for terminal integration"
+              : platform === "windows"
+                ? "wenmei.cmd in app directory (add to PATH)"
+                : "wenmei command for terminal integration"
+          }
           checked={selected.cli}
           status={installResults.cli}
           onChange={c => setSelected(s => ({ ...s, cli: c }))}
           disabled={isInstalling}
         />
-        <CheckboxRow
-          icon={FolderSearch}
-          label="Finder Service"
-          desc="Right-click context menu for markdown files"
-          checked={selected.finder}
-          status={installResults.finder}
-          onChange={c => setSelected(s => ({ ...s, finder: c }))}
-          disabled={isInstalling}
-        />
-        <CheckboxRow
-          icon={Eye}
-          label="Quick Look & Pi"
-          desc="Markdown preview + AI assistant (needs brew + Pi)"
-          checked={selected.quicklook}
-          status={installResults.quicklook}
-          onChange={c => setSelected(s => ({ ...s, quicklook: c }))}
-          disabled={isInstalling}
-        />
+        {isMac && (
+          <CheckboxRow
+            icon={FolderSearch}
+            label="Finder Service"
+            desc="Right-click context menu for markdown files"
+            checked={selected.finder}
+            status={installResults.finder}
+            onChange={c => setSelected(s => ({ ...s, finder: c }))}
+            disabled={isInstalling}
+          />
+        )}
+        {isMac && (
+          <CheckboxRow
+            icon={Eye}
+            label="Quick Look & Pi"
+            desc="Markdown preview + AI assistant (needs brew + Pi)"
+            checked={selected.quicklook}
+            status={installResults.quicklook}
+            onChange={c => setSelected(s => ({ ...s, quicklook: c }))}
+            disabled={isInstalling}
+          />
+        )}
       </div>
 
       {anyError && (
@@ -444,7 +473,7 @@ function OnboardingContent() {
               <Check size={12} />
               Launch
             </>
-          ) : selected.quicklook ? (
+          ) : isMac && selected.quicklook ? (
             "Next"
           ) : (
             "Install & Launch"

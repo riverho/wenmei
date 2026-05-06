@@ -57,3 +57,9 @@ pub use linux::LinuxPlatform as Current;
 pub use macos::MacosPlatform as Current;
 #[cfg(target_os = "windows")]
 pub use windows::WindowsPlatform as Current;
+
+/// Return the current platform name for the frontend.
+#[tauri::command]
+pub fn get_platform() -> &'static str {
+    std::env::consts::OS
+}

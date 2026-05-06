@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories=Office;TextEditor;
+Comment=A quiet markdown workspace
+Exec={{exec}} %F
+StartupWMClass=wenmei
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
+MimeType=text/markdown;text/plain;text/x-markdown;

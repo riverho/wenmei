@@ -6,6 +6,7 @@ import type {
   AppPersistedState,
   Vault,
   Sandbox,
+  PlatformName,
 } from "@/lib/tauri-bridge";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
@@ -75,6 +76,9 @@ interface AppState {
   // Paper mode backup
   paperPreviousMode: ViewMode;
 
+  // Platform
+  platform: PlatformName | null;
+
   // Actions
   setLeftPanelOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
@@ -119,6 +123,7 @@ interface AppState {
   cycleMode: () => void;
   applyPersistedState: (state: AppPersistedState) => void;
   getPersistedState: () => AppPersistedState;
+  setPlatform: (platform: PlatformName | null) => void;
 }
 
 function resolveTheme(theme: "system" | "light" | "dark"): boolean {
@@ -170,6 +175,7 @@ export const useAppStore = create<AppState>()(
       lightboxSize: "md",
       installResults: { cli: "idle", finder: "idle", quicklook: "idle" },
       paperPreviousMode: "edit",
+      platform: null,
 
       setLeftPanelOpen: open => set({ leftPanelOpen: open }),
       setRightPanelOpen: open => set({ rightPanelOpen: open }),
@@ -253,6 +259,7 @@ export const useAppStore = create<AppState>()(
         set({ lightboxOpen: false, lightboxVariant: null, lightboxTitle: "" }),
       setOnboardingCompleted: completed =>
         set({ onboardingCompleted: completed }),
+      setPlatform: platform => set({ platform }),
       setInstallResult: (key, status) =>
         set(state => ({
           installResults: { ...state.installResults, [key]: status },

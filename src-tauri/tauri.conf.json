@@ -65,6 +65,16 @@
         "rank": "Default"
       }
     ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "./templates/Wenmei.desktop",
+        "postInstallScript": "./templates/deb-postinstall.sh"
+      },
+      "rpm": {
+        "desktopTemplate": "./templates/Wenmei.desktop",
+        "postInstallScript": "./templates/rpm-postinstall.sh"
+      }
+    },
     "macOS": {
       "minimumSystemVersion": "11.0"
     }

@@ -20,10 +20,18 @@ mod vault;
 
 use crate::platform::Platform;
 use crate::state::WenmeiState;
+use tauri::Emitter;
 
 fn main() {
     let app = tauri::Builder::default()
         .manage(WenmeiState::new())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // argv[0] is the executable path; argv[1+] are the file paths
+            // from a double-click file-open event on Windows/Linux.
+            if argv.len() > 1 {
+                let _ = app.emit("single-instance", argv[1..].to_vec());
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -81,6 +89,7 @@ fn main() {
             terminal::terminal_resize,
             terminal::terminal_stop,
             terminal::pty_run_commands,
+            platform::get_platform,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

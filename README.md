@@ -88,4 +88,20 @@ Wenmei sandbox owns:
 
 Global Pi is the engine, not the authority.
 
+## Building
+
+```bash
+# Development
+npm install
+npm run tauri dev
+
+# Production builds
+npm run desktop:build:win    # Windows (.msi + .exe)
+npm run desktop:build:mac    # macOS (.dmg)
+npm run desktop:build:linux  # Linux (.deb + .rpm + .AppImage)
+```
+
+For WSL Linux builds from Windows, platform-specific prerequisites, and the
+full testing procedure, see [`docs/BUILD.md`](./docs/BUILD.md).
+
 Hacker version aims to open source with MIT License.

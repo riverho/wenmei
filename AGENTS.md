@@ -36,6 +36,7 @@ Rust emits events to frontend via `app.emit()`:
 - `sandbox-files-changed` — file watcher triggered
 - `pi-rpc-event` — streaming Pi response chunks
 - `terminal-output` — PTY byte stream
+- `single-instance` — second-instance file-open args (Windows/Linux), payload: `string[]`
 
 ### State
 
