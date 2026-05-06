@@ -170,7 +170,7 @@ export default function CenterPanel() {
         >
           <div className="mx-auto" style={{ width: "70%", maxWidth: "70%" }}>
             <div
-              className="prose-paper"
+              className="prose-paper select-text"
               style={{ fontSize: `${paperZoom}%` }}
               dangerouslySetInnerHTML={{
                 __html: renderMarkdownHTML(activeFileContent),
@@ -225,7 +225,7 @@ export default function CenterPanel() {
       style={{ background: "var(--surface-1)" }}
     >
       <div
-        className="max-w-none"
+        className="max-w-none select-text"
         dangerouslySetInnerHTML={{
           __html: renderMarkdownHTML(activeFileContent),
         }}

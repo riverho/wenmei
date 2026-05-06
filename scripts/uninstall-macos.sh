@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# uninstall-macos.sh — Remove Wenmei and its macOS system integrations.
+#
+# By default removes:
+#   - /usr/local/bin/wenmei
+#   - ~/Library/Services/Open in New Wenmei Window.workflow
+#
+# Optional flags (off by default):
+#   --remove-app    Also delete /Applications/Wenmei.app and unregister it
+#                   from macOS LaunchServices.
+#   --purge-state   Also delete app config under ~/Library/Application Support/
+#                   and reset macOS privacy permissions (TCC).
+#   --purge-pi-history
+#                   Also delete per-vault Pi Panel session history.
+#   --yes / -y      Skip confirmation prompts
+#
+# Your vault folders and markdown files are NEVER touched.
+set -euo pipefail
+
+REMOVE_APP=0
+PURGE_STATE=0
+PURGE_PI_HISTORY=0
+ASSUME_YES=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --remove-app) REMOVE_APP=1 ;;
+    --purge-state) PURGE_STATE=1 ;;
+    --purge-pi-history) PURGE_PI_HISTORY=1 ;;
+    -y|--yes) ASSUME_YES=1 ;;
+    -h|--help)
+      sed -n '2,20p' "$0"
+      exit 0 ;;
+    *) echo "Unknown flag: $arg" >&2; exit 2 ;;
+  esac
+done
+
+confirm() {
+  [ "$ASSUME_YES" = "1" ] && return 0
+  printf '%s [y/N] ' "$1"
+  read -r reply
+  [ "$reply" = "y" ] || [ "$reply" = "Y" ]
+}
+
+declare -a actions=()
+
+CLI="/usr/local/bin/wenmei"
+SERVICE="$HOME/Library/Services/Open in New Wenmei Window.workflow"
+APP="/Applications/Wenmei.app"
+USER_APP="$HOME/Applications/Wenmei.app"
+BUNDLE_ID="com.wenmei.desktop"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+STATE_PATHS=(
+  "$HOME/Library/Application Support/Wenmei"
+  "$HOME/Library/Application Support/com.wenmei.desktop"
+  "$HOME/Library/Caches/com.wenmei.desktop"
+  "$HOME/Library/Preferences/com.wenmei.desktop.plist"
+  "$HOME/Library/WebKit/com.wenmei.desktop"
+  "$HOME/Library/HTTPStorages/com.wenmei.desktop"
+  "$HOME/Library/Cookies/com.wenmei.desktop.binarycookies"
+  "$HOME/Library/Saved Application State/com.wenmei.desktop.savedState"
+  "$HOME/Library/Containers/com.wenmei.desktop"
+)
+STATE_JSON="$HOME/Library/Application Support/Wenmei/state.json"
+
+declare -a VAULT_PI_PANEL_DIRS=()
+if [ "$PURGE_PI_HISTORY" = "1" ] && [ -f "$STATE_JSON" ]; then
+  while IFS= read -r vault_path; do
+    [ -z "$vault_path" ] && continue
+    [ -d "$vault_path/.wenmei/pi-sessions" ] || continue
+    while IFS= read -r -d '' panel_dir; do
+      VAULT_PI_PANEL_DIRS+=("$panel_dir")
+    done < <(find "$vault_path/.wenmei/pi-sessions" -mindepth 2 -maxdepth 2 -type d -name panel -print0 2>/dev/null)
+  done < <(python3 - "$STATE_JSON" <<'PY' 2>/dev/null
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    for v in data.get("vaults", []):
+        p = v.get("path")
+        if p:
+            print(p)
+except Exception:
+    pass
+PY
+)
+fi
+
+[ -e "$CLI" ] && actions+=("remove $CLI (requires sudo)")
+[ -e "$SERVICE" ] && actions+=("remove $SERVICE")
+if [ "$REMOVE_APP" = "1" ]; then
+  [ -e "$APP" ] && actions+=("remove $APP")
+  [ -e "$USER_APP" ] && actions+=("remove $USER_APP")
+  [ -x "$LSREGISTER" ] && actions+=("unregister $BUNDLE_ID from LaunchServices")
+fi
+if [ "$PURGE_STATE" = "1" ]; then
+  for p in "${STATE_PATHS[@]}"; do
+    [ -e "$p" ] && actions+=("remove $p")
+  done
+  command -v tccutil >/dev/null 2>&1 && \
+    actions+=("reset TCC privacy records for $BUNDLE_ID")
+fi
+if [ "$PURGE_PI_HISTORY" = "1" ]; then
+  for d in "${VAULT_PI_PANEL_DIRS[@]}"; do
+    actions+=("remove $d (Pi Panel history inside vault)")
+  done
+fi
+
+if [ "${#actions[@]}" -eq 0 ]; then
+  echo "Nothing to remove."
+  echo
+  echo "Hints:"
+  [ ! -e "$CLI" ] && echo "  - $CLI is already absent."
+  [ ! -e "$SERVICE" ] && echo "  - Finder service already absent."
+  [ "$REMOVE_APP" = "0" ] && { [ -e "$APP" ] || [ -e "$USER_APP" ]; } && \
+    echo "  - App exists in Applications; pass --remove-app to delete it."
+  [ "$PURGE_STATE" = "0" ] && \
+    echo "  - Pass --purge-state to also remove app config and caches."
+  [ "$PURGE_PI_HISTORY" = "0" ] && \
+    echo "  - Pass --purge-pi-history to also clear per-vault Pi Panel session history."
+  exit 0
+fi
+
+echo "Will perform:"
+for a in "${actions[@]}"; do echo "  - $a"; done
+echo
+
+if [ "$PURGE_PI_HISTORY" = "1" ] && [ "${#VAULT_PI_PANEL_DIRS[@]}" -gt 0 ]; then
+  echo "WARNING: --purge-pi-history will delete files inside the .wenmei/ folder of each vault."
+else
+  echo "Will NOT touch any vault folders or .wenmei/ subfolders inside them."
+fi
+echo
+
+if ! confirm "Proceed?"; then
+  echo "Aborted."
+  exit 0
+fi
+
+if [ -e "$CLI" ]; then
+  if [ -w "$(dirname "$CLI")" ]; then
+    rm -f "$CLI" && echo "Removed $CLI"
+  else
+    sudo rm -f "$CLI" && echo "Removed $CLI"
+  fi
+fi
+
+if [ -e "$SERVICE" ]; then
+  rm -rf "$SERVICE" && echo "Removed Finder service"
+  /System/Library/CoreServices/pbs -flush 2>/dev/null || true
+  killall -HUP Finder 2>/dev/null || true
+fi
+
+remove_app() {
+  local target="$1"
+  if [ -e "$target" ]; then
+    if [ -w "$(dirname "$target")" ]; then
+      rm -rf "$target" && echo "Removed $target"
+    else
+      sudo rm -rf "$target" && echo "Removed $target"
+    fi
+  fi
+}
+
+if [ "$REMOVE_APP" = "1" ]; then
+  remove_app "$APP"
+  remove_app "$USER_APP"
+  if [ -x "$LSREGISTER" ]; then
+    "$LSREGISTER" -u "$APP" 2>/dev/null || true
+    "$LSREGISTER" -u "$USER_APP" 2>/dev/null || true
+    "$LSREGISTER" -kill -r -domain local -domain system -domain user 2>/dev/null || true
+    echo "Unregistered $BUNDLE_ID from LaunchServices."
+  fi
+fi
+
+if [ "$PURGE_PI_HISTORY" = "1" ]; then
+  if [ "${#VAULT_PI_PANEL_DIRS[@]}" -eq 0 ]; then
+    echo "No per-vault Pi Panel history found."
+  else
+    for d in "${VAULT_PI_PANEL_DIRS[@]}"; do
+      rm -rf "$d" && echo "Removed $d"
+    done
+  fi
+fi
+
+if [ "$PURGE_STATE" = "1" ]; then
+  for p in "${STATE_PATHS[@]}"; do
+    if [ -e "$p" ]; then
+      rm -rf "$p" && echo "Removed $p"
+    fi
+  done
+  echo "Purged desktop WebView storage and app state."
+  if command -v tccutil >/dev/null 2>&1; then
+    tccutil reset All "$BUNDLE_ID" 2>/dev/null \
+      && echo "Reset TCC privacy records for $BUNDLE_ID." \
+      || echo "tccutil reset for $BUNDLE_ID skipped or already empty."
+  fi
+fi
+
+echo
+echo "Done."

@@ -22,7 +22,23 @@ use crate::platform::Platform;
 use crate::state::WenmeiState;
 use tauri::Emitter;
 
+fn is_wsl() -> bool {
+    // WSL1/2 detection: /proc/version contains "microsoft" or "WSL",
+    // and WSL2 has /proc/sys/fs/binfmt_misc/WSLInterop.
+    std::fs::read_to_string("/proc/version")
+        .map(|s| s.to_lowercase().contains("microsoft") || s.to_lowercase().contains("wsl"))
+        .unwrap_or(false)
+        || std::path::Path::new("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+}
+
 fn main() {
+    // WSL has no GPU driver for WebKitGTK's threaded compositor;
+    // disabling it avoids libEGL/MESA/ZINK warnings and long startup.
+    if is_wsl() {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     let app = tauri::Builder::default()
         .manage(WenmeiState::new())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
