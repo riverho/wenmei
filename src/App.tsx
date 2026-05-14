@@ -7,8 +7,6 @@ import {
   readFile,
   getAppState,
   saveAppState,
-  getPinnedFiles,
-  getRecentFiles,
   listVaults,
   listSandboxes,
   getActionLog,
@@ -32,8 +30,6 @@ function AppContent() {
     setFileTree,
     applyPersistedState,
     getPersistedState,
-    setPinnedFiles,
-    setRecentFiles,
     setVaults,
     setSandboxes,
     setActionLog,
@@ -64,18 +60,15 @@ function AppContent() {
         const tree = await listFiles();
         if (mounted) setFileTree(tree);
 
-        // Load pinned/recent and desktop harness state
-        const [pinned, recent, vaults, sandboxes, actionLog] =
-          await Promise.all([
-            getPinnedFiles(),
-            getRecentFiles(),
-            listVaults(),
-            listSandboxes(),
-            getActionLog(),
-          ]);
+        // Load desktop harness state. Pinned/recent are backend-owned and
+        // surfaced via FileNode.is_pinned / is_recent on the file tree —
+        // no separate store mirror needed.
+        const [vaults, sandboxes, actionLog] = await Promise.all([
+          listVaults(),
+          listSandboxes(),
+          getActionLog(),
+        ]);
         if (mounted) {
-          setPinnedFiles(pinned);
-          setRecentFiles(recent);
           setVaults(vaults);
           setSandboxes(sandboxes);
           setActionLog(actionLog);
@@ -132,8 +125,6 @@ function AppContent() {
     useAppStore(s => s.rightPanelWidth),
     useAppStore(s => s.splitRatio),
     useAppStore(s => s.openFolders),
-    useAppStore(s => s.pinnedFiles),
-    useAppStore(s => s.recentFiles),
     activeFilePath,
     initialized,
   ]);
@@ -194,11 +185,19 @@ function AppContent() {
     listen<string[]>("single-instance", event => {
       const args = event.payload;
       // args[0] is the executable; file paths start at args[1]
-      const path = args.find(arg => arg.endsWith(".md") || arg.endsWith(".markdown") || arg.endsWith(".mdown") || arg.endsWith(".mkd"));
+      const path = args.find(
+        arg =>
+          arg.endsWith(".md") ||
+          arg.endsWith(".markdown") ||
+          arg.endsWith(".mdown") ||
+          arg.endsWith(".mkd")
+      );
       if (!path) return;
       readFile(path)
         .then(file => setActiveFile(file.path, file.content, file.name))
-        .catch(err => console.warn(`Could not open single-instance file "${path}":`, err));
+        .catch(err =>
+          console.warn(`Could not open single-instance file "${path}":`, err)
+        );
     }).then(fn => {
       unlisten = fn;
     });

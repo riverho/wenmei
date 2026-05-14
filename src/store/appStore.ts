@@ -35,8 +35,6 @@ interface AppState {
   fileTree: FileNode[];
   openFolders: string[];
   searchQuery: string;
-  pinnedFiles: string[];
-  recentFiles: string[];
   isRenaming: string | null;
   renameValue: string;
 
@@ -91,8 +89,6 @@ interface AppState {
   setActiveFileContent: (content: string) => void;
   toggleFolder: (path: string) => void;
   setSearchQuery: (query: string) => void;
-  setPinnedFiles: (files: string[]) => void;
-  setRecentFiles: (files: string[]) => void;
   startRename: (path: string, name: string) => void;
   setRenameValue: (val: string) => void;
   cancelRename: () => void;
@@ -149,8 +145,6 @@ export const useAppStore = create<AppState>()(
       fileTree: [],
       openFolders: ["/"],
       searchQuery: "",
-      pinnedFiles: [],
-      recentFiles: [],
       isRenaming: null,
       renameValue: "",
       vaults: [],
@@ -219,8 +213,6 @@ export const useAppStore = create<AppState>()(
         }
       },
       setSearchQuery: query => set({ searchQuery: query }),
-      setPinnedFiles: files => set({ pinnedFiles: files }),
-      setRecentFiles: files => set({ recentFiles: files }),
       startRename: (path, name) => set({ isRenaming: path, renameValue: name }),
       setRenameValue: val => set({ renameValue: val }),
       cancelRename: () => set({ isRenaming: null, renameValue: "" }),
@@ -310,8 +302,6 @@ export const useAppStore = create<AppState>()(
           rightPanelWidth: state.right_panel_width,
           splitRatio: state.split_ratio,
           openFolders: state.open_folders,
-          pinnedFiles: state.pinned_files,
-          recentFiles: state.recent_files,
           vaults: state.vaults ?? [],
           activeVaultId: state.active_vault_id ?? "default",
           sandboxes: state.sandboxes ?? [],
@@ -341,8 +331,10 @@ export const useAppStore = create<AppState>()(
         right_panel_width: get().rightPanelWidth,
         split_ratio: get().splitRatio,
         open_folders: get().openFolders,
-        pinned_files: get().pinnedFiles,
-        recent_files: get().recentFiles,
+        // pinned_files and recent_files are backend-owned (see Rust
+        // save_app_state) — send empty placeholders; Rust ignores them.
+        pinned_files: [],
+        recent_files: [],
         vaults: get().vaults,
         active_vault_id: get().activeVaultId,
         sandboxes: get().sandboxes,

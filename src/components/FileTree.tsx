@@ -331,7 +331,6 @@ export default function FileTree() {
     setActiveFile,
     setFileTree,
     toggleFolder,
-    setPinnedFiles,
     isRenaming,
     renameValue,
     startRename,
@@ -384,13 +383,8 @@ export default function FileTree() {
       await togglePin(path);
       const tree = await listFiles();
       setFileTree(tree);
-      const pinned = tree
-        .flatMap(n => [n, ...(n.children || [])])
-        .filter(n => n.is_pinned)
-        .map(n => n.path);
-      setPinnedFiles(pinned);
     },
-    [setFileTree, setPinnedFiles]
+    [setFileTree]
   );
 
   const handleRename = useCallback(
