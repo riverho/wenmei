@@ -885,6 +885,12 @@ pub fn save_app_state(new_state: AppState, state: State<'_, WenmeiState>) -> Res
         }
         next_state.onboarding_completed =
             app_state.onboarding_completed || next_state.onboarding_completed;
+        // Backend-owned fields — mutated by file_ops (read_file, rename_file,
+        // delete_file, toggle_pin). The frontend snapshot races with those
+        // writes, so prefer the live backend values.
+        next_state.recent_files = app_state.recent_files.clone();
+        next_state.pinned_files = app_state.pinned_files.clone();
+        next_state.last_active_file = app_state.last_active_file.clone();
         *app_state = next_state;
     }
     save_state(&state)
