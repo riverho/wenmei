@@ -1,20 +1,44 @@
 #!/usr/bin/env bash
 # uninstall-macos.sh — Remove Wenmei and its macOS system integrations.
 #
+# Invoked directly by users from a shell, and by the DMG's
+# "Uninstall Wenmei.command" wrapper (which passes --remove-app --purge-state).
+#
 # By default removes:
 #   - /usr/local/bin/wenmei
 #   - ~/Library/Services/Open in New Wenmei Window.workflow
 #
-# Optional flags (off by default):
+# Optional flags (off by default — these are larger blast-radius):
 #   --remove-app    Also delete /Applications/Wenmei.app and unregister it
-#                   from macOS LaunchServices.
-#   --purge-state   Also delete app config under ~/Library/Application Support/
-#                   and reset macOS privacy permissions (TCC).
+#                   from macOS LaunchServices ("Open With" menu, file-type
+#                   bindings) via `lsregister -u`.
+#   --purge-state   Also delete app config under
+#                   ~/Library/Application Support/Wenmei
+#                   ~/Library/Application Support/com.wenmei.desktop
+#                   ~/Library/Caches/com.wenmei.desktop
+#                   ~/Library/Preferences/com.wenmei.desktop.plist
+#                   ~/Library/WebKit/com.wenmei.desktop
+#                   plus sandboxed WebKit/container variants if present.
+#                   This clears the desktop app's localStorage, including the
+#                   Zustand key `wenmei-store` and the localStorage keys
+#                   `wenmei-paper-zoom` and `wenmei-thinking-level`. Also
+#                   clears global-mode Pi Panel session history under
+#                   sandbox-meta/<id>/pi-sessions/<id>/panel/ (lives inside
+#                   Application Support/Wenmei). Also resets TCC privacy
+#                   records (`tccutil reset All com.wenmei.desktop`) so any
+#                   sandbox-folder authorizations the user previously granted
+#                   via macOS file dialogs are forgotten.
 #   --purge-pi-history
-#                   Also delete per-vault Pi Panel session history.
+#                   Also delete per-vault Pi Panel session history at
+#                   <vault>/.wenmei/pi-sessions/<sandbox_id>/panel/. Vault
+#                   paths are read from state.json BEFORE --purge-state
+#                   removes it. Off by default because it touches data
+#                   inside user vaults — pass it explicitly to opt in.
 #   --yes / -y      Skip confirmation prompts
 #
-# Your vault folders and markdown files are NEVER touched.
+# Without --purge-pi-history this script never touches user vault contents or
+# `.wenmei/` folders inside vaults. Those are your data; remove them manually
+# if you wish.
 set -euo pipefail
 
 REMOVE_APP=0
@@ -29,7 +53,7 @@ for arg in "$@"; do
     --purge-pi-history) PURGE_PI_HISTORY=1 ;;
     -y|--yes) ASSUME_YES=1 ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,42p' "$0"
       exit 0 ;;
     *) echo "Unknown flag: $arg" >&2; exit 2 ;;
   esac
@@ -115,7 +139,7 @@ if [ "${#actions[@]}" -eq 0 ]; then
   [ "$REMOVE_APP" = "0" ] && { [ -e "$APP" ] || [ -e "$USER_APP" ]; } && \
     echo "  - App exists in Applications; pass --remove-app to delete it."
   [ "$PURGE_STATE" = "0" ] && \
-    echo "  - Pass --purge-state to also remove app config and caches."
+    echo "  - Pass --purge-state to also remove app config, caches, and desktop WebView localStorage/Zustand state."
   [ "$PURGE_PI_HISTORY" = "0" ] && \
     echo "  - Pass --purge-pi-history to also clear per-vault Pi Panel session history."
   exit 0
@@ -189,7 +213,12 @@ if [ "$PURGE_STATE" = "1" ]; then
       rm -rf "$p" && echo "Removed $p"
     fi
   done
-  echo "Purged desktop WebView storage and app state."
+  echo "Purged desktop WebView storage; Zustand localStorage key 'wenmei-store' is cleared for the Tauri app."
+  echo "Global-mode Pi Panel session history under sandbox-meta/ was included."
+  # Clear TCC privacy records: every sandbox folder the user authorized via
+  # the macOS file dialog created an entry under com.wenmei.desktop. Reset
+  # All forgets every category (Documents, Desktop, Downloads, Files & Folders,
+  # AppleEvents, etc.) for this bundle id. Quiet on systems without tccutil.
   if command -v tccutil >/dev/null 2>&1; then
     tccutil reset All "$BUNDLE_ID" 2>/dev/null \
       && echo "Reset TCC privacy records for $BUNDLE_ID." \
@@ -199,3 +228,8 @@ fi
 
 echo
 echo "Done."
+if [ "$PURGE_STATE" = "1" ]; then
+  echo
+  echo "Browser dev note: if you ran plain 'npm run dev' in Chrome/Safari, clear that browser origin separately:"
+  echo "  localStorage.removeItem('wenmei-store'); localStorage.removeItem('wenmei-mock-app-state'); location.reload();"
+fi

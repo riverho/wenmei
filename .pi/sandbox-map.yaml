@@ -1,0 +1,21 @@
+urls:
+  default: allow
+  deny: []
+  allow:
+    - "*"
+map:
+  /Users/river/.openclaw/workspace/projects/wenmei/node_modules:
+    perm: deny
+    note: Dependencies — do not modify
+  /Users/river/.openclaw/workspace/projects/wenmei/.git:
+    perm: allow:ro
+    note: Git history read-only
+  /Users/river/.openclaw/workspace/projects/wenmei:
+    perm: allow:rw
+    note: Project root (auto-detected)
+  /Users/river/.openclaw/workspace/projects:
+    perm: allow:ro
+    note: Parent workspace read-only
+  /:
+    perm: deny
+    note: Outside sandbox (default)
