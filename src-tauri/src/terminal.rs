@@ -99,6 +99,7 @@ pub fn terminal_start(
 ) -> Result<TerminalStarted, String> {
     let ctx = active_terminal_context(&state)?;
     let cwd = ctx.cwd.clone();
+    let terminal_cwd = crate::platform::Current::terminal_cwd(&cwd);
     let log_file = terminal_log_file(&ctx);
     let desired_cwd = cwd.to_string_lossy().to_string();
     let desired_log_file = log_file.to_string_lossy().to_string();
@@ -150,9 +151,13 @@ pub fn terminal_start(
         })
         .map_err(|e| e.to_string())?;
 
-    let mut cmd =
-        crate::platform::Current::build_terminal_command(&cwd, &log_file, &pi_session_dir);
-    cmd.cwd(&cwd);
+    let mut cmd = crate::platform::Current::build_terminal_command(
+        &cwd,
+        &terminal_cwd,
+        &log_file,
+        &pi_session_dir,
+    );
+    cmd.cwd(&terminal_cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
 

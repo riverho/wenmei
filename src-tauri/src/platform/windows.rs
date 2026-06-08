@@ -49,11 +49,13 @@ impl crate::platform::Platform for WindowsPlatform {
     }
 
     fn build_terminal_command(
-        cwd: &Path,
+        raw_cwd: &Path,
+        terminal_cwd: &Path,
         log_file: &Path,
         pi_session_dir: &Path,
     ) -> CommandBuilder {
-        let boot_script = terminal_boot_script_windows(cwd, log_file, pi_session_dir);
+        let boot_script =
+            terminal_boot_script_windows(raw_cwd, terminal_cwd, log_file, pi_session_dir);
         let encoded = encode_powershell_command(&boot_script);
         let shell = find_windows_shell();
         let mut cmd = CommandBuilder::new(shell);
@@ -62,6 +64,12 @@ impl crate::platform::Platform for WindowsPlatform {
         cmd.arg("-EncodedCommand");
         cmd.arg(&encoded);
         cmd
+    }
+
+    fn terminal_cwd(cwd: &Path) -> PathBuf {
+        PathBuf::from(normalize_windows_cwd_string_for_shell(
+            &cwd.to_string_lossy(),
+        ))
     }
 
     fn build_pty_command(commands: &[String]) -> CommandBuilder {
@@ -100,12 +108,19 @@ fn ps1_escape(s: &str) -> String {
     s.replace('\'', "''")
 }
 
-fn terminal_boot_script_windows(cwd: &Path, log_file: &Path, pi_session_dir: &Path) -> String {
-    let sandbox = ps1_escape(&cwd.to_string_lossy());
+fn terminal_boot_script_windows(
+    raw_cwd: &Path,
+    terminal_cwd: &Path,
+    log_file: &Path,
+    pi_session_dir: &Path,
+) -> String {
+    let raw_sandbox = ps1_escape(&raw_cwd.to_string_lossy());
+    let sandbox = ps1_escape(&terminal_cwd.to_string_lossy());
     let log = ps1_escape(&log_file.to_string_lossy());
     let pi_sess = ps1_escape(&pi_session_dir.to_string_lossy());
     format!(
-        r#"$SANDBOX_DIR = '{sandbox}'
+        r#"$RAW_SANDBOX_DIR = '{raw_sandbox}'
+$SANDBOX_DIR = '{sandbox}'
 $LOG_FILE = '{log}'
 $PI_SESSION_DIR = '{pi_sess}'
 $ErrorActionPreference = 'SilentlyContinue'
@@ -120,9 +135,9 @@ Clear-Host
 Write-Host 'Wenmei sandbox:'
 Write-Host $SANDBOX_DIR
 Write-Host ''
-wenmei_log "embedded terminal opening cwd=$SANDBOX_DIR"
+wenmei_log "embedded terminal opening raw_cwd=$RAW_SANDBOX_DIR terminal_cwd=$SANDBOX_DIR"
 try {{
-    Set-Location -Path $SANDBOX_DIR -ErrorAction Stop
+    Set-Location -LiteralPath $SANDBOX_DIR -ErrorAction Stop
 }} catch {{
     Write-Host 'Wenmei cannot enter this sandbox folder.'
     Write-Host "Reason: $($_.Exception.Message)"
@@ -158,10 +173,30 @@ if ($pi) {{
 Write-Host ''
 Write-Host 'Exited Pi. Shell remains in Wenmei sandbox.'
 "#,
+        raw_sandbox = raw_sandbox,
         sandbox = sandbox,
         log = log,
         pi_sess = pi_sess,
     )
+}
+
+fn normalize_windows_cwd_string_for_shell(cwd: &str) -> String {
+    if let Some(rest) = cwd.strip_prefix("\\\\?\\UNC\\") {
+        return format!("\\\\{}", rest);
+    }
+
+    if let Some(rest) = cwd.strip_prefix("\\\\?\\") {
+        let bytes = rest.as_bytes();
+        if bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && bytes[2] == b'\\'
+        {
+            return rest.to_string();
+        }
+    }
+
+    cwd.to_string()
 }
 
 // PowerShell -EncodedCommand requires Base64-encoded UTF-16LE. This avoids
@@ -199,5 +234,59 @@ fn find_windows_shell() -> &'static str {
         "pwsh"
     } else {
         "powershell.exe"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_extended_drive_path_for_shell() {
+        assert_eq!(
+            normalize_windows_cwd_string_for_shell("\\\\?\\D:\\GEO-website"),
+            "D:\\GEO-website"
+        );
+        assert_eq!(
+            normalize_windows_cwd_string_for_shell("\\\\?\\D:\\GEO-website\\"),
+            "D:\\GEO-website\\"
+        );
+    }
+
+    #[test]
+    fn normalizes_extended_unc_path_for_shell() {
+        assert_eq!(
+            normalize_windows_cwd_string_for_shell("\\\\?\\UNC\\server\\share\\folder"),
+            "\\\\server\\share\\folder"
+        );
+    }
+
+    #[test]
+    fn leaves_shell_safe_windows_paths_unchanged() {
+        assert_eq!(
+            normalize_windows_cwd_string_for_shell("D:\\GEO-website"),
+            "D:\\GEO-website"
+        );
+        assert_eq!(
+            normalize_windows_cwd_string_for_shell("\\\\server\\share\\folder"),
+            "\\\\server\\share\\folder"
+        );
+    }
+
+    #[test]
+    fn boot_script_logs_raw_and_terminal_cwd_and_uses_literal_path() {
+        let script = terminal_boot_script_windows(
+            Path::new("\\\\?\\D:\\GEO-website"),
+            Path::new("D:\\GEO-website"),
+            Path::new("C:\\Users\\RH\\AppData\\Roaming\\Wenmei\\terminal.log"),
+            Path::new("D:\\GEO-website\\.wenmei\\pi-sessions\\sandbox\\terminal"),
+        );
+
+        assert!(script.contains("$RAW_SANDBOX_DIR = '\\\\?\\D:\\GEO-website'"));
+        assert!(script.contains("$SANDBOX_DIR = 'D:\\GEO-website'"));
+        assert!(script.contains(
+            "embedded terminal opening raw_cwd=$RAW_SANDBOX_DIR terminal_cwd=$SANDBOX_DIR"
+        ));
+        assert!(script.contains("Set-Location -LiteralPath $SANDBOX_DIR -ErrorAction Stop"));
     }
 }

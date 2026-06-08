@@ -68,12 +68,13 @@ impl crate::platform::Platform for LinuxPlatform {
     }
 
     fn build_terminal_command(
-        cwd: &Path,
+        _raw_cwd: &Path,
+        terminal_cwd: &Path,
         log_file: &Path,
         pi_session_dir: &Path,
     ) -> CommandBuilder {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-        let boot_script = terminal_boot_script(cwd, log_file, pi_session_dir);
+        let boot_script = terminal_boot_script(terminal_cwd, log_file, pi_session_dir);
         let mut cmd = CommandBuilder::new(&shell);
         cmd.arg("-l");
         cmd.arg("-c");

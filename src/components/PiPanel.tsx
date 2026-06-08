@@ -207,6 +207,9 @@ export default function PiPanel() {
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [runDetails, setRunDetails] = useState<string[]>([]);
   const [activeStreamText, setActiveStreamText] = useState("");
+  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(
+    null
+  );
   const activeAssistantIdRef = useRef<string | null>(null);
 
   const startPiForFocusedSandbox = useCallback(
@@ -529,6 +532,7 @@ export default function PiPanel() {
 
     const assistantId = `pi-${Date.now()}`;
     activeAssistantIdRef.current = assistantId;
+    setActiveAssistantId(assistantId);
     addPiMessage({ id: assistantId, role: "system", text: "", type: "chat" });
     setActiveStreamText("");
     setTypedResponses(prev => ({ ...prev, [assistantId]: "" }));
@@ -553,6 +557,7 @@ export default function PiPanel() {
     } catch (err) {
       setIsProcessing(false);
       activeAssistantIdRef.current = null;
+      setActiveAssistantId(null);
       typeResponse(
         message(
           "log",
@@ -750,21 +755,25 @@ export default function PiPanel() {
 
   // Update command palette / mention visibility based on input
   useEffect(() => {
-    if (!piInput.startsWith("/")) {
-      setShowCommands(false);
-      setCommandIndex(-1);
-    }
-    const at = piInput.lastIndexOf("@");
-    if (at >= 0) {
-      const after = piInput.slice(at + 1);
-      if (!/\s/.test(after)) {
-        setMentionOpen(true);
-        setMentionQuery(after);
-        setMentionIndex(0);
-        return;
+    const timer = window.setTimeout(() => {
+      if (!piInput.startsWith("/")) {
+        setShowCommands(false);
+        setCommandIndex(-1);
       }
-    }
-    setMentionOpen(false);
+      const at = piInput.lastIndexOf("@");
+      if (at >= 0) {
+        const after = piInput.slice(at + 1);
+        if (!/\s/.test(after)) {
+          setMentionOpen(true);
+          setMentionQuery(after);
+          setMentionIndex(0);
+          return;
+        }
+      }
+      setMentionOpen(false);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [piInput]);
 
   useEffect(() => {
@@ -803,6 +812,7 @@ export default function PiPanel() {
         setPiStatus(`connected · thinking ${thinkingLevel ?? "global"}`);
         setRunDetailsOpen(false);
         activeAssistantIdRef.current = null;
+        setActiveAssistantId(null);
         listFiles()
           .then(setFileTree)
           .catch(() => {});
@@ -1224,13 +1234,11 @@ export default function PiPanel() {
                     <div className="whitespace-pre-wrap break-words max-w-full overflow-visible">
                       {renderMessageText(
                         displayText ||
-                          (msg.id === activeAssistantIdRef.current
-                            ? activeStreamText
-                            : "")
+                          (msg.id === activeAssistantId ? activeStreamText : "")
                       )}
                       {msg.role === "system" &&
                         isProcessing &&
-                        msg.id === activeAssistantIdRef.current && (
+                        msg.id === activeAssistantId && (
                           <span
                             className="cursor-blink inline-block w-0.5 h-3 ml-0.5 align-middle"
                             style={{ background: "var(--accent-teal)" }}

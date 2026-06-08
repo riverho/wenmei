@@ -30,11 +30,12 @@ export default function CenterPanel() {
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
       : theme === "dark";
 
-  const [splitPos, setSplitPos] = useState(splitRatio * 100);
+  const [dragSplitPos, setDragSplitPos] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const splitPos = dragSplitPos ?? splitRatio * 100;
 
   // Auto-save to disk via Tauri
   useEffect(() => {
@@ -45,11 +46,6 @@ export default function CenterPanel() {
     return () => clearTimeout(timer);
   }, [activeFileContent, activeFilePath]);
 
-  // Sync splitPos with store
-  useEffect(() => {
-    setSplitPos(splitRatio * 100);
-  }, [splitRatio]);
-
   const handleSplitDrag = useCallback(
     (e: React.MouseEvent) => {
       if (!isDragging) return;
@@ -57,7 +53,7 @@ export default function CenterPanel() {
       if (!rect) return;
       const x = e.clientX - rect.left;
       const pct = Math.max(20, Math.min(80, (x / rect.width) * 100));
-      setSplitPos(pct);
+      setDragSplitPos(pct);
     },
     [isDragging]
   );

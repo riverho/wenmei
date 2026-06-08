@@ -21,8 +21,17 @@ pub trait Platform {
     fn probe_cli_version(path: &str) -> Option<String>;
 
     /// Build the [`CommandBuilder`] used to spawn the embedded terminal.
-    fn build_terminal_command(cwd: &Path, log_file: &Path, pi_session_dir: &Path)
-        -> CommandBuilder;
+    fn build_terminal_command(
+        raw_cwd: &Path,
+        terminal_cwd: &Path,
+        log_file: &Path,
+        pi_session_dir: &Path,
+    ) -> CommandBuilder;
+
+    /// Convert a sandbox cwd into a form suitable for shell startup.
+    fn terminal_cwd(cwd: &Path) -> std::path::PathBuf {
+        cwd.to_path_buf()
+    }
 
     /// Build the [`CommandBuilder`] used for one-off PTY commands.
     fn build_pty_command(commands: &[String]) -> CommandBuilder;
