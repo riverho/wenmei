@@ -106,4 +106,14 @@ npm run desktop:build:linux  # Linux (.deb + .rpm + .AppImage)
 For WSL Linux builds from Windows, platform-specific prerequisites, and the
 full testing procedure, see [`docs/BUILD.md`](./docs/BUILD.md).
 
+## Changelog
+
+### v0.2.1
+
+- Fix Windows Terminal path issue
+
+### v0.2.0
+
+- Initial release with vault/sandbox model, Pi integration, and cross-platform desktop build
+
 Hacker version aims to open source with MIT License.
