@@ -17,13 +17,21 @@
     "desktop:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
     "check": "tsc -b",
     "format": "prettier --write .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "pb:status": "node scripts/pb.mjs status",
+    "pb:next": "node scripts/pb.mjs next",
+    "pb:record": "node scripts/pb.mjs record",
+    "pb:report": "node scripts/pb.mjs report",
+    "pb:validate": "node scripts/pb.mjs validate",
+    "pb:init": "node scripts/pb.mjs init"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "dompurify": "^3.4.8",
+    "js-yaml": "^4.1.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -32,6 +40,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tauri-apps/cli": "^2.10.1",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",

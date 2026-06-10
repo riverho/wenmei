@@ -102,3 +102,11 @@ Per `DEV_PLAN.md`: no Hono/tRPC, no MySQL/Drizzle, no fake DB docs, no large sha
 | Theme/styling       | `src/index.css`, `tailwind.config.js`                                                         |
 | Keyboard shortcut   | `src/hooks/useKeyboardShortcuts.ts`                                                           |
 | CLI install scripts | `scripts/wenmei`, `scripts/install-cli.sh`                                                    |
+
+## Playbook Loop Layer
+
+This repo runs the Agent-Playbook loop. Re-anchor to `playbook.yaml` each session.
+- Status: `npm run pb:status`
+- Next task: `npm run pb:next -- --claim`
+- Validate: `npm run pb:validate`
+- Record: `npm run pb:record -- --task <id> --action <a> --status <s> --notes "..."`

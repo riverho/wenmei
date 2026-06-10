@@ -1,3 +1,5 @@
+import DOMPurify from "dompurify";
+
 interface MarkdownToken {
   type: string;
   content?: string;
@@ -220,6 +222,13 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+const SAFE_URL_RE = /^(https?:|mailto:|[^:/?#]*(?:[/?#]|$))/i;
+
+function isSafeUrl(url: string): boolean {
+  const trimmed = url.trim();
+  return SAFE_URL_RE.test(trimmed);
+}
+
 const HTML_PLACEHOLDER = "%%HTML__";
 
 function renderInline(text: string, refs?: RefMap): string {
@@ -253,16 +262,16 @@ function renderInline(text: string, refs?: RefMap): string {
   result = result.replace(/_(.+?)_/g, "<em>$1</em>");
 
   // Images (![alt](url))
-  result = result.replace(
-    /!\[([^\]]*)\]\(([^)]+)\)/g,
-    '<img src="$2" alt="$1" class="md-img" />'
-  );
+  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, url: string) => {
+    if (!isSafeUrl(url)) return escapeHtml(_m);
+    return `<img src="${url}" alt="${escapeHtml(alt)}" class="md-img" />`;
+  });
 
   // Links [text](url)
-  result = result.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" class="md-link">$1</a>'
-  );
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, url: string) => {
+    if (!isSafeUrl(url)) return escapeHtml(text);
+    return `<a href="${url}" class="md-link">${text}</a>`;
+  });
 
   // Reference-style links [text][ref]
   if (refs) {
@@ -271,7 +280,8 @@ function renderInline(text: string, refs?: RefMap): string {
       (_m, text: string, ref: string) => {
         const def = refs[ref.toLowerCase()];
         if (def) {
-          const title = def.title ? ` title="${def.title}"` : "";
+          if (!isSafeUrl(def.url)) return escapeHtml(text);
+          const title = def.title ? ` title="${escapeHtml(def.title)}"` : "";
           return `<a href="${def.url}" class="md-link"${title}>${text}</a>`;
         }
         return _m;
@@ -281,7 +291,8 @@ function renderInline(text: string, refs?: RefMap): string {
     result = result.replace(/\[([^\]]+)\](?!\()/g, (_m, text: string) => {
       const def = refs[text.toLowerCase()];
       if (def) {
-        const title = def.title ? ` title="${def.title}"` : "";
+        if (!isSafeUrl(def.url)) return escapeHtml(text);
+        const title = def.title ? ` title="${escapeHtml(def.title)}"` : "";
         return `<a href="${def.url}" class="md-link"${title}>${text}</a>`;
       }
       return _m;
@@ -360,7 +371,10 @@ export function renderMarkdownHTML(text: string): string {
         break;
       }
       case "html":
-        html += (token.raw || "") + "\n";
+        // Raw HTML blocks are escaped rather than injected — the markdown
+        // renderer is not a full HTML parser, so passing raw HTML through
+        // would open XSS via inline event handlers and script tags.
+        html += `<pre class="md-pre"><code class="md-code">${escapeHtml(token.raw || "")}</code></pre>\n`;
         break;
       case "hr":
         html += `<hr class="md-hr" />\n`;
@@ -371,7 +385,24 @@ export function renderMarkdownHTML(text: string): string {
     }
   }
 
-  return html;
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "p", "blockquote", "pre", "code",
+      "ul", "ol", "li",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "strong", "em", "del", "a", "img",
+      "hr", "div", "input",
+    ],
+    ALLOWED_ATTR: [
+      "class", "style", "href", "src", "alt",
+      "title", "rel", "type", "checked", "disabled",
+      "align",
+    ],
+    ALLOW_DATA_ATTR: false,
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "svg"],
+    FORBID_ATTR: ["onerror", "onload", "onclick", "onfocus", "onmouseover"],
+  });
 }
 
 export function highlightCode(code: string): string {

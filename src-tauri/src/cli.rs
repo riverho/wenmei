@@ -50,5 +50,18 @@ pub fn install_cli_integration(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub fn run_install_script(script_name: String, app: AppHandle) -> Result<String, String> {
+    const ALLOWED: &[&str] = &[
+        "install.sh",
+        "install-cli.sh",
+        "install-finder-service.sh",
+        "install-quicklook.sh",
+        "verify.sh",
+    ];
+    if !ALLOWED.contains(&script_name.as_str()) {
+        return Err(format!(
+            "[ERR_SCRIPT_DENIED] '{}' is not an allowed install script",
+            script_name
+        ));
+    }
     crate::platform::Current::run_install_script(&script_name, &app)
 }

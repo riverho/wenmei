@@ -7,6 +7,7 @@ import {
   readFile,
   getAppState,
   saveAppState,
+  completeOnboarding,
   listVaults,
   listSandboxes,
   getActionLog,
@@ -35,7 +36,7 @@ function AppContent() {
     setActionLog,
     theme,
     mode,
-    openLightbox,
+    setOnboardingCompleted,
     setPlatform,
   } = useAppStore();
 
@@ -92,7 +93,10 @@ function AppContent() {
         }
 
         if (mounted && !persisted.onboarding_completed) {
-          openLightbox("onboarding", "Welcome to Wenmei", "md");
+          setOnboardingCompleted(true);
+          await completeOnboarding().catch(err => {
+            console.warn("Could not persist onboarding completion:", err);
+          });
         }
       } catch (err) {
         console.error("Failed to init:", err);
@@ -125,6 +129,7 @@ function AppContent() {
     useAppStore(s => s.rightPanelWidth),
     useAppStore(s => s.splitRatio),
     useAppStore(s => s.openFolders),
+    useAppStore(s => s.onboardingCompleted),
     activeFilePath,
     initialized,
   ]);

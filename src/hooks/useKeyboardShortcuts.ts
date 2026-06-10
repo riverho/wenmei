@@ -12,7 +12,6 @@ export function useKeyboardShortcuts() {
     setMobileMenuOpen,
     setMobilePiOpen,
     setPiInput,
-    openLightbox,
   } = useAppStore();
 
   useEffect(() => {
@@ -195,13 +194,6 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Cmd/Ctrl + 9 — Re-open onboarding (debug)
-      if (meta && e.key === "9") {
-        prevent();
-        openLightbox("onboarding", "Welcome to Wenmei", "md");
-        return;
-      }
-
       // Cmd/Ctrl + Shift + F — Workspace search in Pi
       if (meta && shift && e.key.toLowerCase() === "f") {
         prevent();
@@ -227,6 +219,5 @@ export function useKeyboardShortcuts() {
     setMobileMenuOpen,
     setMobilePiOpen,
     setPiInput,
-    openLightbox,
   ]);
 }

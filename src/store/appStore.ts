@@ -240,13 +240,18 @@ export const useAppStore = create<AppState>()(
       setIsProcessing: val => set({ isProcessing: val }),
       setMobileMenuOpen: open => set({ mobileMenuOpen: open }),
       setMobilePiOpen: open => set({ mobilePiOpen: open }),
-      openLightbox: (variant, title, size = "md") =>
+      openLightbox: (variant, title, size = "md") => {
+        if (variant === "onboarding") {
+          set({ onboardingCompleted: true });
+          return;
+        }
         set({
           lightboxOpen: true,
           lightboxVariant: variant,
           lightboxTitle: title,
           lightboxSize: size,
-        }),
+        });
+      },
       closeLightbox: () =>
         set({ lightboxOpen: false, lightboxVariant: null, lightboxTitle: "" }),
       setOnboardingCompleted: completed =>
