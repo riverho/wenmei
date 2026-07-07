@@ -41,8 +41,6 @@ Running a single Vitest file: `npx vitest run path/to/file.test.ts` (or drop `ru
 - **Pi integration:** Wenmei does **not** bundle Pi — expects a global `pi` binary (e.g. `/usr/local/bin/pi`). Two surfaces: interactive PTY (`Terminal`) and `pi --mode rpc` JSON-RPC (`PiPanel`).
 - **Rust → frontend events:** `sandbox-files-changed`, `pi-rpc-event`, `terminal-output`, `single-instance` (Windows/Linux file-open args).
 
-See `AGENTS.md` for the full "files to touch for common changes" table, state file locations, naming conventions, and known bugs.
-
 ## Constraints from DEV_PLAN.md
 
 Do not reintroduce: Hono/tRPC, MySQL/Drizzle, fake DB docs, large shadcn component dumps, or any web backend build path.

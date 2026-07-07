@@ -73,16 +73,12 @@ src-tauri/target/release/bundle/
 # Agent
 AGENTS.md
 
-# Docs
-docs
+# Docs stay local, except docs/design/ — backlog design_refs that must survive in git
+docs/*
+!docs/design/
 .wenmei
 
-# Agent-Playbook skill
-SKILL.md
-playbook.yaml
-processes/
-skills/
-artifacts/
-memory/
-scripts/pb.mjs
+# Agent-Playbook generated reports (keep folder)
+.agents-playbook/artifacts/reports/*.md
+!.agents-playbook/artifacts/reports/.gitkeep
 
