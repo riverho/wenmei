@@ -124,5 +124,97 @@
     "agent_id": "agent",
     "mode": "coding",
     "updated_at": "2026-07-07T03:35:57.603Z"
+  },
+  "C1": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:39:26.117Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:40:23.813Z"
+  },
+  "C2": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:40:23.936Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:40:53.518Z"
+  },
+  "C3": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:41:10.137Z"
+  },
+  "C4": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:41:10.254Z"
+  },
+  "C5": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:41:10.365Z"
+  },
+  "C6": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:41:10.478Z"
+  },
+  "D1": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:41:10.605Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:42:01.096Z"
+  },
+  "D2": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.206Z"
+  },
+  "D3": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.320Z"
+  },
+  "D4": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.436Z"
+  },
+  "D5": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.551Z"
+  },
+  "E1": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.664Z"
+  },
+  "E2": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.779Z"
+  },
+  "E3": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:01.893Z"
+  },
+  "L1": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:02.012Z"
+  },
+  "L4": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-07T03:42:02.360Z"
   }
 }
