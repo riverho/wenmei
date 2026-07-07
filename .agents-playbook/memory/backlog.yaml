@@ -1,0 +1,585 @@
+tasks:
+  - id: A1
+    title: Tee PTY terminal-output into Pi RPC as observations
+    status: todo
+    priority: 1
+    skill: run-task
+    phase: A
+    tags:
+      - rust
+      - pi-rpc
+      - terminal
+    design_ref: docs/design/narration-sidecar.md#event-flow
+    acceptance_checks:
+      - test -f ../src-tauri/src/narration.rs
+      - grep -q "NarrationBuffer" ../src-tauri/src/narration.rs
+      - grep -q "narrate-" ../src-tauri/src/main.rs
+    notes: >-
+      Build NarrationBuffer in Rust, tee raw PTY bytes, strip ANSI, dedup TUI
+      redraws, and flush observations as narration-digest events with narrate-
+      id prefix.
+
+  - id: A2
+    title: Feed sandbox-files-changed events into narration stream
+    status: todo
+    priority: 2
+    skill: run-task
+    phase: A
+    tags:
+      - rust
+      - file-watcher
+      - pi-rpc
+    design_ref: docs/design/narration-sidecar.md#event-flow
+    acceptance_checks:
+      - test -f ../src-tauri/src/journal.rs
+      - grep -q "sandbox-files-changed" ../src-tauri/src/journal.rs
+      - grep -q "annotate_file_changes" ../src-tauri/src/journal.rs
+    notes: >-
+      Annotate the next narration digest with changed paths when
+      sandbox-files-changed fires; keep the >=10s rate floor.
+
+  - id: A3
+    title: Render running commentary panel in PiPanel
+    status: todo
+    priority: 3
+    skill: run-task
+    phase: A
+    tags:
+      - tsx
+      - ui
+      - pi-panel
+    design_ref: docs/design/narration-sidecar.md#touch-points
+    acceptance_checks:
+      - test -f ../src/components/PiPanel.tsx
+      - grep -q "commentary" ../src/components/PiPanel.tsx
+      - grep -q "narrate-" ../src/components/PiPanel.tsx
+    notes: >-
+      Add a "What's happening" commentary sub-panel; filter narrate- events out
+      of the chat transcript; update live from pi-rpc-event.
+
+  - id: A4
+    title: Add per-terminal narration opt-in toggle
+    status: todo
+    priority: 4
+    skill: run-task
+    phase: A
+    tags:
+      - tsx
+      - ui
+      - terminal
+    design_ref: docs/design/narration-sidecar.md#opt-in-and-kill-switch
+    acceptance_checks:
+      - test -f ../src/components/TerminalPanel.tsx
+      - grep -q "narration" ../src/components/TerminalPanel.tsx
+      - grep -q "Narrate" ../src/components/TerminalPanel.tsx
+    notes: >-
+      Add a "Narrate" toggle to the terminal header; store on TerminalSession
+      (default false); clear buffer and stop digests on disable.
+
+  - id: A5
+    title: Journal narration.digest events
+    status: todo
+    priority: 5
+    skill: run-task
+    phase: A
+    tags:
+      - rust
+      - journal
+    design_ref: docs/design/narration-sidecar.md#event-flow
+    acceptance_checks:
+      - test -f ../src-tauri/src/main.rs
+      - grep -q "narration.digest" ../src-tauri/src/main.rs
+    notes: >-
+      Append each narration digest to .wenmei/journal.jsonl with kind
+      narration.digest and source sidecar.
+
+  - id: A6
+    title: Exit validation — narration feels better than raw terminal
+    status: todo
+    priority: 6
+    skill: run-task
+    phase: A
+    tags:
+      - validation
+      - ux
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-a
+    acceptance_checks:
+      - test -f ../docs/design/narration-sidecar.md
+      - test -f ../src/components/PiPanel.tsx
+      - test -f ../src/components/TerminalPanel.tsx
+    notes: >-
+      Run Claude Code in the PTY on a real folder with narration on. If reading
+      the commentary is not clearly better than reading the terminal, stop and
+      re-scope before Phase B.
+
+  - id: B1
+    title: Create review.rs module with session lifecycle and commands
+    status: todo
+    priority: 1
+    skill: run-task
+    phase: B
+    tags:
+      - rust
+      - review
+    design_ref: docs/design/changeset-review.md#touch-points
+    acceptance_checks:
+      - test -f ../src-tauri/src/review.rs
+      - grep -q "review_session_start" ../src-tauri/src/main.rs
+      - grep -q "ReviewSession" ../src-tauri/src/review.rs
+    notes: >-
+      Create review.rs with ReviewSession struct, session id generation,
+      start/approve/reject/close commands, and lazy baseline copy/restore.
+
+  - id: B2
+    title: Add pre-write baseline hooks in file_ops.rs
+    status: todo
+    priority: 2
+    skill: run-task
+    phase: B
+    tags:
+      - rust
+      - file-ops
+    design_ref: docs/design/changeset-review.md#baseline-strategy
+    acceptance_checks:
+      - test -f ../src-tauri/src/file_ops.rs
+      - grep -q "ensure_baseline" ../src-tauri/src/file_ops.rs
+      - grep -q "ChangeStatus" ../src-tauri/src/file_ops.rs
+    notes: >-
+      Before write_file/rename_file/move_file, copy prior content to the active
+      review session's baseline directory. Deleted files link to trash entry.
+
+  - id: B3
+    title: Feed polling observed changes into active review session
+    status: todo
+    priority: 3
+    skill: run-task
+    phase: B
+    tags:
+      - rust
+      - polling
+    design_ref: docs/design/changeset-review.md#event-flow
+    acceptance_checks:
+      - test -f ../src-tauri/src/polling.rs
+      - grep -q "observe_external_change" ../src-tauri/src/polling.rs
+      - grep -q "changeset-updated" ../src-tauri/src/polling.rs
+    notes: >-
+      When polling detects external file changes, ensure a baseline copy and emit
+      changeset-updated events to the frontend.
+
+  - id: B4
+    title: Add review journal event kinds and ReviewPanel UI
+    status: todo
+    priority: 4
+    skill: run-task
+    phase: B
+    tags:
+      - rust
+      - tsx
+      - ui
+    design_ref: docs/design/changeset-review.md#event-flow
+    acceptance_checks:
+      - test -f ../src/components/ReviewPanel.tsx
+      - grep -q "review.session_started" ../src-tauri/src/journal.rs
+      - grep -q "ReviewPanel" ../src/App.tsx
+    notes: >-
+      Journal review.session_started, review.approved, review.rejected events.
+      Create ReviewPanel with file list, diff, approve/reject buttons.
+
+  - id: B5
+    title: Wire bridge/state and render run timeline
+    status: todo
+    priority: 5
+    skill: run-task
+    phase: B
+    tags:
+      - tsx
+      - bridge
+      - state
+    design_ref: docs/design/changeset-review.md#run-timeline
+    acceptance_checks:
+      - test -f ../src/lib/tauri-bridge.ts
+      - grep -q "reviewSessionStart" ../src/lib/tauri-bridge.ts
+      - grep -q "activeReviewSession" ../src/store/appStore.ts
+    notes: >-
+      Add review bridge commands to tauri-bridge.ts, active review session state
+      to appStore.ts, and a run timeline view grouped by session.
+
+  - id: B6
+    title: Exit validation — review surface catches all agent mutations
+    status: todo
+    priority: 6
+    skill: run-task
+    phase: B
+    tags:
+      - validation
+      - ux
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-b
+    acceptance_checks:
+      - test -f ../docs/design/changeset-review.md
+      - test -f ../src/components/ReviewPanel.tsx
+      - test -f ../src-tauri/src/review.rs
+    notes: >-
+      Run an agent in the PTY, make edits, and confirm ReviewPanel shows the
+      changeset with approve/reject working. If not, stop and re-scope.
+
+  - id: B7
+    title: Restore missing docs/design phase design docs
+    status: todo
+    priority: 0
+    skill: run-task
+    phase: B
+    tags:
+      - docs
+      - design
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md
+    acceptance_checks:
+      - test -f ../docs/design/narration-sidecar.md
+      - test -f ../docs/design/changeset-review.md
+    notes: >-
+      docs/design/narration-sidecar.md and changeset-review.md existed on 05 Jul
+      (Phase A checks passed against them) but were deleted uncommitted. Recreate
+      them from the implemented code + revamp plan; they are design_refs for B
+      tasks and required by B6 acceptance checks.
+
+  - id: B8
+    title: Commit Phase A/B work in reviewable chunks
+    status: todo
+    priority: 7
+    skill: run-task
+    phase: B
+    tags:
+      - git
+      - hygiene
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-b
+    acceptance_checks:
+      - cd .. && npm run lint
+      - cd .. && npm run check
+      - test -z "$(git -C .. status --porcelain -- src src-tauri docs/design)"
+    notes: >-
+      ~930 insertions currently uncommitted (narration, review, module split).
+      Run format/lint/check, then commit in logical chunks (module split,
+      narration, review surface, docs). Nothing launches from a dirty tree.
+
+  - id: C1
+    title: Write steering design doc
+    status: todo
+    priority: 10
+    skill: run-task
+    phase: C
+    tags:
+      - docs
+      - design
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-c
+    acceptance_checks:
+      - test -f ../docs/design/steering.md
+      - grep -q "pi_type_into_terminal" ../docs/design/steering.md
+      - grep -q "confirmation" ../docs/design/steering.md
+    notes: >-
+      Design PTY injection (command shape, confirmation UX), draft-my-prompt
+      flow, drift alerts, and agent profiles before touching code. Include
+      injection etiquette differences (Claude Code vs Codex vs Aider).
+
+  - id: C2
+    title: PTY injection command with user confirmation
+    status: todo
+    priority: 11
+    skill: run-task
+    phase: C
+    tags:
+      - rust
+      - terminal
+      - bridge
+    design_ref: docs/design/steering.md
+    acceptance_checks:
+      - grep -q "pi_type_into_terminal" ../src-tauri/src/terminal.rs
+      - grep -q "piTypeIntoTerminal" ../src/lib/tauri-bridge.ts
+    notes: >-
+      Sidecar-initiated text injection into the PTY handle. Every injection
+      requires explicit user confirmation in the UI; journal each injection.
+
+  - id: C3
+    title: Draft-my-prompt flow in PiPanel
+    status: todo
+    priority: 12
+    skill: run-task
+    phase: C
+    tags:
+      - tsx
+      - ui
+      - pi-panel
+    design_ref: docs/design/steering.md
+    acceptance_checks:
+      - grep -qi "draftPrompt" ../src/components/PiPanel.tsx
+      - grep -q "piTypeIntoTerminal" ../src/components/PiPanel.tsx
+    notes: >-
+      User writes intent in plain language → Pi drafts the workhorse prompt →
+      user approves/edits → injected into the PTY via C2.
+
+  - id: C4
+    title: Drift detection alerts with one-click steer
+    status: todo
+    priority: 13
+    skill: run-task
+    phase: C
+    tags:
+      - rust
+      - tsx
+      - narration
+    design_ref: docs/design/steering.md
+    acceptance_checks:
+      - grep -qi "drift" ../src-tauri/src/narration.rs
+      - grep -qi "drift" ../src/components/PiPanel.tsx
+    notes: >-
+      Pi compares narration digests against the stated task; when the workhorse
+      wanders, raise a steering suggestion card; one click sends it via C2.
+
+  - id: C5
+    title: Agent profiles (launch command + injection etiquette)
+    status: todo
+    priority: 14
+    skill: run-task
+    phase: C
+    tags:
+      - rust
+      - state
+      - bridge
+    design_ref: docs/design/steering.md
+    acceptance_checks:
+      - grep -q "AgentProfile" ../src-tauri/src/state.rs
+      - grep -q "AgentProfile" ../src/lib/tauri-bridge.ts
+    notes: >-
+      Per-agent profile: launch command, prompt-injection style, known output
+      patterns. Replaces the hardcoded `pi` assumption; ship built-in profiles
+      for Claude Code, Codex, Aider, Pi interactive.
+
+  - id: C6
+    title: Exit validation — steer a live agent mid-run
+    status: todo
+    priority: 15
+    skill: run-task
+    phase: C
+    tags:
+      - validation
+      - ux
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-c
+    acceptance_checks:
+      - test -f ../docs/design/steering.md
+      - grep -q "pi_type_into_terminal" ../src-tauri/src/terminal.rs
+      - grep -q "AgentProfile" ../src-tauri/src/state.rs
+    notes: >-
+      Run a real agent, draft a prompt through Pi, trigger a drift alert, and
+      steer with one click. The human directs instead of operates, or re-scope.
+
+  - id: D1
+    title: Write memory-and-foreman design doc
+    status: todo
+    priority: 20
+    skill: run-task
+    phase: D
+    tags:
+      - docs
+      - design
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-d
+    acceptance_checks:
+      - test -f ../docs/design/memory-foreman.md
+      - grep -qi "briefing" ../docs/design/memory-foreman.md
+      - grep -qi "night" ../docs/design/memory-foreman.md
+    notes: >-
+      Design vault journal structure under .wenmei/journal/, auto-briefing
+      injection, multi-terminal status heuristics, and night-shift batch runs.
+
+  - id: D2
+    title: Vault journal with auto-briefing for new sessions
+    status: todo
+    priority: 21
+    skill: run-task
+    phase: D
+    tags:
+      - rust
+      - journal
+    design_ref: docs/design/memory-foreman.md
+    acceptance_checks:
+      - grep -qi "briefing" ../src-tauri/src/journal.rs
+      - grep -q "briefing" ../src/lib/tauri-bridge.ts
+    notes: >-
+      Pi maintains .wenmei/journal/ (what was tried, failed, rejected and why).
+      On a fresh workhorse session, generate a briefing and paste it into the
+      PTY (reuses C2 injection with confirmation).
+
+  - id: D3
+    title: Multi-terminal foreman dashboard
+    status: todo
+    priority: 22
+    skill: run-task
+    phase: D
+    tags:
+      - rust
+      - tsx
+      - terminal
+    design_ref: docs/design/memory-foreman.md
+    acceptance_checks:
+      - grep -qi "TerminalActivity" ../src-tauri/src/terminal.rs
+      - grep -qi "stuck" ../src/components/TerminalPanel.tsx
+    notes: >-
+      Status per PTY session (active/idle/stuck heuristics from output cadence);
+      Pi watches all terminals and surfaces cross-terminal alerts.
+
+  - id: D4
+    title: Night shift v1 — supervised batch run from a task list
+    status: todo
+    priority: 23
+    skill: run-task
+    phase: D
+    tags:
+      - rust
+      - tsx
+    design_ref: docs/design/memory-foreman.md
+    acceptance_checks:
+      - test -f ../src-tauri/src/nightshift.rs
+      - grep -qi "nightShift" ../src/lib/tauri-bridge.ts
+    notes: >-
+      User leaves TODO.md; Pi runs the workhorse through it with every changeset
+      staged via the review surface. Explicitly no auto-commit; morning briefing
+      summarizes what is waiting for review.
+
+  - id: D5
+    title: Exit validation — overnight run wakes to a briefing
+    status: todo
+    priority: 24
+    skill: run-task
+    phase: D
+    tags:
+      - validation
+      - ux
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-d
+    acceptance_checks:
+      - test -f ../docs/design/memory-foreman.md
+      - test -f ../src-tauri/src/nightshift.rs
+    notes: >-
+      Leave a 3-item TODO.md, run night shift, and confirm morning briefing +
+      staged changesets with nothing auto-committed. If not, re-scope.
+
+  - id: E1
+    title: Recipes / scheduled runs UI
+    status: todo
+    priority: 30
+    skill: run-task
+    phase: E
+    tags:
+      - rust
+      - tsx
+      - bridge
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-e
+    acceptance_checks:
+      - grep -q "Recipe" ../src/lib/tauri-bridge.ts
+      - grep -qi "recipe" ../src-tauri/src/state.rs
+    notes: >-
+      Repeatable agent jobs on folders ("every Monday summarize this folder
+      into weekly-review.md"). Recurring-revenue justification for Pro.
+
+  - id: E2
+    title: Audit log export
+    status: todo
+    priority: 31
+    skill: run-task
+    phase: E
+    tags:
+      - rust
+      - journal
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-e
+    acceptance_checks:
+      - grep -qi "export_audit" ../src-tauri/src/journal.rs
+      - grep -qi "exportAudit" ../src/lib/tauri-bridge.ts
+    notes: >-
+      Export the action log / journal as a portable audit artifact (markdown +
+      JSON). The compliance story for teams procurement.
+
+  - id: E3
+    title: Free/Pro licensing and feature gating
+    status: todo
+    priority: 32
+    skill: run-task
+    phase: E
+    tags:
+      - rust
+      - tsx
+      - business
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#5-monetization-sketch
+    acceptance_checks:
+      - grep -qi "license" ../src-tauri/src/state.rs
+      - grep -qi "license" ../src/store/appStore.ts
+    notes: >-
+      Free = editor + one sandbox + manual sessions. Pro gates narration, diff
+      review, run history, steering, recipes. Offline-friendly license key; no
+      web backend (DEV_PLAN constraint).
+
+  - id: L1
+    title: First-run onboarding flow
+    status: todo
+    priority: 40
+    skill: run-task
+    phase: launch
+    tags:
+      - tsx
+      - onboarding
+    design_ref: docs/first_run_onboarding.md
+    acceptance_checks:
+      - grep -qi "onboarding" ../src/App.tsx
+    notes: >-
+      Ship the first-run experience per docs/first_run_onboarding.md and
+      docs/onboarding_design_spec.md: pick a folder, meet the sidecar, run a
+      first supervised agent session.
+
+  - id: L2
+    title: Release pipeline — CI builds for mac/win/linux
+    status: todo
+    priority: 41
+    skill: run-task
+    phase: launch
+    tags:
+      - ci
+      - packaging
+    design_ref: docs/PACKAGING.md
+    acceptance_checks:
+      - test -f ../.github/workflows/release.yml
+      - grep -q "tauri" ../.github/workflows/release.yml
+    notes: >-
+      GitHub Actions release workflow producing .dmg (aarch64), .msi/.exe, and
+      .deb/.rpm/.AppImage per docs/PACKAGING.md and docs/CI_CD.md, with
+      signing/notarization documented.
+
+  - id: L3
+    title: Landing page per docs/landing_page.md
+    status: todo
+    priority: 42
+    skill: run-task
+    phase: launch
+    tags:
+      - marketing
+      - web
+    design_ref: docs/landing_page.md
+    acceptance_checks:
+      - test -f ../landing/index.html
+      - grep -qi "manager" ../landing/index.html
+    notes: >-
+      Static landing page (no backend) using the §7 one-liners ("Every powerful
+      agent is a terminal. Wenmei gives it a manager."), download links, and the
+      free/pro pitch. Deployable to any static host.
+
+  - id: L4
+    title: v1.0.0 launch — tag, release, announce
+    status: todo
+    priority: 43
+    skill: run-task
+    phase: launch
+    tags:
+      - release
+      - marketing
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md
+    acceptance_checks:
+      - grep -q '"version":' ../package.json
+      - git -C .. tag -l "v1.0*" | grep -q "v1.0"
+    notes: >-
+      Version bump to 1.0.0 across package.json + tauri.conf, changelog, git
+      tag, GitHub release with artifacts from L2, announcement copy drafted
+      from the landing page. Human signs off before anything is published.

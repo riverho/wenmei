@@ -1,0 +1,10 @@
+# skills/index.yaml — skill index for the Wenmei playbook.
+name: wenmei-skills
+version: 0.1.0
+description: Repo-local skills. Skills-first — find the matching skill before improvising.
+
+skills:
+  - id: run-task
+    file: skills/run-task/SKILL.md
+    process: run-task
+    summary: Generic task execution — the default for any backlog item.

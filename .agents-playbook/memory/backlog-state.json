@@ -1,0 +1,127 @@
+{
+  "A1": {
+    "status": "done",
+    "loop_id": "loop-20260705-001",
+    "claimed_at": "2026-07-05T07:10:57.140Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-05T16:46:56.762Z"
+  },
+  "A2": {
+    "status": "done",
+    "loop_id": "loop-20260705-001",
+    "claimed_at": "2026-07-05T16:47:06.755Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-05T16:47:07.568Z"
+  },
+  "A3": {
+    "status": "done",
+    "loop_id": "loop-20260705-001",
+    "claimed_at": "2026-07-05T16:47:17.776Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-05T16:47:18.475Z"
+  },
+  "A4": {
+    "status": "done",
+    "loop_id": "loop-20260705-001",
+    "claimed_at": "2026-07-05T16:47:27.688Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-05T16:47:28.554Z"
+  },
+  "A5": {
+    "status": "done",
+    "loop_id": "loop-20260705-001",
+    "claimed_at": "2026-07-05T16:47:36.008Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-05T16:47:36.912Z"
+  },
+  "A6": {
+    "status": "done",
+    "loop_id": "loop-20260705-001",
+    "claimed_at": "2026-07-05T16:47:46.406Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-05T16:47:47.345Z"
+  },
+  "B1": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-05T18:14:02.956Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:22:54.033Z"
+  },
+  "B7": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:22:54.156Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:24:11.494Z"
+  },
+  "B2": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:26:13.065Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:26:13.194Z"
+  },
+  "B3": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:26:13.312Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:26:13.439Z"
+  },
+  "B4": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:26:13.560Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:26:13.686Z"
+  },
+  "B5": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:26:13.806Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:26:13.934Z"
+  },
+  "B6": {
+    "status": "blocked",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:26:14.054Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:26:14.179Z"
+  },
+  "B8": {
+    "status": "in_progress",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:30:33.022Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding"
+  }
+}

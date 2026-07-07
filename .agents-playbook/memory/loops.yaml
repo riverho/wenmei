@@ -1,0 +1,31 @@
+active: loop-20260705-002
+loops:
+  - id: loop-20260705-001
+    status: done
+    started_at: "2026-07-05T07:04:41.336Z"
+    closed_at: "2026-07-05T18:13:30.289Z"
+    goal: Prove Level 1 sidecar narration feels magical
+    stop: >-
+      Run Claude Code in the PTY with narration on; reading commentary is clearly better than
+      reading the terminal, or we re-scope
+    journal:
+      first_line: 1
+      last_line: 6
+    artifacts: artifacts/loops/loop-20260705-001
+    reason: null
+    allow_unreflected:
+      ts: "2026-07-05T18:13:30.292Z"
+      reason: operator override
+  - id: loop-20260705-002
+    status: active
+    started_at: "2026-07-05T18:13:30.490Z"
+    closed_at: null
+    goal: Agent work lands as a reviewable changeset with per-file approve/reject
+    stop: >-
+      Run an agent in the PTY, make edits, and confirm ReviewPanel shows the changeset with
+      approve/reject working, or re-scope
+    journal:
+      first_line: 7
+      last_line: null
+    artifacts: artifacts/loops/loop-20260705-002
+    reason: null

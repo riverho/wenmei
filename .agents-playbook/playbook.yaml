@@ -1,0 +1,117 @@
+# ============================================================================
+#  playbook.yaml — THE MASTER (the "fixation")
+# ----------------------------------------------------------------------------
+#  Single anchor every agent re-reads at the start of every loop iteration.
+#  Everything referenced here is RELATIVE to this file's folder.
+# ============================================================================
+
+name: wenmei
+version: 0.1.0
+description: >-
+  Agent-playbook loop for the Wenmei desktop app. Drive the revamp from Phase A
+  (sidecar narration) onward with executable acceptance checks and recorded
+  outcomes.
+
+entry: SKILL.md
+
+north_star: >-
+  Wenmei becomes the safe desktop where AI agents do real work on your files —
+  visible, reviewable, reversible.
+
+fixation:
+  - Re-anchor to playbook.yaml at the start of every loop iteration. The master wins.
+  - Act inside this playbook folder and the repo it serves; the playbook is carry-on.
+  - Skills-first. Use a skill from skills/index.yaml when one fits; only improvise
+    when none exists — then write one.
+  - Done means the task's acceptance_checks (shell commands) exit 0. `pb record
+    --status done` runs them and refuses on failure. Exit codes, not prose.
+  - Record every iteration to memory/journal.ndjson via `pb record`. No silent work.
+  - Agent-first, human-second. Work against the machine records; roll them up into
+    artifacts/reports/ for humans.
+  - Keep guardrails green. Run `pb validate` before and after acting.
+  - Memory precedence — on project matters this folder (north_star + memory/)
+    outranks host memory. Surface conflicts; never silently follow host memory.
+  - Open each phase with a cycle brief (memory/cycle.md) and close it with `pb reflect`.
+
+paths:
+  root: .
+  scripts: scripts
+  processes: processes
+  skills: skills
+  memory: memory
+  artifacts: artifacts
+  reports: artifacts/reports
+
+index:
+  cli: scripts/pb.mjs
+  processes_index: processes/index.yaml
+  skills_index: skills/index.yaml
+  memory:
+    project_memory: memory/project-memory.md
+    backlog: memory/backlog.yaml
+    journal: memory/journal.ndjson
+    cycle: memory/cycle.md
+    loops: memory/loops.yaml
+    lessons: memory/lessons.ndjson
+    processes: memory/processes.ndjson
+  artifacts:
+    reports: artifacts/reports
+
+update:
+  repo: riverho/agent-playbook
+
+default_mode: coding
+modes:
+  coding: modes/coding.yaml
+
+loop:
+  description: Orient → Select → Act → Verify → Record → Report → repeat.
+  steps:
+    - id: orient
+      do: Re-anchor. Read this master + memory/project-memory.md, then snapshot state.
+      command: node scripts/pb.mjs status
+    - id: select
+      do: Pick the next actionable task and learn which skill/process to use.
+      command: node scripts/pb.mjs next --claim
+    - id: act
+      do: Open skills/<skill>/SKILL.md and follow processes/<process>.yaml step by step.
+      command: null
+    - id: verify
+      do: Run structural guardrails plus the task's executable acceptance_checks.
+      command: node scripts/pb.mjs validate && node scripts/pb.mjs validate --task <id>
+    - id: record
+      do: Append a structured entry. Recording done re-runs the checks and refuses on failure.
+      command: node scripts/pb.mjs record --task <id> --action <action> --status <status> --notes "<what+why>"
+    - id: report
+      do: Periodically roll the journal up into a human-readable report artifact.
+      command: node scripts/pb.mjs report
+
+guardrails:
+  validate_command: node scripts/pb.mjs validate
+  rules:
+    - The master, both index files, and every file they reference must exist and parse.
+    - Every skill must point to a real process; every backlog item must have a valid status.
+    - acceptance_checks are executable shell commands (cwd = playbook root, exit 0 = pass).
+    - Every journal line must be valid JSON (use `pb record`, never hand-edit).
+    - One task in_progress at a time per agent. Finish or block it before claiming another.
+    - Prefer the smallest change that satisfies the task's acceptance_checks.
+  allowed_statuses: [todo, in_progress, blocked, done]
+
+hardening:
+  principle: Externalize state to disk + re-anchor cheaply + auto-re-inject the anchor.
+  commands:
+    anchor: node scripts/pb.mjs anchor
+    checkpoint: node scripts/pb.mjs checkpoint
+  re_anchor: Call anchor at the start of every iteration and after every few actions.
+  auto_inject:
+    other_runtimes: Wrap each turn with `node scripts/pb.mjs anchor --brief`; on resume run checkpoint.
+
+reporting:
+  source: memory/journal.ndjson
+  backlog: memory/backlog.yaml
+  output_dir: artifacts/reports
+  filename: report-<date>.md
+  contains:
+    - Summary counts (done / in_progress / blocked / todo).
+    - Per-task timeline built from journal entries.
+    - Open backlog with priority, skill, and gate quality.

@@ -1,0 +1,56 @@
+# processes/run-task.yaml
+name: run-task
+version: 1.0.0
+purpose: >-
+  Define the canonical, repeatable way to take a single backlog task from
+  selection to a recorded, reported outcome.
+
+source_of_truth:
+  master: playbook.yaml
+  memory: memory/project-memory.md
+  backlog: memory/backlog.yaml
+
+applies_to:
+  - any task in memory/backlog.yaml that has no more specific skill/process
+
+required_inputs:
+  - a claimed backlog task (status in_progress) with a clear title
+  - the task's acceptance_checks — executable shell commands that define "done"
+
+canonical_steps:
+  - step: 1
+    name: Orient
+    requirements:
+      - Read playbook.yaml (the fixation) and memory/project-memory.md.
+      - Run `pb status` to see backlog and recent journal.
+      - Read the task's acceptance_checks — they ARE the definition of done.
+  - step: 2
+    name: Plan
+    requirements:
+      - State the smallest change that will make the acceptance_checks pass.
+      - Identify which files or artifacts you will touch.
+  - step: 3
+    name: Execute
+    requirements:
+      - Do the work. Stay inside the repo and playbook folder.
+      - Prefer reusing existing skills, scripts, and patterns.
+  - step: 4
+    name: Verify
+    requirements:
+      - Run `pb validate` — structural guardrails must be green.
+      - Run `pb validate --task <id>` — the task's own checks must pass.
+  - step: 5
+    name: Record
+    requirements:
+      - Run `pb record --task <id> --action execute --status <done|blocked> --notes "<what+why>"`.
+      - Recording done re-runs the checks and refuses on failure.
+      - If blocked, note exactly what is needed to unblock.
+  - step: 6
+    name: Report
+    requirements:
+      - When a batch of work is complete, run `pb report` to refresh the human artifact.
+
+acceptance_checks:
+  - The task's own acceptance_checks exit 0 (enforced by `pb record --status done`).
+  - "`pb validate` passes."
+  - A journal entry exists for this task with a terminal status (done or blocked).

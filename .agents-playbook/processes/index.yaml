@@ -1,0 +1,16 @@
+# processes/index.yaml — process index for the Wenmei playbook.
+name: wenmei-processes
+version: 0.1.0
+description: Index of canonical, agent-executable processes in this playbook.
+
+processes:
+  - id: run-task
+    file: processes/run-task.yaml
+    owner: core
+    summary: The generic loop unit — how to take ANY backlog task from claim to report.
+
+shared_rules:
+  - Re-anchor to playbook.yaml before acting; it is the source of truth.
+  - Use the smallest change that satisfies the task's acceptance_checks.
+  - Record the outcome to the journal with `pb record` before moving on.
+  - Keep all work inside the playbook folder and the repo it serves.
