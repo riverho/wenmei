@@ -14,7 +14,7 @@ node_modules
 .pnp.js
 
 #Design
-app_design
+
 *.pen
 design.md
 

@@ -52,6 +52,8 @@ interface AppState {
   openMode: string;
   metadataMode: string;
   sandboxAuthStatus: string;
+  licenseTier: "free" | "pro";
+  licenseKey: string | null;
 
   // Pi Terminal
   piMessages: PiMessage[];
@@ -173,6 +175,8 @@ export const useAppStore = create<AppState>()(
       openMode: "vault",
       metadataMode: "local",
       sandboxAuthStatus: "promoted",
+      licenseTier: "free",
+      licenseKey: null,
       isDirty: false,
       piMessages: [],
       piInput: "",
@@ -346,6 +350,8 @@ export const useAppStore = create<AppState>()(
           openMode: state.open_mode ?? "vault",
           metadataMode: state.metadata_mode ?? "local",
           sandboxAuthStatus: state.sandbox_auth_status ?? "promoted",
+          licenseTier: state.license_tier ?? "free",
+          licenseKey: state.license_key ?? null,
         });
         // Apply theme
         const isDark = resolveTheme(state.theme as "system" | "light" | "dark");
@@ -379,6 +385,8 @@ export const useAppStore = create<AppState>()(
         open_mode: get().openMode,
         metadata_mode: get().metadataMode,
         sandbox_auth_status: get().sandboxAuthStatus,
+        license_tier: get().licenseTier,
+        license_key: get().licenseKey,
       }),
     }),
     {

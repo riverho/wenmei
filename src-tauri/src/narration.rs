@@ -12,6 +12,8 @@ const MAX_WINDOW_LINES: usize = 40;
 pub struct NarrationDigest {
     pub text: String,
     pub file_changes: Vec<String>,
+    pub drift: bool,
+    pub drift_reason: Option<String>,
 }
 
 pub struct NarrationBuffer {
@@ -112,9 +114,44 @@ impl NarrationBuffer {
 
         let text = std::mem::take(&mut self.buf);
         let file_changes = std::mem::take(&mut self.pending_file_changes);
+        let drift_reason = detect_drift(&text, &file_changes);
+        let drift = drift_reason.is_some();
         self.last_flush = now;
-        Some(NarrationDigest { text, file_changes })
+        Some(NarrationDigest {
+            text,
+            file_changes,
+            drift,
+            drift_reason,
+        })
     }
+}
+
+fn detect_drift(text: &str, file_changes: &[String]) -> Option<String> {
+    let lower = text.to_lowercase();
+    let risky_output = [
+        "permission denied",
+        "fatal:",
+        "panic",
+        "failed",
+        "blocked",
+        "stuck",
+        "cannot continue",
+        "outside the",
+    ]
+    .iter()
+    .find(|needle| lower.contains(**needle));
+    if let Some(needle) = risky_output {
+        return Some(format!("terminal output includes `{}`", needle));
+    }
+
+    if let Some(path) = file_changes
+        .iter()
+        .find(|path| path.starts_with('/') || path.contains("../"))
+    {
+        return Some(format!("file change may be outside sandbox: {}", path));
+    }
+
+    None
 }
 
 fn similar_enough(a: &str, b: &str) -> bool {
@@ -150,6 +187,8 @@ pub fn spawn_narration_flush_thread(
                     "id": format!("narrate-{}", counter),
                     "digest": digest.text,
                     "file_changes": digest.file_changes,
+                    "drift": digest.drift,
+                    "drift_reason": digest.drift_reason,
                 });
                 let _ = app.emit("narration-digest", payload);
             }

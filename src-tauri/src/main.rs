@@ -7,10 +7,12 @@
 )]
 
 mod cli;
+mod control;
 mod file_ops;
 mod journal;
 mod logging;
 mod narration;
+mod nightshift;
 mod pi_rpc;
 mod platform;
 mod polling;
@@ -57,6 +59,7 @@ fn main() {
         .setup(|app| {
             logging::init(&state::config_dir());
             polling::start_file_polling(app.handle().clone());
+            control::start_control_server(app.handle().clone());
 
             let app_handle = app.handle().clone();
             app.listen("narration-digest", move |event| {
@@ -111,6 +114,7 @@ fn main() {
             review::review_approve,
             review::review_reject,
             review::review_changeset,
+            review::review_annotate,
             search::search_workspace,
             search::search_all_vaults,
             state::get_app_state,
@@ -135,6 +139,10 @@ fn main() {
             vault::complete_onboarding,
             journal::append_journal,
             journal::list_journal_events,
+            journal::build_briefing,
+            journal::export_audit,
+            nightshift::night_shift_start,
+            nightshift::night_shift_status,
             pi_rpc::pi_panel_start,
             pi_rpc::pi_panel_prompt,
             pi_rpc::pi_panel_abort,
@@ -142,6 +150,7 @@ fn main() {
             pi_rpc::pi_panel_stop,
             terminal::terminal_start,
             terminal::terminal_write,
+            terminal::pi_type_into_terminal,
             terminal::terminal_resize,
             terminal::terminal_stop,
             terminal::terminal_set_narration_enabled,

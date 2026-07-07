@@ -28,7 +28,7 @@ pi_type_into_terminal(text: String, origin: String) -> Result<(), String>
 ```
 
 - Callable only after the frontend confirmation flow — the command is invoked
-  *by the UI confirm button*, never directly by the Pi RPC event handler.
+  _by the UI confirm button_, never directly by the Pi RPC event handler.
   Sidecar suggestions arrive as events; the frontend turns them into pending
   injection cards; only user confirmation calls the command.
 - Appends the active agent profile's submit sequence (usually `\r`; some TUIs
@@ -53,11 +53,11 @@ Bridge: `piTypeIntoTerminal(text, origin)` in `src/lib/tauri-bridge.ts`.
 - The narration pipeline already digests workhorse output. Phase C adds a
   drift check: each digest is scored against the current stated task (the last
   confirmed injected prompt, kept in appStore).
-- On drift, Pi produces a steering suggestion — *"You're rewriting the config
-  loader; the task was the parser. Refocus."* — surfaced as a drift card in
+- On drift, Pi produces a steering suggestion — _"You're rewriting the config
+  loader; the task was the parser. Refocus."_ — surfaced as a drift card in
   the commentary panel with a one-click **Steer** button.
 - **Steer** is the confirmation; it calls `piTypeIntoTerminal(suggestion,
-  "drift-alert")`. Dismissed cards are journaled as `steering.dismissed`.
+"drift-alert")`. Dismissed cards are journaled as `steering.dismissed`.
 - Rust side keeps a `drift` flag on the digest payload so the UI can badge it;
   scoring happens in the Pi session, not in Rust.
 
@@ -100,3 +100,12 @@ Run a real agent: draft a prompt through Pi and send it with one confirmation
 click; trigger a drift alert and steer with one click. If mid-run injection
 confuses the tested agents despite profile etiquette, stop and re-scope
 (fallback: injection only between turns).
+
+Automation path: the same scenario must also be scriptable through the local
+control plane documented in
+[`agent-control-plane.md`](agent-control-plane.md). `wenmeictl terminal start`
+opens the governed PTY session, `wenmeictl terminal type` exercises the
+confirmed steering injection path for `draft-prompt` and `drift-alert`,
+`wenmeictl terminal narrate` waits on structured narration/drift state, and
+`wenmeictl terminal snapshot` verifies terminal/profile/pending-injection
+state without scraping the desktop UI.

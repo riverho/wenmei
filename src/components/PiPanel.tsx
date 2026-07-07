@@ -21,6 +21,7 @@ import {
   piPanelPrompt,
   piPanelRestart,
   piPanelStart,
+  piTypeIntoTerminal,
   readFile,
   searchAllVaults,
   searchWorkspace,
@@ -63,6 +64,7 @@ const SLASH_COMMANDS = [
   { cmd: "/log", desc: "Show recent file actions", icon: Clock },
   { cmd: "/journal", desc: "Show sandbox journal", icon: Clock },
   { cmd: "/thinking", desc: "Set thinking level", icon: Sparkles },
+  { cmd: "/draft", desc: "Draft prompt into terminal", icon: Terminal },
 ];
 
 const CONTEXT_RESET_ERROR = "[ERR_CONTEXT_SWITCH_REQUIRES_RESET]";
@@ -209,6 +211,10 @@ export default function PiPanel() {
   );
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [runDetails, setRunDetails] = useState<string[]>([]);
+  const [driftAlert, setDriftAlert] = useState<{
+    reason: string;
+    digest: string;
+  } | null>(null);
   const [activeStreamText, setActiveStreamText] = useState("");
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(
     null
@@ -257,6 +263,26 @@ export default function PiPanel() {
     ]);
   }, []);
 
+  const sendDriftSteer = useCallback(async () => {
+    if (!driftAlert) return;
+    const prompt = [
+      "Pause and re-check the current task boundary before continuing.",
+      `Possible drift: ${driftAlert.reason}`,
+      "",
+      "State what you were doing, confirm the files you intend to touch, and avoid unrelated edits.",
+    ].join("\n");
+    await piTypeIntoTerminal(`${prompt}\n`, "pi-panel-drift");
+    await appendJournal(
+      "steering.injected",
+      "pi-panel",
+      null,
+      "Drift steering injected into terminal",
+      { origin: "pi-panel-drift", reason: driftAlert.reason }
+    );
+    addRunDetail(`Drift steer injected: ${driftAlert.reason}`);
+    setDriftAlert(null);
+  }, [addRunDetail, driftAlert]);
+
   const typeResponse = useCallback(
     (aiResponse: PiMessage) => {
       addPiMessage(aiResponse);
@@ -278,9 +304,38 @@ export default function PiPanel() {
     async (input: string): Promise<PiMessage> => {
       const trimmed = input.trim();
       const lower = trimmed.toLowerCase();
+      const draftPrompt = async (intent: string) => {
+        const target =
+          intent ||
+          activeFilePath ||
+          "continue the current sandbox task from the visible context";
+        const prompt = [
+          "Work in this Wenmei sandbox and keep changes scoped.",
+          "",
+          `Task: ${target}`,
+          "",
+          "Before editing, inspect the relevant files. After editing, run the smallest useful validation command and summarize changed files, risks, and any blocked checks.",
+        ].join("\n");
+        await piTypeIntoTerminal(`${prompt}\n`, "pi-panel-draft");
+        await appendJournal(
+          "steering.injected",
+          "pi-panel",
+          null,
+          "Draft prompt injected into terminal",
+          { origin: "pi-panel-draft", intent: target }
+        );
+        addRunDetail(`Draft prompt injected: ${target.slice(0, 80)}`);
+        return prompt;
+      };
 
       if (lower.startsWith("/summarize")) {
         return message("action", `Summary: ${summarize(activeFileContent)}`);
+      }
+      if (lower.startsWith("/draft")) {
+        const prompt = await draftPrompt(
+          trimmed.replace(/^\/draft/i, "").trim()
+        );
+        return message("action", `Draft prompt sent to terminal:\n\n${prompt}`);
       }
       if (lower.startsWith("/outline")) {
         return message(
@@ -440,12 +495,13 @@ export default function PiPanel() {
 
       return message(
         "chat",
-        `Available desktop commands:\n/format\n/summarize\n/rewrite\n/outline\n/actions\n/find <term> [--all]\n/write <prompt>\n/generate <prompt>\n/explain\n/delete\n/vaults\n/sandboxes\n/sandbox <name>\n/log\n/journal\n/thinking <level>`
+        `Available desktop commands:\n/format\n/summarize\n/rewrite\n/outline\n/actions\n/find <term> [--all]\n/write <prompt>\n/generate <prompt>\n/explain\n/delete\n/vaults\n/sandboxes\n/sandbox <name>\n/log\n/journal\n/thinking <level>\n/draft <agent task>`
       );
     },
     [
       activeFileContent,
       activeFilePath,
+      addRunDetail,
       setActiveFile,
       setActiveFileContent,
       setActionLog,
@@ -934,28 +990,42 @@ export default function PiPanel() {
       unlisten = fn;
     });
 
-    listen<{ id: string; digest: string; file_changes: string[] }>(
-      "narration-digest",
-      async evt => {
-        const { id, digest, file_changes: fileChanges } = evt.payload;
-        if (!digest.trim()) return;
-        if (narratePendingRef.current) return; // one narration at a time
-        try {
-          await startPiForFocusedSandbox();
-          const prompt = `You are observing a terminal session. Summarize what the agent just did in 1-3 sentences. Flag anything risky.\n\nTerminal output:\n${digest}${
-            fileChanges?.length
-              ? `\n\nFiles changed: ${fileChanges.join(", ")}`
-              : ""
-          }`;
-          activeAssistantIdRef.current = id;
-          narrateBufferRef.current = "";
-          narratePendingRef.current = true;
-          await piPanelPrompt(id, prompt);
-        } catch {
-          narratePendingRef.current = false;
-        }
+    listen<{
+      id: string;
+      digest: string;
+      file_changes: string[];
+      drift?: boolean;
+      drift_reason?: string | null;
+    }>("narration-digest", async evt => {
+      const {
+        id,
+        digest,
+        file_changes: fileChanges,
+        drift,
+        drift_reason: driftReason,
+      } = evt.payload;
+      if (!digest.trim()) return;
+      if (drift) {
+        const reason = driftReason || "agent output may have drifted";
+        setDriftAlert({ reason, digest: digest.slice(0, 600) });
+        addRunDetail(`drift alert: ${reason}`);
       }
-    ).then(fn => {
+      if (narratePendingRef.current) return; // one narration at a time
+      try {
+        await startPiForFocusedSandbox();
+        const prompt = `You are observing a terminal session. Summarize what the agent just did in 1-3 sentences. Flag anything risky, including possible task drift.\n\nTerminal output:\n${digest}${
+          fileChanges?.length
+            ? `\n\nFiles changed: ${fileChanges.join(", ")}`
+            : ""
+        }${drift ? `\n\nPossible drift: ${driftReason ?? "unknown"}` : ""}`;
+        activeAssistantIdRef.current = id;
+        narrateBufferRef.current = "";
+        narratePendingRef.current = true;
+        await piPanelPrompt(id, prompt);
+      } catch {
+        narratePendingRef.current = false;
+      }
+    }).then(fn => {
       unlistenNarration = fn;
     });
 
@@ -1130,6 +1200,55 @@ export default function PiPanel() {
               {runDetails.join("\n")}
             </div>
           )}
+        </div>
+      )}
+
+      {driftAlert && (
+        <div
+          className="px-3 py-2 text-[11px]"
+          style={{
+            borderBottom: "1px solid var(--surface-3)",
+            background: "rgba(245, 158, 11, 0.08)",
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div
+                className="font-semibold uppercase tracking-wider text-[10px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Drift alert
+              </div>
+              <div
+                className="mt-1 terminal-font whitespace-pre-wrap"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {driftAlert.reason}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={sendDriftSteer}
+                className="px-2 py-1 rounded text-[10px]"
+                style={{
+                  background: "var(--accent-teal)",
+                  color: "#fff",
+                }}
+              >
+                send steer
+              </button>
+              <button
+                onClick={() => setDriftAlert(null)}
+                className="px-2 py-1 rounded text-[10px]"
+                style={{
+                  background: "var(--surface-2)",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                dismiss
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

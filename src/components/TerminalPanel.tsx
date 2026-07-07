@@ -14,9 +14,14 @@ import "@xterm/xterm/css/xterm.css";
 
 interface TerminalOutputPayload {
   data: number[];
+  activity?: TerminalActivityStatus;
 }
 
 const CONTEXT_RESET_ERROR = "[ERR_CONTEXT_SWITCH_REQUIRES_RESET]";
+const ACTIVE_OUTPUT_MS = 2500;
+const STUCK_AFTER_INPUT_MS = 30000;
+
+type TerminalActivityStatus = "active" | "idle" | "stuck";
 
 function resetMessage(error: unknown) {
   return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
@@ -31,8 +36,11 @@ export default function TerminalPanel() {
     null
   );
   const contextRef = useRef<TerminalStarted | null>(null);
+  const lastOutputAtRef = useRef(0);
+  const lastInputAtRef = useRef(0);
   const [context, setContext] = useState<TerminalStarted | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<TerminalActivityStatus>("idle");
   const [narrationEnabled, setNarrationEnabled] = useState(false);
   const [narrationOffline, setNarrationOffline] = useState(false);
 
@@ -43,6 +51,26 @@ export default function TerminalPanel() {
     let unlistenOutput: UnlistenFn | null = null;
     let unlistenExit: UnlistenFn | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let activityTimer: number | null = null;
+
+    function computeActivity(now = Date.now()): TerminalActivityStatus {
+      const lastOutputAt = lastOutputAtRef.current;
+      const lastInputAt = lastInputAtRef.current;
+      if (
+        lastInputAt > lastOutputAt &&
+        now - lastInputAt > STUCK_AFTER_INPUT_MS
+      ) {
+        return "stuck";
+      }
+      if (lastOutputAt > 0 && now - lastOutputAt < ACTIVE_OUTPUT_MS) {
+        return "active";
+      }
+      return "idle";
+    }
+
+    function refreshActivity() {
+      if (!disposed) setActivity(computeActivity());
+    }
 
     const term = new Terminal({
       cursorBlink: true,
@@ -85,6 +113,8 @@ export default function TerminalPanel() {
     fitRef.current = fit;
 
     const writeDisposable = term.onData(data => {
+      lastInputAtRef.current = Date.now();
+      setActivity("active");
       terminalWrite(data).catch(err => {
         term.writeln(`\r\n[Wenmei terminal write failed: ${String(err)}]`);
       });
@@ -105,6 +135,8 @@ export default function TerminalPanel() {
           unlistenOutput = await listen<TerminalOutputPayload>(
             "terminal-output",
             event => {
+              lastOutputAtRef.current = Date.now();
+              setActivity(event.payload.activity ?? "active");
               term.write(new Uint8Array(event.payload.data));
             }
           );
@@ -120,7 +152,10 @@ export default function TerminalPanel() {
           term.write(new Uint8Array(started.snapshot));
         }
         contextRef.current = started;
-        if (!disposed) setContext(started);
+        if (!disposed) {
+          setContext(started);
+          refreshActivity();
+        }
 
         resizeObserver?.disconnect();
         resizeObserver = new ResizeObserver(resize);
@@ -143,6 +178,7 @@ export default function TerminalPanel() {
     }
 
     startRef.current = start;
+    activityTimer = window.setInterval(refreshActivity, 1000);
     start();
 
     return () => {
@@ -151,6 +187,7 @@ export default function TerminalPanel() {
       contextRef.current = null;
       writeDisposable.dispose();
       resizeObserver?.disconnect();
+      if (activityTimer !== null) window.clearInterval(activityTimer);
       unlistenOutput?.();
       unlistenExit?.();
       term.dispose();
@@ -174,6 +211,13 @@ export default function TerminalPanel() {
       setNarrationOffline(true);
     }
   };
+
+  const activityColor =
+    activity === "active"
+      ? "var(--accent-teal)"
+      : activity === "stuck"
+        ? "#f87171"
+        : "var(--text-tertiary)";
 
   return (
     <div
@@ -202,6 +246,21 @@ export default function TerminalPanel() {
             log: {context.log_file}
           </div>
         )}
+        <div
+          className="flex items-center gap-1.5 shrink-0 text-[10px] uppercase tracking-wider"
+          style={{ color: activityColor }}
+          title={
+            activity === "stuck"
+              ? "No terminal output after recent input"
+              : `Terminal ${activity}`
+          }
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ background: activityColor }}
+          />
+          {activity}
+        </div>
         <button
           onClick={toggleNarration}
           className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors"

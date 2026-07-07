@@ -58,6 +58,26 @@ pub struct Sandbox {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentProfile {
+    pub id: String,
+    pub name: String,
+    pub launch_command: String,
+    pub injection_style: String,
+    pub submit_sequence: String,
+    pub output_patterns: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Recipe {
+    pub id: String,
+    pub name: String,
+    pub folder: String,
+    pub schedule: String,
+    pub prompt: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppState {
     #[serde(default)]
     pub first_run_at: Option<String>,
@@ -85,6 +105,14 @@ pub struct AppState {
     pub metadata_mode: String,
     #[serde(default)]
     pub sandbox_auth_status: String,
+    #[serde(default = "default_agent_profiles")]
+    pub agent_profiles: Vec<AgentProfile>,
+    #[serde(default)]
+    pub recipes: Vec<Recipe>,
+    #[serde(default = "default_license_tier")]
+    pub license_tier: String,
+    #[serde(default)]
+    pub license_key: Option<String>,
 }
 
 fn default_open_mode() -> String {
@@ -93,6 +121,47 @@ fn default_open_mode() -> String {
 
 fn default_metadata_mode() -> String {
     "local".to_string()
+}
+
+fn default_license_tier() -> String {
+    "free".to_string()
+}
+
+fn default_agent_profiles() -> Vec<AgentProfile> {
+    vec![
+        AgentProfile {
+            id: "claude-code".to_string(),
+            name: "Claude Code".to_string(),
+            launch_command: "claude".to_string(),
+            injection_style: "paste-then-enter".to_string(),
+            submit_sequence: "\n".to_string(),
+            output_patterns: vec!["tool_use".to_string(), "tokens".to_string()],
+        },
+        AgentProfile {
+            id: "codex".to_string(),
+            name: "Codex".to_string(),
+            launch_command: "codex".to_string(),
+            injection_style: "paste-then-enter".to_string(),
+            submit_sequence: "\n".to_string(),
+            output_patterns: vec!["exec_command".to_string(), "apply_patch".to_string()],
+        },
+        AgentProfile {
+            id: "aider".to_string(),
+            name: "Aider".to_string(),
+            launch_command: "aider".to_string(),
+            injection_style: "paste-then-enter".to_string(),
+            submit_sequence: "\n".to_string(),
+            output_patterns: vec!["Applied edit".to_string(), "Commit".to_string()],
+        },
+        AgentProfile {
+            id: "pi-interactive".to_string(),
+            name: "Pi interactive".to_string(),
+            launch_command: "pi".to_string(),
+            injection_style: "paste-then-enter".to_string(),
+            submit_sequence: "\n".to_string(),
+            output_patterns: vec!["assistant".to_string(), "tool_execution".to_string()],
+        },
+    ]
 }
 
 impl AppState {
@@ -136,6 +205,10 @@ impl AppState {
             open_mode: "vault".to_string(),
             metadata_mode: "local".to_string(),
             sandbox_auth_status: "promoted".to_string(),
+            agent_profiles: default_agent_profiles(),
+            recipes: vec![],
+            license_tier: default_license_tier(),
+            license_key: None,
         }
     }
 }
@@ -607,6 +680,9 @@ impl WenmeiState {
                     "authorized".to_string()
                 };
             }
+            if loaded.agent_profiles.is_empty() {
+                loaded.agent_profiles = default_agent_profiles();
+            }
             let active_vault_id = loaded.active_vault_id.clone();
             ensure_active_root_sandbox(&mut loaded, &active_vault_id);
             if let Ok(vault) = active_vault_from_state(&loaded) {
@@ -897,6 +973,8 @@ pub fn save_app_state(new_state: AppState, state: State<'_, WenmeiState>) -> Res
         next_state.recent_files = app_state.recent_files.clone();
         next_state.pinned_files = app_state.pinned_files.clone();
         next_state.last_active_file = app_state.last_active_file.clone();
+        next_state.agent_profiles = app_state.agent_profiles.clone();
+        next_state.recipes = app_state.recipes.clone();
         *app_state = next_state;
     }
     save_state(&state)

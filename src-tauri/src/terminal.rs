@@ -15,8 +15,17 @@ use crate::state::{
 };
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TerminalActivity {
+    Active,
+    Idle,
+    Stuck,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct TerminalOutput {
     pub data: Vec<u8>,
+    pub activity: TerminalActivity,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -25,6 +34,7 @@ pub struct TerminalStarted {
     pub log_file: String,
     pub reused: bool,
     pub snapshot: Vec<u8>,
+    pub activity: TerminalActivity,
 }
 
 #[derive(serde::Deserialize)]
@@ -121,6 +131,7 @@ pub fn terminal_start(
                     log_file: session.log_file.clone(),
                     reused: true,
                     snapshot: session.backlog.lock().unwrap().clone(),
+                    activity: TerminalActivity::Idle,
                 });
             }
             if !force_restart.unwrap_or(false) {
@@ -208,7 +219,13 @@ pub fn terminal_start(
                     if let Ok(mut nb) = buf_for_read.lock() {
                         nb.push_bytes(&data);
                     }
-                    let _ = app_for_read.emit("terminal-output", TerminalOutput { data });
+                    let _ = app_for_read.emit(
+                        "terminal-output",
+                        TerminalOutput {
+                            data,
+                            activity: TerminalActivity::Active,
+                        },
+                    );
                 }
                 Err(e) => {
                     let _ = app_for_read.emit(
@@ -216,6 +233,7 @@ pub fn terminal_start(
                         TerminalOutput {
                             data: format!("\r\n[Wenmei terminal read error: {}]\r\n", e)
                                 .into_bytes(),
+                            activity: TerminalActivity::Stuck,
                         },
                     );
                     break;
@@ -248,6 +266,7 @@ pub fn terminal_start(
         log_file: desired_log_file,
         reused: false,
         snapshot: vec![],
+        activity: TerminalActivity::Idle,
     })
 }
 
@@ -262,6 +281,35 @@ pub fn terminal_write(state: State<'_, WenmeiState>, data: String) -> Result<(),
         .write_all(data.as_bytes())
         .map_err(|e| e.to_string())?;
     writer.flush().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn pi_type_into_terminal(
+    state: State<'_, WenmeiState>,
+    text: String,
+    origin: String,
+) -> Result<(), String> {
+    {
+        let current = state.terminal.lock().unwrap();
+        let session = current
+            .as_ref()
+            .ok_or_else(|| "Terminal is not running".to_string())?;
+        let mut writer = session.writer.lock().unwrap();
+        writer
+            .write_all(text.as_bytes())
+            .map_err(|e| e.to_string())?;
+        writer.flush().map_err(|e| e.to_string())?;
+    }
+
+    let _ = append_journal_event(
+        &state,
+        "steering.injected",
+        "control-plane",
+        None,
+        format!("Injected {} bytes into terminal from {}", text.len(), origin),
+        serde_json::json!({"origin": origin, "bytes": text.len()}),
+    );
+    Ok(())
 }
 
 #[tauri::command]

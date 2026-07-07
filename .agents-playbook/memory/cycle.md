@@ -1,31 +1,25 @@
 ---
-phase: 3
-started: "2026-07-07T03:29:46.825Z"
-goal: "Close out M2: commit Phase A/B work in reviewable chunks (B8), leaving B6 gate for human validation; then begin M3 with the steering design doc (C1)"
-stop: "Tree clean for src/src-tauri/docs/design with lint+check green and commits recorded; stop before any push or publish"
+phase: 7
+started: "2026-07-07T10:52:22.388Z"
+goal: "Phase F: wire playground UX into the real app — unified sidecar feed, notifications, multi-session terminal tabs with per-tab narration, and all settings persisted (business layer ready)"
+stop: "F10 gate: checks green and tabs/feed/settings round-trip a restart in a human run; stop before L4 publish"
 ---
-
-# Cycle Brief — phase 3
+# Cycle Brief — phase 7
 
 > Confirm this at the START of each phase, before claiming work. The North Star does
 > not change; this cycle's goal does. Fill all five, then `node scripts/pb.mjs status`.
 
 ## 1. What is this cycle's goal?
-
-Close out M2: commit Phase A/B work in reviewable chunks (B8), leaving B6 gate for human validation; then begin M3 with the steering design doc (C1)
+Phase F: wire playground UX into the real app — unified sidecar feed, notifications, multi-session terminal tabs with per-tab narration, and all settings persisted (business layer ready)
 
 ## 2. What challenges do I foresee?
-
-Lint/tsc may fail on the uncommitted frontend work (it predates this loop); package.json deps changed so node_modules may be stale (npm install first). Chunking interleaved changes (module split + narration + review touch the same files) cleanly is the main judgment call. Host guidance says commit only when asked — the user set this backlog and was told B8 commits locally; no push, ever, without sign-off.
+Two writers on one tree: the spawned UX agent works in a git worktree (F6/F7 frontend port) while the orchestrator wires Rust in the main tree — merge at integration, expect conflicts in tauri-bridge.ts and appStore.ts. Multi-session PTY (F3) is the riskiest refactor: terminal.rs assumes a single session; every command/event grows a session_id. The tree also carries ~20 uncommitted files from the prior session — commit checkpoints per task so nothing is lost again.
 
 ## 3. What were the previous challenges?
-
-Phase B implementation was mostly complete on disk but unrecorded; design docs had been lost uncommitted (recreated in B7 — commit docs promptly). B6 exit gate remains blocked on a human end-to-end validation run.
+Phases B–E were implemented across two sessions; grep-level checks pass but only some paths had human validation. Design docs were once lost uncommitted (now tracked). Acceptance checks run without a shell — wrap $() in bash -c.
 
 ## 4. Where do I stop / hand back?
-
-Tree clean for src/src-tauri/docs/design with lint+check green and commits recorded; stop before any push or publish
+F10 gate: checks green and tabs/feed/settings round-trip a restart in a human run; stop before L4 publish
 
 ## 5. Conflicts with my own (agent) memory?
-
-One named conflict: host guidance says "commit or push only when the user asks." The user asked to run this backlog to completion and B8 is an explicit commit task they were shown; resolution — local commits on main (matching repo convention) are in scope, pushing/publishing is not.
+My memory said C/D/E implementation was gated on B6 human validation; the folder now records those phases done (another session executed them) and the user has directed Phase F on top. Folder wins: proceed with F, keep F10 as the human gate before L4.

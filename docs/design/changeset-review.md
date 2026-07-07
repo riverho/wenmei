@@ -21,10 +21,10 @@ Lazy copy-on-first-touch into `.wenmei/staging/<session-id>/baseline/<rel-path>`
 - **Caps:** total baseline storage 200 MB per session (`STAGING_CAP_MB`);
   files >5 MB (`LARGE_FILE_MB`) are tracked but not copied — both are marked
   `ChangeStatus::BaselineMissing` so the UI can say "can't restore this one".
-- **PTY pre-image race:** polling may only notice a file *after* the agent
+- **PTY pre-image race:** polling may only notice a file _after_ the agent
   changed it. Mitigation: `review_session_start` eagerly snapshots existing
-  top-level `.md` files at session start. Known gap: nested dirs and non-md
-  files still race; revisit before B6 exit validation.
+  visible files recursively at session start, excluding dot-directories and
+  `.wenmei/`.
 - Deleted files: existing delete flow already moves to `.wenmei/trash/`;
   entries with `ChangeStatus::Deleted` restore from trash, not baseline.
 
@@ -51,12 +51,33 @@ Tauri commands (`review.rs`, registered in `main.rs`):
   `review.approved`.
 - `review_reject(path)` → copy baseline back over the working file, drop
   entry, journals `review.rejected`, emits files-changed so the editor reloads.
+- `review_annotate(path, reviewer, risk_level, proposed_decision, annotation)`
+  → appends a machine-readable Pi/agent/human review annotation to the session
+  ledger without mutating files.
 - `review_session_close(discard)` → clears session; `discard` deletes the
   staging dir; journals `review.session_closed`.
 
 Journal event kinds: `review.session_started`, `review.approved`,
 `review.rejected`, `review.session_closed` — appended to `.wenmei/journal.jsonl`
 with source `review-panel`.
+
+## Review ledger
+
+Agent-to-agent review needs a structured log, not just a human-facing journal.
+Every review session owns `.wenmei/staging/<session-id>/review.jsonl`. Each
+line is a `ReviewLedger` JSON object with:
+
+- `session_id`, `event`, `ts`, `path`, `status`, and `size`.
+- `baseline_hash` and `current_hash` content fingerprints when the file exists.
+- `restore_available`, so reviewer agents know whether reject is enforceable.
+- `reviewer` (`system`, `human`, `pi`, or an agent profile id).
+- `risk_level`, `proposed_decision`, `final_decision`, and `annotation`.
+
+The ledger records session lifecycle events, detected changes, approve/reject
+decisions, and annotations from `review_annotate`. The regular journal remains
+the broad timeline; `review.jsonl` is the machine-readable review packet that a
+sidecar or second agent can consume before escalating only risky/deferred items
+to a human.
 
 ## Touch points
 

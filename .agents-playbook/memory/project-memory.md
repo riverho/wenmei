@@ -54,6 +54,13 @@ Rules of the road:
 - Design docs live in docs/design/ and are referenced by design_ref; they were
   lost once (deleted uncommitted, 05–07 Jul 2026) — commit them as soon as
   written (B8 covers the current tree).
+- Live validation should default to the Local Agent Control Plane: launch the
+  rebuilt `.app`, discover `wenmei-control.json`, and drive tests with
+  `scripts/wenmeictl` against the running app. Do not mark a validation task
+  human-blocked merely because the UI is hard to click; first add or use a
+  control-plane command that exercises the same app-owned code path. Human-only
+  gates are limited to subjective product judgment, credential/payment/legal
+  sign-off, and publishing/release actions.
 
 ## Writing Acceptance Checks
 

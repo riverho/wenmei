@@ -30,6 +30,13 @@ pub struct SandboxFilesChanged {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct AuditExport {
+    pub json_path: String,
+    pub markdown_path: String,
+    pub event_count: usize,
+}
+
 fn journal_path(ctx: &TerminalContext) -> PathBuf {
     ctx.meta_root.join("journal.jsonl")
 }
@@ -125,4 +132,69 @@ pub fn list_journal_events(
     events.reverse();
     events.truncate(limit.unwrap_or(50));
     Ok(events)
+}
+
+pub fn build_briefing_from_events(events: &[JournalEvent]) -> String {
+    let mut out = String::from("# BRIEFING\n\nRecent sandbox context for the next agent session.\n\n");
+    if events.is_empty() {
+        out.push_str("- No journal events yet.\n");
+        return out;
+    }
+
+    for event in events.iter().take(20) {
+        let path = event
+            .path
+            .as_ref()
+            .map(|path| format!(" `{}`", path))
+            .unwrap_or_default();
+        out.push_str(&format!(
+            "- {} [{}]{}: {}\n",
+            event.ts, event.kind, path, event.summary
+        ));
+    }
+    out
+}
+
+#[tauri::command]
+pub fn build_briefing(
+    limit: Option<usize>,
+    state: State<'_, WenmeiState>,
+) -> Result<String, String> {
+    let events = list_journal_events(limit.or(Some(20)), state)?;
+    Ok(build_briefing_from_events(&events))
+}
+
+#[tauri::command]
+pub fn export_audit(state: State<'_, WenmeiState>) -> Result<AuditExport, String> {
+    let ctx = active_terminal_context(&state)?;
+    let raw = fs::read_to_string(journal_path(&ctx)).unwrap_or_default();
+    let events: Vec<JournalEvent> = raw
+        .lines()
+        .filter_map(|line| serde_json::from_str::<JournalEvent>(line).ok())
+        .collect();
+    let audit_dir = ctx.meta_root.join("audit");
+    fs::create_dir_all(&audit_dir).map_err(|e| e.to_string())?;
+    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let json_path = audit_dir.join(format!("audit-{}.json", stamp));
+    let markdown_path = audit_dir.join(format!("audit-{}.md", stamp));
+    fs::write(
+        &json_path,
+        serde_json::to_string_pretty(&events).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let mut markdown = String::from("# Wenmei Audit Export\n\n");
+    for event in &events {
+        markdown.push_str(&format!(
+            "- {} `{}` [{}] {}\n",
+            event.ts, event.kind, event.source, event.summary
+        ));
+    }
+    fs::write(&markdown_path, markdown).map_err(|e| e.to_string())?;
+
+    Ok(AuditExport {
+        json_path: json_path.to_string_lossy().to_string(),
+        markdown_path: markdown_path.to_string_lossy().to_string(),
+        event_count: events.len(),
+    })
 }

@@ -115,6 +115,35 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       );
     case "list_journal_events":
       return mocks.listJournalEvents((args as { limit: number }).limit);
+    case "build_briefing":
+      return mocks
+        .listJournalEvents((args as { limit: number }).limit)
+        .then(events =>
+          [
+            "# BRIEFING",
+            "",
+            "Recent sandbox context for the next agent session.",
+            "",
+            ...events.map(e => `- ${e.ts} [${e.kind}]: ${e.summary}`),
+          ].join("\n")
+        );
+    case "night_shift_start":
+      return {
+        id: `night-${Date.now()}`,
+        status: "waiting_for_review",
+        task_count: 0,
+        tasks: [],
+        briefing_path: ".wenmei/nightshift/last-run.json",
+        created_at: new Date().toISOString(),
+      };
+    case "night_shift_status":
+      return null;
+    case "export_audit":
+      return {
+        json_path: ".wenmei/audit/audit-mock.json",
+        markdown_path: ".wenmei/audit/audit-mock.md",
+        event_count: 0,
+      };
     case "review_session_start":
       return mocks.reviewSessionStart();
     case "review_session_close":
@@ -125,6 +154,14 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       return mocks.reviewReject((args as { path: string }).path);
     case "review_changeset":
       return mocks.reviewChangeset();
+    case "review_annotate":
+      return mocks.reviewAnnotate(
+        (args as { path: string }).path,
+        (args as { reviewer: string }).reviewer,
+        (args as { riskLevel?: string }).riskLevel,
+        (args as { proposedDecision?: string }).proposedDecision,
+        (args as { annotation: string }).annotation
+      );
     case "terminal_start":
       return mocks.terminalStart(
         (args as { rows: number }).rows,
@@ -133,6 +170,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       );
     case "terminal_write":
       return mocks.terminalWrite((args as { data: string }).data);
+    case "pi_type_into_terminal":
+      return mocks.terminalWrite((args as { text: string }).text);
     case "terminal_resize":
       return mocks.terminalResize(
         (args as { rows: number }).rows,
@@ -220,6 +259,24 @@ export interface Sandbox {
   is_active: boolean;
 }
 
+export interface AgentProfile {
+  id: string;
+  name: string;
+  launch_command: string;
+  injection_style: string;
+  submit_sequence: string;
+  output_patterns: string[];
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  folder: string;
+  schedule: string;
+  prompt: string;
+  enabled: boolean;
+}
+
 export interface AppPersistedState {
   first_run_at: string | null;
   onboarding_completed: boolean;
@@ -242,6 +299,10 @@ export interface AppPersistedState {
   open_mode: string;
   metadata_mode: string;
   sandbox_auth_status: string;
+  agent_profiles?: AgentProfile[];
+  recipes?: Recipe[];
+  license_tier?: "free" | "pro";
+  license_key?: string | null;
 }
 
 export interface RecentDocument {
@@ -482,6 +543,37 @@ export async function listJournalEvents(limit = 50): Promise<JournalEvent[]> {
   return invoke("list_journal_events", { limit });
 }
 
+export async function buildBriefing(limit = 20): Promise<string> {
+  return invoke("build_briefing", { limit });
+}
+
+export interface NightShiftRun {
+  id: string;
+  status: string;
+  task_count: number;
+  tasks: string[];
+  briefing_path: string;
+  created_at: string;
+}
+
+export async function nightShiftStart(): Promise<NightShiftRun> {
+  return invoke("night_shift_start");
+}
+
+export async function nightShiftStatus(): Promise<NightShiftRun | null> {
+  return invoke("night_shift_status");
+}
+
+export interface AuditExport {
+  json_path: string;
+  markdown_path: string;
+  event_count: number;
+}
+
+export async function exportAudit(): Promise<AuditExport> {
+  return invoke("export_audit");
+}
+
 // ─── Review Session / Changeset ───
 
 export interface ChangesetEntry {
@@ -494,6 +586,7 @@ export interface ReviewSession {
   id: string;
   started_at: string;
   entries: Record<string, ChangesetEntry>;
+  known_paths: string[];
   total_baseline_bytes: number;
 }
 
@@ -517,6 +610,22 @@ export async function reviewChangeset(): Promise<ChangesetEntry[]> {
   return invoke("review_changeset");
 }
 
+export async function reviewAnnotate(
+  path: string,
+  reviewer: string,
+  annotation: string,
+  riskLevel?: string,
+  proposedDecision?: string
+): Promise<void> {
+  return invoke("review_annotate", {
+    path,
+    reviewer,
+    annotation,
+    riskLevel,
+    proposedDecision,
+  });
+}
+
 // ─── Terminal ───
 
 export interface TerminalStarted {
@@ -536,6 +645,13 @@ export async function terminalStart(
 
 export async function terminalWrite(data: string): Promise<void> {
   return invoke("terminal_write", { data });
+}
+
+export async function piTypeIntoTerminal(
+  text: string,
+  origin: string
+): Promise<void> {
+  return invoke("pi_type_into_terminal", { text, origin });
 }
 
 export async function terminalResize(

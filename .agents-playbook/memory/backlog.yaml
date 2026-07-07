@@ -204,6 +204,37 @@ tasks:
       Add review bridge commands to tauri-bridge.ts, active review session state
       to appStore.ts, and a run timeline view grouped by session.
 
+  - id: B0
+    title: Add structured review ledger for agent-to-agent review
+    status: todo
+    priority: 0
+    skill: run-task
+    phase: B
+    tags:
+      - rust
+      - review
+      - journal
+      - pi-rpc
+    design_ref: docs/design/changeset-review.md#review-ledger
+    acceptance_checks:
+      - grep -q "review.jsonl" ../docs/design/changeset-review.md
+      - grep -q "ReviewLedger" ../src-tauri/src/review.rs
+      - grep -q "review.jsonl" ../src-tauri/src/review.rs
+      - grep -q "review_annot" ../src-tauri/src/review.rs
+      - cd .. && npm run lint
+      - cd .. && npm run check
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Human review is not practical once agents review other agents. Add a
+      machine-readable per-session ledger at
+      .wenmei/staging/<session-id>/review.jsonl recording path, status,
+      baseline/current hashes, size, restore capability, reviewer identity
+      (human/pi/agent profile), risk level, proposed decision, final decision,
+      timestamps, and annotation text. Wire approve/reject/session lifecycle to
+      append ledger events, expose a command for Pi/agent annotations, and
+      update the changeset review design doc. This is a Phase B priority gate
+      before B6 validation and before any Phase C steering implementation.
+
   - id: B6
     title: Exit validation — review surface catches all agent mutations
     status: todo
@@ -221,6 +252,131 @@ tasks:
     notes: >-
       Run an agent in the PTY, make edits, and confirm ReviewPanel shows the
       changeset with approve/reject working. If not, stop and re-scope.
+
+  - id: B2A
+    title: Design local Agent Control Plane
+    status: todo
+    priority: 8
+    skill: run-task
+    phase: B2
+    tags:
+      - docs
+      - design
+      - control-plane
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#35-local-agent-control-plane
+    acceptance_checks:
+      - test -f ../docs/design/agent-control-plane.md
+      - grep -q "AgentSession" ../docs/design/agent-control-plane.md
+      - grep -q "wenmeictl" ../docs/design/agent-control-plane.md
+      - grep -q "token" ../docs/design/agent-control-plane.md
+    notes: >-
+      Turn the revamp plan's Local Agent Control Plane into an implementation
+      design: protocol, token trust boundary, command schema, event schema,
+      control file location, CLI shape, and Phase B validation flow.
+
+  - id: B2B
+    title: Add local control server skeleton
+    status: todo
+    priority: 9
+    skill: run-task
+    phase: B2
+    tags:
+      - rust
+      - control-plane
+    design_ref: docs/design/agent-control-plane.md
+    acceptance_checks:
+      - test -f ../src-tauri/src/control.rs
+      - grep -q "start_control_server" ../src-tauri/src/control.rs
+      - grep -q "wenmei-control.json" ../src-tauri/src/control.rs
+      - grep -q "mod control" ../src-tauri/src/main.rs
+      - cd .. && npm run check
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Start a local-only JSON control server owned by the running app. Bind to
+      127.0.0.1 on an ephemeral port, generate a per-run token, write a
+      wenmei-control.json discovery file, and expose at least status/health.
+
+  - id: B2C
+    title: Expose review commands through control plane
+    status: todo
+    priority: 10
+    skill: run-task
+    phase: B2
+    tags:
+      - rust
+      - review
+      - control-plane
+    design_ref: docs/design/agent-control-plane.md
+    acceptance_checks:
+      - grep -q "review.start" ../src-tauri/src/control.rs
+      - grep -q "review.changeset" ../src-tauri/src/control.rs
+      - grep -q "review.annotate" ../src-tauri/src/control.rs
+      - grep -q "review.ledger" ../src-tauri/src/control.rs
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Add JSON commands for starting review, listing changeset, annotating
+      changes, approving/rejecting, and reading review.jsonl from the active
+      session. Commands must use the same review module and ledger paths as the
+      UI.
+
+  - id: B2D
+    title: Add sandbox run command through control plane
+    status: todo
+    priority: 11
+    skill: run-task
+    phase: B2
+    tags:
+      - rust
+      - terminal
+      - control-plane
+    design_ref: docs/design/agent-control-plane.md
+    acceptance_checks:
+      - grep -q "sandbox.run" ../src-tauri/src/control.rs
+      - grep -q "active_terminal_context" ../src-tauri/src/control.rs
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Add a bounded sandbox.run command for validation scripts: execute a shell
+      command in the active sandbox cwd, capture stdout/stderr/status, and rely
+      on the existing poller/review observer to detect file changes.
+
+  - id: B2E
+    title: Add wenmeictl JSON client
+    status: todo
+    priority: 12
+    skill: run-task
+    phase: B2
+    tags:
+      - cli
+      - control-plane
+    design_ref: docs/design/agent-control-plane.md
+    acceptance_checks:
+      - test -f ../scripts/wenmeictl
+      - grep -q "wenmei-control.json" ../scripts/wenmeictl
+      - grep -q "review changeset" ../scripts/wenmeictl
+      - test -x ../scripts/wenmeictl
+    notes: >-
+      Add a thin agent-friendly CLI over the local control server. It should
+      discover wenmei-control.json, send JSON, and support status, review
+      start/changeset/ledger/annotate/approve/reject, and sandbox run.
+
+  - id: B2F
+    title: Exit validation — live app controlled by wenmeictl
+    status: todo
+    priority: 13
+    skill: run-task
+    phase: B2
+    tags:
+      - validation
+      - control-plane
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-b2-local-agent-bridge-12-weeks
+    acceptance_checks:
+      - test -f ../scripts/wenmeictl
+      - test -f ../src-tauri/src/control.rs
+      - grep -q "review.ledger" ../src-tauri/src/control.rs
+    notes: >-
+      Launch the live app, use wenmeictl to start review, run a sandbox command
+      that mutates a nested file, confirm review changeset/ledger over JSON,
+      reject the change, and verify the file content restores.
 
   - id: B7
     title: Restore missing docs/design phase design docs
@@ -583,3 +739,210 @@ tasks:
       Version bump to 1.0.0 across package.json + tauri.conf, changelog, git
       tag, GitHub release with artifacts from L2, announcement copy drafted
       from the landing page. Human signs off before anything is published.
+
+  - id: F1
+    title: Unified sidecar feed design doc
+    status: todo
+    priority: 50
+    skill: run-task
+    phase: F
+    tags:
+      - docs
+      - design
+      - sidecar
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-f
+    acceptance_checks:
+      - test -f ../docs/design/unified-sidecar.md
+      - grep -q "wenmei-notification" ../docs/design/unified-sidecar.md
+      - grep -qi "filter" ../docs/design/unified-sidecar.md
+    notes: >-
+      Event taxonomy (chat/narrate/alerts/review), journal hydration for long
+      scrolling, filter chips, unread divider, bell deep-link. Feed replaces
+      the Pi-chat-only right panel.
+
+  - id: F2
+    title: Notifications backend — journal kinds + wenmei-notification events
+    status: todo
+    priority: 51
+    skill: run-task
+    phase: F
+    tags:
+      - rust
+      - notifications
+    design_ref: docs/design/unified-sidecar.md
+    acceptance_checks:
+      - grep -q "wenmei-notification" ../src-tauri/src/journal.rs
+      - grep -q "emit_notification" ../src-tauri/src/journal.rs
+      - grep -q "emit_notification" ../src-tauri/src/review.rs
+      - cd ../src-tauri && cargo check
+    notes: >-
+      notification.* journal kinds; emit_notification helper emits
+      wenmei-notification to the frontend and journals it; call sites in
+      review (changeset), nightshift (done/blocked), terminal (stuck),
+      narration (risky flag). OS notification via plugin when unfocused.
+
+  - id: F3
+    title: Multi-session terminal backend with per-session narration
+    status: todo
+    priority: 52
+    skill: run-task
+    phase: F
+    tags:
+      - rust
+      - terminal
+      - narration
+    design_ref: docs/design/unified-sidecar.md
+    acceptance_checks:
+      - grep -q "session_id" ../src-tauri/src/terminal.rs
+      - grep -q "HashMap" ../src-tauri/src/terminal.rs
+      - grep -q "session_id" ../src-tauri/src/narration.rs
+      - cd ../src-tauri && cargo check
+    notes: >-
+      TerminalSession map keyed by session id; terminal_start/write/resize/
+      stop take session_id; terminal-output and narration-digest events carry
+      session_id; per-session NarrationBuffer with narrate default from
+      settings.
+
+  - id: F4
+    title: Terminal tab strip wired to real sessions
+    status: todo
+    priority: 53
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - terminal
+    design_ref: docs/design/unified-sidecar.md
+    acceptance_checks:
+      - grep -q "TerminalTabBar\|terminalTabs" ../src/components/TerminalPanel.tsx
+      - grep -q "sessionId" ../src/lib/tauri-bridge.ts
+      - cd .. && npm run check
+    notes: >-
+      Port playground tab strip; each tab a real PTY session; per-tab Narrate
+      toggle; tab cap from settings (limit or unlimited); memory readout.
+
+  - id: F5
+    title: Sidecar unified feed panel with filters and journal hydrate
+    status: todo
+    priority: 54
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - sidecar
+      - pi-panel
+    design_ref: docs/design/unified-sidecar.md
+    acceptance_checks:
+      - grep -qi "feedFilter\|FeedFilter" ../src/components/PiPanel.tsx
+      - grep -q "wenmei-notification" ../src/components/PiPanel.tsx
+      - grep -q "list_journal_events\|listJournalEvents" ../src/components/PiPanel.tsx
+      - cd .. && npm run check
+    notes: >-
+      One chronological feed: chat + narrate + alerts + review with filter
+      chips (All/Chat/Narrate/Alerts/Review), long scroll with journal
+      hydration on scroll-up, unread divider, live event streaming.
+
+  - id: F6
+    title: Settings port with full persistence (business layer)
+    status: todo
+    priority: 55
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - rust
+      - settings
+      - business
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-f
+    acceptance_checks:
+      - test -f ../src/components/SettingsPanel.tsx
+      - grep -q "narrate_by_default\|narrateByDefault" ../src/lib/tauri-bridge.ts
+      - grep -q "narrate_by_default" ../src-tauri/src/state.rs
+      - cd .. && npm run check
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Port playground SettingsPanel (General/Terminal/Windows/Keyboard/Agent/
+      Integrations/License/About) to src/; persist every control: UI prefs in
+      Zustand, machine-level (narrate default, tab limit, sandbox windows,
+      narration depth, license) in AppState/state.json via bridge. No dead
+      toggles.
+
+  - id: F7
+    title: Header bell and settings gear in real app
+    status: todo
+    priority: 56
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - notifications
+      - header
+    design_ref: docs/design/unified-sidecar.md
+    acceptance_checks:
+      - test -f ../src/components/Notifications.tsx
+      - grep -q "Notifications" ../src/App.tsx
+      - cd .. && npm run check
+    notes: >-
+      Bell with unread Alerts badge fed by wenmei-notification; click opens
+      the sidecar feed with Alerts filter (deep-link) plus dropdown preview;
+      settings gear opens SettingsPanel.
+
+  - id: F8
+    title: Multi-window — open file in new Tauri window with sandbox scope
+    status: todo
+    priority: 57
+    skill: run-task
+    phase: F
+    tags:
+      - rust
+      - tsx
+      - windows
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-f
+    acceptance_checks:
+      - grep -q "WebviewWindow\|open_file_window" ../src-tauri/src/main.rs
+      - grep -qi "open in new window" ../src/components/FileTree.tsx
+      - cd ../src-tauri && cargo check
+    notes: >-
+      open_file_window command spawns a second WebviewWindow scoped to the
+      file's sandbox (sandboxNewWindows setting); file context menu + Ctrl+
+      Shift+O entry points; single-window state assumptions audited.
+
+  - id: F9
+    title: Custom keymap persisted and honored
+    status: todo
+    priority: 58
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - settings
+      - keyboard
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-f
+    acceptance_checks:
+      - grep -qi "keymap" ../src/store/appStore.ts
+      - grep -qi "keymap" ../src/hooks/useKeyboardShortcuts.ts
+      - cd .. && npm run check
+    notes: >-
+      Settings > Keyboard rebinds persist (Zustand keymap slice); shortcuts
+      hook resolves chords from the keymap instead of hardcoded keys;
+      conflict detection on rebind.
+
+  - id: F10
+    title: Phase F exit validation — wired UX round-trips through restart
+    status: todo
+    priority: 59
+    skill: run-task
+    phase: F
+    tags:
+      - validation
+      - ux
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-f
+    acceptance_checks:
+      - cd .. && npm run lint
+      - cd .. && npm run check
+      - cd ../src-tauri && cargo check
+      - test -f ../docs/design/unified-sidecar.md
+    notes: >-
+      Human run: open tabs with narrate on, see digests per tab in the feed,
+      trigger an alert, filter chips work, every settings control persists
+      across an app restart. Gate before L4.
