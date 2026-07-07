@@ -216,5 +216,23 @@
     "status": "blocked",
     "loop_id": "loop-20260705-002",
     "updated_at": "2026-07-07T03:42:02.360Z"
+  },
+  "L2": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:46:14.885Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:47:32.637Z"
+  },
+  "L3": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-07T03:47:32.761Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-07T03:49:29.051Z"
   }
 }
