@@ -254,7 +254,7 @@ tasks:
     acceptance_checks:
       - cd .. && npm run lint
       - cd .. && npm run check
-      - test -z "$(git -C .. status --porcelain -- src src-tauri docs/design)"
+      - bash -c 'test -z "$(git -C .. status --porcelain -- src src-tauri docs/design)"'
     notes: >-
       ~930 insertions currently uncommitted (narration, review, module split).
       Run format/lint/check, then commit in logical chunks (module split,

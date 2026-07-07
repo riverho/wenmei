@@ -55,6 +55,12 @@ Rules of the road:
   lost once (deleted uncommitted, 05–07 Jul 2026) — commit them as soon as
   written (B8 covers the current tree).
 
+## Writing Acceptance Checks
+
+pb runs each check via argv split, **not a shell**: `$(…)` substitution and
+pipes do not work — wrap such checks in `bash -c '…'`. Plain `test`, `grep -q`,
+and `cd .. && cmd` forms work as-is.
+
 ## Playbook Commands
 
 All from repo root:
