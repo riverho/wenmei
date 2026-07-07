@@ -7,6 +7,7 @@ use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::journal::{append_journal_event, emit_files_changed};
+use crate::narration::{spawn_narration_flush_thread, NarrationBuffer, SharedNarrationBuffer};
 use crate::platform::Platform;
 use crate::state::{
     active_terminal_context, log_action, save_state, terminal_log_file, terminal_pi_session_dir,
@@ -169,6 +170,7 @@ pub fn terminal_start(
     let master: Arc<Mutex<Box<dyn MasterPty + Send>>> = Arc::new(Mutex::new(pair.master));
     let child = Arc::new(Mutex::new(child));
     let backlog = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let narration_buffer: SharedNarrationBuffer = Arc::new(Mutex::new(NarrationBuffer::new()));
 
     {
         let mut current = state.terminal.lock().unwrap();
@@ -179,10 +181,15 @@ pub fn terminal_start(
             cwd: desired_cwd.clone(),
             log_file: desired_log_file.clone(),
             backlog: backlog.clone(),
+            narration_buffer: narration_buffer.clone(),
+            narration_enabled: false,
         });
     }
 
+    spawn_narration_flush_thread(app.clone(), narration_buffer.clone());
+
     let app_for_read = app.clone();
+    let buf_for_read = narration_buffer.clone();
     thread::spawn(move || {
         let mut buf = [0u8; 8192];
         loop {
@@ -197,6 +204,9 @@ pub fn terminal_start(
                             let drain_to = stored.len() - max;
                             stored.drain(0..drain_to);
                         }
+                    }
+                    if let Ok(mut nb) = buf_for_read.lock() {
+                        nb.push_bytes(&data);
                     }
                     let _ = app_for_read.emit("terminal-output", TerminalOutput { data });
                 }
@@ -278,4 +288,20 @@ pub fn terminal_stop(state: State<'_, WenmeiState>) -> Result<(), String> {
         let _ = session.child.lock().unwrap().kill();
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn terminal_set_narration_enabled(
+    state: State<'_, WenmeiState>,
+    enabled: bool,
+) -> Result<bool, String> {
+    let mut current = state.terminal.lock().unwrap();
+    let session = current
+        .as_mut()
+        .ok_or_else(|| "Terminal is not running".to_string())?;
+    session.narration_enabled = enabled;
+    if let Ok(mut nb) = session.narration_buffer.lock() {
+        nb.set_enabled(enabled);
+    }
+    Ok(enabled)
 }

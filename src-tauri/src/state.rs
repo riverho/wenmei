@@ -1,4 +1,6 @@
 use crate::file_ops::resolve_path;
+use crate::narration;
+use crate::review::ReviewSession;
 use portable_pty::{Child as PtyChild, MasterPty};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -186,6 +188,8 @@ pub struct TerminalSession {
     pub cwd: String,
     pub log_file: String,
     pub backlog: Arc<Mutex<Vec<u8>>>,
+    pub narration_buffer: narration::SharedNarrationBuffer,
+    pub narration_enabled: bool,
 }
 
 pub struct PiRpcSession {
@@ -203,6 +207,7 @@ pub struct WenmeiState {
     pub terminal: Mutex<Option<TerminalSession>>,
     pub pi_rpc: Mutex<Option<PiRpcSession>>,
     pub initial_file: Mutex<Option<String>>,
+    pub review_session: Mutex<Option<ReviewSession>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -698,6 +703,7 @@ impl WenmeiState {
             terminal: Mutex::new(None),
             pi_rpc: Mutex::new(None),
             initial_file: Mutex::new(initial_file_rel),
+            review_session: Mutex::new(None),
         }
     }
 }

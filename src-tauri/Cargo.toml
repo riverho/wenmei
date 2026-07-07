@@ -30,6 +30,7 @@ which = "6"
 tracing = "0.1.40"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+strip-ansi-escapes = "0.2"
 
 [features]
 default = ["custom-protocol"]

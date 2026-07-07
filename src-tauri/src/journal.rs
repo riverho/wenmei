@@ -5,6 +5,13 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::state::{active_terminal_context, TerminalContext, WenmeiState};
+use tauri::Manager;
+
+// Event kinds written by the review surface (docs/design/changeset-review.md).
+pub const KIND_REVIEW_SESSION_STARTED: &str = "review.session_started";
+pub const KIND_REVIEW_SESSION_CLOSED: &str = "review.session_closed";
+pub const KIND_REVIEW_APPROVED: &str = "review.approved";
+pub const KIND_REVIEW_REJECTED: &str = "review.rejected";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEvent {
@@ -74,6 +81,15 @@ pub fn emit_files_changed(app: &AppHandle, reason: &str) {
             reason: reason.to_string(),
         },
     );
+    if let Some(state) = app.try_state::<WenmeiState>() {
+        if let Ok(current) = state.terminal.lock() {
+            if let Some(session) = current.as_ref() {
+                if let Ok(mut nb) = session.narration_buffer.lock() {
+                    nb.annotate_file_changes(vec![reason.to_string()]);
+                }
+            }
+        }
+    }
 }
 
 #[tauri::command]

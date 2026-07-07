@@ -10,9 +10,11 @@ mod cli;
 mod file_ops;
 mod journal;
 mod logging;
+mod narration;
 mod pi_rpc;
 mod platform;
 mod polling;
+mod review;
 mod search;
 mod state;
 mod terminal;
@@ -20,7 +22,7 @@ mod vault;
 
 use crate::platform::Platform;
 use crate::state::WenmeiState;
-use tauri::Emitter;
+use tauri::{Emitter, Listener, Manager};
 
 fn is_wsl() -> bool {
     // WSL1/2 detection: /proc/version contains "microsoft" or "WSL",
@@ -55,6 +57,39 @@ fn main() {
         .setup(|app| {
             logging::init(&state::config_dir());
             polling::start_file_polling(app.handle().clone());
+
+            let app_handle = app.handle().clone();
+            app.listen("narration-digest", move |event| {
+                let payload: serde_json::Value =
+                    serde_json::from_str(event.payload()).unwrap_or_default();
+                let id = payload
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("narrate-0");
+                let digest = payload
+                    .get("digest")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let file_changes: Vec<String> = payload
+                    .get("file_changes")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let state = app_handle.state::<WenmeiState>();
+                let _ = journal::append_journal_event(
+                    &state,
+                    "narration.digest",
+                    "sidecar",
+                    None,
+                    digest.chars().take(200).collect(),
+                    serde_json::json!({"id": id, "file_changes": file_changes}),
+                );
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -71,6 +106,11 @@ fn main() {
             file_ops::get_recent_files,
             file_ops::copy_file_path,
             file_ops::reveal_in_folder,
+            review::review_session_start,
+            review::review_session_close,
+            review::review_approve,
+            review::review_reject,
+            review::review_changeset,
             search::search_workspace,
             search::search_all_vaults,
             state::get_app_state,
@@ -104,6 +144,7 @@ fn main() {
             terminal::terminal_write,
             terminal::terminal_resize,
             terminal::terminal_stop,
+            terminal::terminal_set_narration_enabled,
             terminal::pty_run_commands,
             platform::get_platform,
         ])

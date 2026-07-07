@@ -4,6 +4,7 @@ use tauri::{AppHandle, State};
 
 use crate::journal::{append_journal_event, emit_files_changed};
 use crate::platform::Platform;
+use crate::review::{ensure_baseline, ChangeStatus};
 use crate::state::{
     active_vault, log_action, relative_path, save_state, AppState, FileContent, FileNode, Vault,
     WenmeiState,
@@ -195,6 +196,7 @@ pub fn write_file(
     let vault = active_vault(&state)?;
     let full_path = resolve_path(&vault, &path)?;
     ensure_parent(&full_path)?;
+    let _ = ensure_baseline(&state, &path, ChangeStatus::Modified);
     fs::write(&full_path, content).map_err(|e| format!("Failed to write file: {}", e))?;
     log_action(&state, format!("wrote {}", path));
     let _ = append_journal_event(
@@ -220,8 +222,9 @@ pub fn create_file(
     let parent = resolve_path(&vault, &parent_path)?;
     fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
     let full_path = unique_child(&parent, &name);
-    fs::write(&full_path, "").map_err(|e| format!("Failed to create file: {}", e))?;
     let rel = relative_path(&full_path, &PathBuf::from(&vault.path));
+    let _ = ensure_baseline(&state, &rel, ChangeStatus::Added);
+    fs::write(&full_path, "").map_err(|e| format!("Failed to create file: {}", e))?;
     log_action(&state, format!("created {}", rel));
     let _ = append_journal_event(
         &state,
@@ -275,6 +278,7 @@ pub fn rename_file(
         .parent()
         .ok_or_else(|| "Invalid file path".to_string())?;
     let new_full = unique_child(parent, &new_name);
+    let _ = ensure_baseline(&state, &old_path, ChangeStatus::Modified);
     fs::rename(&old_full, &new_full).map_err(|e| format!("Failed to rename: {}", e))?;
     let rel = relative_path(&new_full, &PathBuf::from(&vault.path));
     {
@@ -310,6 +314,7 @@ pub fn delete_file(
     if !full_path.exists() {
         return Err("File does not exist".to_string());
     }
+    let _ = ensure_baseline(&state, &path, ChangeStatus::Deleted);
     let metadata_mode = state.app_state.lock().unwrap().metadata_mode.clone();
     let trash_dir = if metadata_mode == "local" {
         crate::state::init_vault_meta(Path::new(&vault.path));
@@ -386,6 +391,7 @@ pub fn move_file(
         .file_name()
         .ok_or_else(|| "Invalid source".to_string())?;
     let target_full = unique_child(&target_dir, &file_name.to_string_lossy());
+    let _ = ensure_baseline(&state, &source, ChangeStatus::Modified);
     fs::rename(&source_full, &target_full).map_err(|e| format!("Failed to move: {}", e))?;
     let rel = relative_path(&target_full, &PathBuf::from(&vault.path));
     log_action(&state, format!("moved {} to {}", source, rel));

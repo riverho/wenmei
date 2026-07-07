@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, UNIX_EPOCH};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
 
 use crate::journal::{append_journal_event, emit_files_changed};
+use crate::review::observe_external_change;
 use crate::state::{active_vault, WenmeiState};
 
 fn vault_file_signature(vault_path: &str) -> Vec<String> {
@@ -59,6 +60,12 @@ pub fn start_file_polling(app: AppHandle) {
                 continue;
             }
             if sig != last_sig {
+                let changed_paths: Vec<String> = sig
+                    .iter()
+                    .filter(|s| !last_sig.contains(s))
+                    .chain(last_sig.iter().filter(|s| !sig.contains(s)))
+                    .filter_map(|s| s.split(':').next().map(String::from))
+                    .collect();
                 last_sig = sig;
                 let _ = append_journal_event(
                     &state,
@@ -68,6 +75,17 @@ pub fn start_file_polling(app: AppHandle) {
                     "Sandbox files changed".to_string(),
                     serde_json::json!({}),
                 );
+
+                let mut review_entries = vec![];
+                for path in changed_paths {
+                    if let Ok(Some(entry)) = observe_external_change(&state, &path) {
+                        review_entries.push(entry);
+                    }
+                }
+                if !review_entries.is_empty() {
+                    let _ = app.emit("changeset-updated", review_entries);
+                }
+
                 emit_files_changed(&app, "watcher.changed");
             }
         }
