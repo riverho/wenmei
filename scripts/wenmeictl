@@ -1,0 +1,201 @@
+#!/usr/bin/env node
+// wenmeictl - JSON client for Wenmei's local Agent Control Plane.
+
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
+
+function usage() {
+  console.log(`Usage:
+  wenmeictl status
+  wenmeictl review start
+  wenmeictl review changeset [--json]
+  wenmeictl review ledger [--json]
+  wenmeictl review approve <path>
+  wenmeictl review reject <path>
+  wenmeictl review annotate <path> --reviewer <id> [--risk <level>] [--decision <decision>] --note <text>
+  wenmeictl briefing build [--limit n]
+  wenmeictl audit export
+  wenmeictl nightshift start
+  wenmeictl nightshift status
+  wenmeictl terminal start [--force]
+  wenmeictl terminal type <text>
+  wenmeictl terminal narrate on|off
+  wenmeictl terminal snapshot
+  wenmeictl terminal stop
+  wenmeictl sandbox run <command>
+
+Examples:
+  wenmeictl review changeset --json
+  wenmeictl terminal type "Please summarize your current plan.\\n"
+  wenmeictl sandbox run "printf 'changed\\n' > docs/nested.txt"
+`);
+}
+
+function findUp(start, rel) {
+  let cur = resolve(start);
+  for (;;) {
+    const candidate = join(cur, rel);
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(cur);
+    if (parent === cur) return null;
+    cur = parent;
+  }
+}
+
+function discoveryPath() {
+  const envPath = process.env.WENMEI_CONTROL_FILE;
+  if (envPath && existsSync(envPath)) return envPath;
+
+  const local = findUp(process.cwd(), join(".wenmei", "wenmei-control.json"));
+  if (local) return local;
+
+  const support = join(
+    homedir(),
+    "Library",
+    "Application Support",
+    "Wenmei",
+    "wenmei-control.json"
+  );
+  if (existsSync(support)) return support;
+
+  throw new Error(
+    "Cannot find wenmei-control.json. Launch Wenmei first or set WENMEI_CONTROL_FILE."
+  );
+}
+
+function readDiscovery() {
+  const path = discoveryPath();
+  return { path, ...JSON.parse(readFileSync(path, "utf8")) };
+}
+
+function flag(args, name) {
+  const index = args.indexOf(name);
+  if (index === -1) return undefined;
+  return args[index + 1];
+}
+
+function commandFromArgs(args) {
+  if (args.length === 0 || args[0] === "-h" || args[0] === "--help") {
+    usage();
+    process.exit(0);
+  }
+
+  if (args[0] === "status") {
+    return { command: "app.status", params: {} };
+  }
+
+  if (args[0] === "review") {
+    const sub = args[1];
+    if (sub === "start") return { command: "review.start", params: {} };
+    if (sub === "changeset") return { command: "review.changeset", params: {} };
+    if (sub === "ledger") return { command: "review.ledger", params: {} };
+    if (sub === "approve" || sub === "reject") {
+      if (!args[2]) throw new Error(`review ${sub} requires a path`);
+      return { command: `review.${sub}`, params: { path: args[2] } };
+    }
+    if (sub === "annotate") {
+      if (!args[2]) throw new Error("review annotate requires a path");
+      const reviewer = flag(args, "--reviewer") || "agent";
+      const annotation = flag(args, "--note");
+      if (!annotation) throw new Error("review annotate requires --note");
+      return {
+        command: "review.annotate",
+        params: {
+          path: args[2],
+          reviewer,
+          risk_level: flag(args, "--risk"),
+          proposed_decision: flag(args, "--decision"),
+          annotation,
+        },
+      };
+    }
+  }
+
+  if (args[0] === "briefing" && args[1] === "build") {
+    return {
+      command: "briefing.build",
+      params: { limit: Number(flag(args, "--limit") || 20) },
+    };
+  }
+
+  if (args[0] === "audit" && args[1] === "export") {
+    return { command: "audit.export", params: {} };
+  }
+
+  if (args[0] === "nightshift") {
+    const sub = args[1];
+    if (sub === "start") return { command: "nightshift.start", params: {} };
+    if (sub === "status") return { command: "nightshift.status", params: {} };
+  }
+
+  if (args[0] === "sandbox" && args[1] === "run") {
+    const command = args.slice(2).join(" ");
+    if (!command) throw new Error("sandbox run requires a command");
+    return { command: "sandbox.run", params: { command } };
+  }
+
+  if (args[0] === "terminal") {
+    const sub = args[1];
+    if (sub === "start") {
+      return {
+        command: "terminal.start",
+        params: {
+          rows: Number(flag(args, "--rows") || 24),
+          cols: Number(flag(args, "--cols") || 80),
+          force_restart: args.includes("--force"),
+        },
+      };
+    }
+    if (sub === "type") {
+      const text = args.slice(2).join(" ");
+      if (!text) throw new Error("terminal type requires text");
+      return {
+        command: "terminal.type",
+        params: { text, origin: "wenmeictl" },
+      };
+    }
+    if (sub === "narrate") {
+      const value = args[2];
+      if (!["on", "off"].includes(value)) {
+        throw new Error("terminal narrate requires on or off");
+      }
+      return {
+        command: "terminal.narrate",
+        params: { enabled: value === "on" },
+      };
+    }
+    if (sub === "snapshot") {
+      return { command: "terminal.snapshot", params: {} };
+    }
+    if (sub === "stop") {
+      return { command: "terminal.stop", params: {} };
+    }
+  }
+
+  throw new Error(`Unknown command: ${args.join(" ")}`);
+}
+
+async function main() {
+  const command = commandFromArgs(
+    process.argv.slice(2).filter(arg => arg !== "--json")
+  );
+  const discovery = readDiscovery();
+  const request = { id: `wenmeictl-${Date.now()}`, ...command };
+  const response = await fetch(`${discovery.url}/rpc`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${discovery.token}`,
+    },
+    body: JSON.stringify(request),
+  });
+  const json = await response.json();
+  console.log(JSON.stringify(json, null, 2));
+  if (!response.ok || json.ok === false) process.exit(1);
+}
+
+main().catch(err => {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});
