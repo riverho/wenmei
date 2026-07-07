@@ -171,6 +171,7 @@ export default function PiPanel() {
     piMessages,
     piInput,
     isProcessing,
+    commentary,
     activeFileContent,
     activeFilePath,
     fileTree,
@@ -187,6 +188,8 @@ export default function PiPanel() {
     clearPiMessages,
     setPiInput,
     setIsProcessing,
+    addCommentary,
+    clearCommentary,
   } = useAppStore();
 
   const [showHistory, setShowHistory] = useState(false);
@@ -211,6 +214,9 @@ export default function PiPanel() {
     null
   );
   const activeAssistantIdRef = useRef<string | null>(null);
+
+  const narrateBufferRef = useRef("");
+  const narratePendingRef = useRef(false);
 
   const startPiForFocusedSandbox = useCallback(
     async (forceRestart = false) => {
@@ -778,6 +784,7 @@ export default function PiPanel() {
 
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
+    let unlistenNarration: UnlistenFn | null = null;
     let mounted = true;
 
     async function startPi() {
@@ -800,6 +807,9 @@ export default function PiPanel() {
       const type = event?.type;
 
       if (type === "agent_start") {
+        if (activeAssistantIdRef.current?.startsWith("narrate-")) {
+          narratePendingRef.current = true;
+        }
         setIsProcessing(true);
         setPiStatus(`thinking · ${thinkingLevel ?? "global"}`);
         setRunDetails([]);
@@ -811,6 +821,15 @@ export default function PiPanel() {
         setIsProcessing(false);
         setPiStatus(`connected · thinking ${thinkingLevel ?? "global"}`);
         setRunDetailsOpen(false);
+        const id = activeAssistantIdRef.current;
+        if (id && id.startsWith("narrate-")) {
+          const text = narrateBufferRef.current.trim();
+          if (text) {
+            addCommentary({ id, text, ts: new Date().toISOString() });
+          }
+          narrateBufferRef.current = "";
+          narratePendingRef.current = false;
+        }
         activeAssistantIdRef.current = null;
         setActiveAssistantId(null);
         listFiles()
@@ -831,6 +850,10 @@ export default function PiPanel() {
         ) {
           const id = activeAssistantIdRef.current;
           if (!id) return;
+          if (id.startsWith("narrate-")) {
+            narrateBufferRef.current += delta.delta;
+            return;
+          }
           appendPiMessageText(id, delta.delta);
           setActiveStreamText(prev => `${prev}${delta.delta}`);
           setTypedResponses(prev => ({
@@ -911,6 +934,31 @@ export default function PiPanel() {
       unlisten = fn;
     });
 
+    listen<{ id: string; digest: string; file_changes: string[] }>(
+      "narration-digest",
+      async evt => {
+        const { id, digest, file_changes: fileChanges } = evt.payload;
+        if (!digest.trim()) return;
+        if (narratePendingRef.current) return; // one narration at a time
+        try {
+          await startPiForFocusedSandbox();
+          const prompt = `You are observing a terminal session. Summarize what the agent just did in 1-3 sentences. Flag anything risky.\n\nTerminal output:\n${digest}${
+            fileChanges?.length
+              ? `\n\nFiles changed: ${fileChanges.join(", ")}`
+              : ""
+          }`;
+          activeAssistantIdRef.current = id;
+          narrateBufferRef.current = "";
+          narratePendingRef.current = true;
+          await piPanelPrompt(id, prompt);
+        } catch {
+          narratePendingRef.current = false;
+        }
+      }
+    ).then(fn => {
+      unlistenNarration = fn;
+    });
+
     startPi();
 
     const handleWorkspaceAuthorized = () => {
@@ -943,6 +991,7 @@ export default function PiPanel() {
         handleWorkspaceAuthorized
       );
       unlisten?.();
+      unlistenNarration?.();
     };
   }, [
     appendPiMessageText,
@@ -954,6 +1003,7 @@ export default function PiPanel() {
     thinkingLevel,
     addRunDetail,
     startPiForFocusedSandbox,
+    addCommentary,
   ]);
 
   // Auto-scroll to bottom
@@ -1078,6 +1128,48 @@ export default function PiPanel() {
               style={{ color: "var(--text-tertiary)" }}
             >
               {runDetails.join("\n")}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Narration commentary */}
+      {commentary.length > 0 && (
+        <div
+          className="px-3 py-2 text-[11px]"
+          style={{
+            borderBottom: "1px solid var(--surface-3)",
+            background: "rgba(94, 234, 212, 0.06)",
+          }}
+        >
+          <div
+            className="flex items-center justify-between mb-1"
+            style={{ color: "var(--accent-teal)" }}
+          >
+            <span className="font-semibold uppercase tracking-wider text-[10px]">
+              What's happening
+            </span>
+            <button
+              onClick={clearCommentary}
+              className="text-[10px] opacity-70 hover:opacity-100"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              clear
+            </button>
+          </div>
+          <div
+            className="terminal-font leading-relaxed whitespace-pre-wrap"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {commentary[commentary.length - 1].text}
+          </div>
+          {commentary.length > 1 && (
+            <div
+              className="mt-1 text-[10px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {commentary.length - 1} earlier note
+              {commentary.length > 2 ? "s" : ""}
             </div>
           )}
         </div>

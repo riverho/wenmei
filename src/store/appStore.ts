@@ -7,16 +7,18 @@ import type {
   Vault,
   Sandbox,
   PlatformName,
+  ChangesetEntry,
 } from "@/lib/tauri-bridge";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
 export type LightboxVariant =
-  | "onboarding"
-  | "settings"
-  | "pi-chat"
-  | "alert"
-  | "custom"
-  | null;
+  "onboarding" | "settings" | "pi-chat" | "alert" | "custom" | null;
+
+export interface CommentaryItem {
+  id: string;
+  text: string;
+  ts: string;
+}
 
 interface AppState {
   // Layout
@@ -55,6 +57,13 @@ interface AppState {
   piMessages: PiMessage[];
   piInput: string;
   isProcessing: boolean;
+
+  // Narration commentary
+  commentary: CommentaryItem[];
+
+  // Review session
+  activeReviewSession: string | null;
+  changeset: ChangesetEntry[];
 
   // Mobile
   mobileMenuOpen: boolean;
@@ -100,6 +109,15 @@ interface AppState {
   clearPiMessages: () => void;
   setPiInput: (input: string) => void;
   setIsProcessing: (val: boolean) => void;
+
+  // Narration commentary
+  addCommentary: (item: CommentaryItem) => void;
+  clearCommentary: () => void;
+
+  // Review session
+  setActiveReviewSession: (id: string | null) => void;
+  setChangeset: (entries: ChangesetEntry[]) => void;
+
   setMobileMenuOpen: (open: boolean) => void;
   setMobilePiOpen: (open: boolean) => void;
   openLightbox: (
@@ -159,6 +177,9 @@ export const useAppStore = create<AppState>()(
       piMessages: [],
       piInput: "",
       isProcessing: false,
+      commentary: [],
+      activeReviewSession: null,
+      changeset: [],
       mobileMenuOpen: false,
       mobilePiOpen: false,
       firstRunAt: null,
@@ -238,6 +259,16 @@ export const useAppStore = create<AppState>()(
       clearPiMessages: () => set({ piMessages: [], piInput: "" }),
       setPiInput: input => set({ piInput: input }),
       setIsProcessing: val => set({ isProcessing: val }),
+
+      addCommentary: item =>
+        set({
+          commentary: [...get().commentary, item].slice(-100),
+        }),
+      clearCommentary: () => set({ commentary: [] }),
+
+      setActiveReviewSession: id => set({ activeReviewSession: id }),
+      setChangeset: entries => set({ changeset: entries }),
+
       setMobileMenuOpen: open => set({ mobileMenuOpen: open }),
       setMobilePiOpen: open => set({ mobilePiOpen: open }),
       openLightbox: (variant, title, size = "md") => {

@@ -262,16 +262,22 @@ function renderInline(text: string, refs?: RefMap): string {
   result = result.replace(/_(.+?)_/g, "<em>$1</em>");
 
   // Images (![alt](url))
-  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, url: string) => {
-    if (!isSafeUrl(url)) return escapeHtml(_m);
-    return `<img src="${url}" alt="${escapeHtml(alt)}" class="md-img" />`;
-  });
+  result = result.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (_m, alt: string, url: string) => {
+      if (!isSafeUrl(url)) return escapeHtml(_m);
+      return `<img src="${url}" alt="${escapeHtml(alt)}" class="md-img" />`;
+    }
+  );
 
   // Links [text](url)
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, url: string) => {
-    if (!isSafeUrl(url)) return escapeHtml(text);
-    return `<a href="${url}" class="md-link">${text}</a>`;
-  });
+  result = result.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_m, text: string, url: string) => {
+      if (!isSafeUrl(url)) return escapeHtml(text);
+      return `<a href="${url}" class="md-link">${text}</a>`;
+    }
+  );
 
   // Reference-style links [text][ref]
   if (refs) {
@@ -387,16 +393,45 @@ export function renderMarkdownHTML(text: string): string {
 
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
-      "h1", "h2", "h3", "h4", "h5", "h6",
-      "p", "blockquote", "pre", "code",
-      "ul", "ol", "li",
-      "table", "thead", "tbody", "tr", "th", "td",
-      "strong", "em", "del", "a", "img",
-      "hr", "div", "input",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "p",
+      "blockquote",
+      "pre",
+      "code",
+      "ul",
+      "ol",
+      "li",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "strong",
+      "em",
+      "del",
+      "a",
+      "img",
+      "hr",
+      "div",
+      "input",
     ],
     ALLOWED_ATTR: [
-      "class", "style", "href", "src", "alt",
-      "title", "rel", "type", "checked", "disabled",
+      "class",
+      "style",
+      "href",
+      "src",
+      "alt",
+      "title",
+      "rel",
+      "type",
+      "checked",
+      "disabled",
       "align",
     ],
     ALLOW_DATA_ATTR: false,

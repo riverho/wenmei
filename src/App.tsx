@@ -18,6 +18,7 @@ import Header from "./components/Header";
 import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
 import PiPanel from "./components/PiPanel";
+import ReviewPanel from "./components/ReviewPanel";
 import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
 import Lightbox from "./components/Lightbox";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -285,6 +286,7 @@ function LeftPanel() {
 
 function RightPanel() {
   const { rightPanelOpen, rightPanelWidth, mode } = useAppStore();
+  const [tab, setTab] = useState<"pi" | "review">("pi");
   if (mode === "terminal") return null;
   return (
     <div
@@ -294,7 +296,45 @@ function RightPanel() {
         opacity: rightPanelOpen ? 1 : 0,
       }}
     >
-      {rightPanelOpen && <PiPanel />}
+      {rightPanelOpen && (
+        <>
+          <div
+            className="flex shrink-0"
+            style={{ borderBottom: "1px solid var(--surface-3)" }}
+          >
+            <button
+              onClick={() => setTab("pi")}
+              className="flex-1 px-2 py-1 text-[10px] uppercase tracking-wider transition-colors"
+              style={{
+                color:
+                  tab === "pi"
+                    ? "var(--text-secondary)"
+                    : "var(--text-tertiary)",
+                background: tab === "pi" ? "var(--surface-1)" : "transparent",
+              }}
+            >
+              Pi
+            </button>
+            <button
+              onClick={() => setTab("review")}
+              className="flex-1 px-2 py-1 text-[10px] uppercase tracking-wider transition-colors"
+              style={{
+                color:
+                  tab === "review"
+                    ? "var(--text-secondary)"
+                    : "var(--text-tertiary)",
+                background:
+                  tab === "review" ? "var(--surface-1)" : "transparent",
+              }}
+            >
+              Review
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {tab === "pi" ? <PiPanel /> : <ReviewPanel />}
+          </div>
+        </>
+      )}
     </div>
   );
 }

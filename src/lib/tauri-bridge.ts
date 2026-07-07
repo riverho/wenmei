@@ -115,6 +115,16 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       );
     case "list_journal_events":
       return mocks.listJournalEvents((args as { limit: number }).limit);
+    case "review_session_start":
+      return mocks.reviewSessionStart();
+    case "review_session_close":
+      return mocks.reviewSessionClose((args as { discard: boolean }).discard);
+    case "review_approve":
+      return mocks.reviewApprove((args as { path: string }).path);
+    case "review_reject":
+      return mocks.reviewReject((args as { path: string }).path);
+    case "review_changeset":
+      return mocks.reviewChangeset();
     case "terminal_start":
       return mocks.terminalStart(
         (args as { rows: number }).rows,
@@ -130,6 +140,10 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       );
     case "terminal_stop":
       return mocks.terminalStop();
+    case "terminal_set_narration_enabled":
+      return mocks.terminalSetNarrationEnabled(
+        (args as { enabled: boolean }).enabled
+      );
     case "copy_file_path":
       return mocks.copyFilePath((args as { path: string }).path);
     case "reveal_in_folder":
@@ -468,6 +482,41 @@ export async function listJournalEvents(limit = 50): Promise<JournalEvent[]> {
   return invoke("list_journal_events", { limit });
 }
 
+// ─── Review Session / Changeset ───
+
+export interface ChangesetEntry {
+  path: string;
+  status: "added" | "modified" | "deleted" | "baselineMissing";
+  size: number;
+}
+
+export interface ReviewSession {
+  id: string;
+  started_at: string;
+  entries: Record<string, ChangesetEntry>;
+  total_baseline_bytes: number;
+}
+
+export async function reviewSessionStart(): Promise<string> {
+  return invoke("review_session_start");
+}
+
+export async function reviewSessionClose(discard = false): Promise<void> {
+  return invoke("review_session_close", { discard });
+}
+
+export async function reviewApprove(path: string): Promise<void> {
+  return invoke("review_approve", { path });
+}
+
+export async function reviewReject(path: string): Promise<void> {
+  return invoke("review_reject", { path });
+}
+
+export async function reviewChangeset(): Promise<ChangesetEntry[]> {
+  return invoke("review_changeset");
+}
+
 // ─── Terminal ───
 
 export interface TerminalStarted {
@@ -498,6 +547,12 @@ export async function terminalResize(
 
 export async function terminalStop(): Promise<void> {
   return invoke("terminal_stop");
+}
+
+export async function terminalSetNarrationEnabled(
+  enabled: boolean
+): Promise<boolean> {
+  return invoke("terminal_set_narration_enabled", { enabled });
 }
 
 // ─── Utilities ───
