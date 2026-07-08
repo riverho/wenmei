@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use tauri::State;
+use tauri::{AppHandle, State};
 
-use crate::journal::append_journal_event;
+use crate::journal::{append_journal_event, emit_notification, NOTIFY_NIGHTSHIFT_DONE};
 use crate::state::{active_terminal_context, WenmeiState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,7 +33,10 @@ fn parse_tasks(raw: &str) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn night_shift_start(state: State<'_, WenmeiState>) -> Result<NightShiftRun, String> {
+pub fn night_shift_start(
+    state: State<'_, WenmeiState>,
+    app: AppHandle,
+) -> Result<NightShiftRun, String> {
     let ctx = active_terminal_context(&state)?;
     let todo_path = ctx.cwd.join("TODO.md");
     let raw = fs::read_to_string(&todo_path).map_err(|e| e.to_string())?;
@@ -64,6 +67,16 @@ pub fn night_shift_start(state: State<'_, WenmeiState>) -> Result<NightShiftRun,
         Some("TODO.md".to_string()),
         format!("Night shift staged {} task(s); no auto-commit", run.task_count),
         serde_json::json!({"run_id": run.id, "task_count": run.task_count}),
+    );
+    emit_notification(
+        &app,
+        NOTIFY_NIGHTSHIFT_DONE,
+        "Night shift staged",
+        &format!(
+            "{} task(s) staged for review — nothing auto-committed",
+            run.task_count
+        ),
+        None,
     );
     Ok(run)
 }

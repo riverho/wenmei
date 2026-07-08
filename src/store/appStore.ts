@@ -73,6 +73,13 @@ interface AppState {
   sandboxAuthStatus: string;
   licenseTier: "free" | "pro";
   licenseKey: string | null;
+
+  // Machine-level settings persisted in state.json (Settings panel)
+  narrateByDefault: boolean;
+  terminalTabLimit: number;
+  terminalTabsUnlimited: boolean;
+  sandboxNewWindows: boolean;
+  narrationDepth: "off" | "brief" | "detailed";
   keymap: Keymap;
 
   // Pi Terminal
@@ -142,6 +149,14 @@ interface AppState {
   // Unified sidecar overlay items
   addSidecarItem: (item: SidecarItem) => void;
   markSidecarClassRead: (kinds: SidecarItemKind[]) => void;
+
+  // Machine-level settings (persisted via save_app_state → state.json)
+  setNarrateByDefault: (on: boolean) => void;
+  setTerminalTabLimit: (n: number) => void;
+  setTerminalTabsUnlimited: (on: boolean) => void;
+  setSandboxNewWindows: (on: boolean) => void;
+  setNarrationDepth: (depth: "off" | "brief" | "detailed") => void;
+  setLicenseKey: (key: string | null) => void;
   clearCommentary: () => void;
 
   // Review session
@@ -206,6 +221,11 @@ export const useAppStore = create<AppState>()(
       sandboxAuthStatus: "promoted",
       licenseTier: "free",
       licenseKey: null,
+      narrateByDefault: true,
+      terminalTabLimit: 8,
+      terminalTabsUnlimited: false,
+      sandboxNewWindows: true,
+      narrationDepth: "brief",
       keymap: DEFAULT_KEYMAP,
       isDirty: false,
       piMessages: [],
@@ -322,6 +342,13 @@ export const useAppStore = create<AppState>()(
           },
         }),
 
+      setNarrateByDefault: on => set({ narrateByDefault: on }),
+      setTerminalTabLimit: n => set({ terminalTabLimit: n }),
+      setTerminalTabsUnlimited: on => set({ terminalTabsUnlimited: on }),
+      setSandboxNewWindows: on => set({ sandboxNewWindows: on }),
+      setNarrationDepth: depth => set({ narrationDepth: depth }),
+      setLicenseKey: key => set({ licenseKey: key }),
+
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),
 
@@ -408,6 +435,12 @@ export const useAppStore = create<AppState>()(
           sandboxAuthStatus: state.sandbox_auth_status ?? "promoted",
           licenseTier: state.license_tier ?? "free",
           licenseKey: state.license_key ?? null,
+          narrateByDefault: state.narrate_by_default ?? true,
+          terminalTabLimit: state.terminal_tab_limit ?? 8,
+          terminalTabsUnlimited: state.terminal_tabs_unlimited ?? false,
+          sandboxNewWindows: state.sandbox_new_windows ?? true,
+          narrationDepth: (state.narration_depth ?? "brief") as
+            "off" | "brief" | "detailed",
           keymap: { ...DEFAULT_KEYMAP, ...(state.keymap ?? {}) },
         });
         // Apply theme
@@ -444,6 +477,11 @@ export const useAppStore = create<AppState>()(
         sandbox_auth_status: get().sandboxAuthStatus,
         license_tier: get().licenseTier,
         license_key: get().licenseKey,
+        narrate_by_default: get().narrateByDefault,
+        terminal_tab_limit: get().terminalTabLimit,
+        terminal_tabs_unlimited: get().terminalTabsUnlimited,
+        sandbox_new_windows: get().sandboxNewWindows,
+        narration_depth: get().narrationDepth,
         keymap: get().keymap,
       }),
     }),

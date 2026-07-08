@@ -10,6 +10,7 @@ import {
   togglePin,
   copyFilePath,
   revealInFolder,
+  openFileWindow,
   searchWorkspace,
   moveFile,
 } from "@/lib/tauri-bridge";
@@ -61,6 +62,7 @@ interface FileTreeItemProps {
     mouseX?: number,
     mouseY?: number
   ) => void;
+  onOpenInNewWindow: (path: string) => void;
   onMoveClick: (node: FileNode) => void;
   searchSets: SearchSets | null;
 }
@@ -85,6 +87,7 @@ function FileTreeItem({
   onCancelRename,
   onSetRenameValue,
   onContextMenu,
+  onOpenInNewWindow,
   onMoveClick,
   searchSets,
 }: FileTreeItemProps) {
@@ -209,17 +212,30 @@ function FileTreeItem({
           onMouseDown={e => e.stopPropagation()}
         >
           {node.node_type === "file" && (
-            <button
-              onClick={() => {
-                onPin(node.path);
-                onContextMenu(node, new DOMRect());
-              }}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:opacity-80 transition-opacity"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              <Pin size={12} />
-              {node.is_pinned ? "Unpin" : "Pin"}
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  onPin(node.path);
+                  onContextMenu(node, new DOMRect());
+                }}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:opacity-80 transition-opacity"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <Pin size={12} />
+                {node.is_pinned ? "Unpin" : "Pin"}
+              </button>
+              <button
+                onClick={() => {
+                  onOpenInNewWindow(node.path);
+                  onContextMenu(node, new DOMRect());
+                }}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:opacity-80 transition-opacity"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <ExternalLink size={12} />
+                Open in new window
+              </button>
+            </>
           )}
           <button
             onClick={() => {
@@ -311,6 +327,7 @@ function FileTreeItem({
                 onCancelRename={onCancelRename}
                 onSetRenameValue={onSetRenameValue}
                 onContextMenu={onContextMenu}
+                onOpenInNewWindow={onOpenInNewWindow}
                 onMoveClick={onMoveClick}
                 searchSets={searchSets}
               />
@@ -564,6 +581,14 @@ export default function FileTree() {
     setMoveModalNode(node);
     setContextMenuPath(null);
     setContextMenuPos(null);
+  }, []);
+
+  const handleOpenInNewWindow = useCallback(async (path: string) => {
+    try {
+      await openFileWindow(path);
+    } catch (err) {
+      console.error("Open in new window failed:", err);
+    }
   }, []);
 
   // Close context menu on click outside or Escape
@@ -903,6 +928,7 @@ export default function FileTree() {
             onCancelRename={cancelRename}
             onSetRenameValue={setRenameValue}
             onContextMenu={handleContextMenu}
+            onOpenInNewWindow={handleOpenInNewWindow}
             onMoveClick={handleMoveClick}
             searchSets={searchSets}
           />

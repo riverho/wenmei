@@ -172,6 +172,7 @@ pub type SharedNarrationBuffer = Arc<Mutex<NarrationBuffer>>;
 pub fn spawn_narration_flush_thread(
     app: tauri::AppHandle,
     buffer: SharedNarrationBuffer,
+    session_id: String,
 ) {
     std::thread::spawn(move || {
         let mut counter: u64 = 0;
@@ -185,12 +186,25 @@ pub fn spawn_narration_flush_thread(
                 counter += 1;
                 let payload = serde_json::json!({
                     "id": format!("narrate-{}", counter),
+                    "session_id": session_id.clone(),
                     "digest": digest.text,
                     "file_changes": digest.file_changes,
                     "drift": digest.drift,
                     "drift_reason": digest.drift_reason,
                 });
                 let _ = app.emit("narration-digest", payload);
+                if digest.drift {
+                    crate::journal::emit_notification(
+                        &app,
+                        crate::journal::NOTIFY_NARRATION_RISKY,
+                        "Risky change flagged",
+                        digest
+                            .drift_reason
+                            .as_deref()
+                            .unwrap_or("The agent drifted from the stated task."),
+                        None,
+                    );
+                }
             }
         }
     });

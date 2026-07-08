@@ -1,5 +1,24 @@
 import { useEffect } from "react";
-import { useAppStore } from "@/store/appStore";
+import { DEFAULT_KEYMAP, useAppStore } from "@/store/appStore";
+
+function matchesShortcut(e: KeyboardEvent, chord: string | undefined): boolean {
+  if (!chord) return false;
+  const parts = chord.toLowerCase().split("+");
+  const expectedKey = parts[parts.length - 1];
+  const wantsMod = parts.includes("mod");
+  const wantsShift = parts.includes("shift");
+  const wantsAlt = parts.includes("alt");
+  const wantsCtrl = parts.includes("ctrl");
+  const wantsMeta = parts.includes("meta");
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+  if (wantsMod !== (e.metaKey || e.ctrlKey)) return false;
+  if (wantsShift !== e.shiftKey) return false;
+  if (wantsAlt !== e.altKey) return false;
+  if (wantsCtrl && !e.ctrlKey) return false;
+  if (wantsMeta && !e.metaKey) return false;
+  return key.toLowerCase() === expectedKey;
+}
 
 export function useKeyboardShortcuts() {
   const {
@@ -12,12 +31,16 @@ export function useKeyboardShortcuts() {
     setMobileMenuOpen,
     setMobilePiOpen,
     setPiInput,
+    keymap,
   } = useAppStore();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
-      const shift = e.shiftKey;
+      const keyFor = (action: keyof typeof DEFAULT_KEYMAP) =>
+        keymap[action] ?? DEFAULT_KEYMAP[action];
+      const shortcut = (action: keyof typeof DEFAULT_KEYMAP) =>
+        matchesShortcut(e, keyFor(action));
 
       // Prevent default for our shortcuts
       const prevent = () => {
@@ -26,14 +49,14 @@ export function useKeyboardShortcuts() {
       };
 
       // Cmd/Ctrl + 1 — Focus/Toggle left panel
-      if (meta && e.key === "1") {
+      if (shortcut("toggleLeftPanel")) {
         prevent();
         togglePanel("left");
         return;
       }
 
       // Cmd/Ctrl + 2 — Focus center
-      if (meta && e.key === "2") {
+      if (shortcut("focusEditor")) {
         prevent();
         // Focus editor
         const editor = document.querySelector(
@@ -44,7 +67,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + 3 — Focus/Toggle right panel + focus Pi input
-      if (meta && e.key === "3") {
+      if (shortcut("focusPi")) {
         prevent();
         togglePanel("right");
         setTimeout(() => {
@@ -55,28 +78,28 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + E — Edit mode
-      if (meta && e.key.toLowerCase() === "e") {
+      if (shortcut("editMode")) {
         prevent();
         setMode("edit");
         return;
       }
 
       // Cmd/Ctrl + Shift + P — Preview mode
-      if (meta && shift && e.key.toLowerCase() === "p") {
+      if (shortcut("previewMode")) {
         prevent();
         setMode("preview");
         return;
       }
 
       // Cmd/Ctrl + \ — Split mode
-      if (meta && e.key === "\\") {
+      if (shortcut("splitMode")) {
         prevent();
         setMode("split");
         return;
       }
 
       // Cmd/Ctrl + P — Paper mode toggle
-      if (meta && !shift && e.key.toLowerCase() === "p") {
+      if (shortcut("togglePaper")) {
         prevent();
         if (mode === "paper") {
           exitPaperMode();
@@ -87,14 +110,14 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + ` — Toggle embedded sandbox terminal
-      if (meta && e.key === "`") {
+      if (shortcut("toggleTerminal")) {
         prevent();
         setMode(mode === "terminal" ? "edit" : "terminal");
         return;
       }
 
       // Cmd/Ctrl + B — Search / Find
-      if (meta && e.key.toLowerCase() === "b") {
+      if (shortcut("focusSearch")) {
         prevent();
         const searchInput = document.querySelector(
           ".file-search-input"
@@ -104,7 +127,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + K — Command palette (focus Pi input)
-      if (meta && e.key.toLowerCase() === "k") {
+      if (shortcut("commandPalette")) {
         prevent();
         togglePanel("right");
         setTimeout(() => {
@@ -115,7 +138,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + N — New file
-      if (meta && !shift && e.key.toLowerCase() === "n") {
+      if (shortcut("newFile")) {
         prevent();
         // Handled by FileTree component
         const newFileBtn = document.querySelector(
@@ -126,7 +149,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + Shift + N — New folder
-      if (meta && shift && e.key.toLowerCase() === "n") {
+      if (shortcut("newFolder")) {
         prevent();
         const newFolderBtn = document.querySelector(
           ".new-folder-btn"
@@ -136,7 +159,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + , — Toggle theme
-      if (meta && e.key === ",") {
+      if (shortcut("toggleTheme")) {
         prevent();
         const themeBtn = document.querySelector(
           ".theme-toggle-btn"
@@ -195,7 +218,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd/Ctrl + Shift + F — Workspace search in Pi
-      if (meta && shift && e.key.toLowerCase() === "f") {
+      if (shortcut("workspaceSearch")) {
         prevent();
         togglePanel("right");
         setPiInput("/find ");
@@ -219,5 +242,6 @@ export function useKeyboardShortcuts() {
     setMobileMenuOpen,
     setMobilePiOpen,
     setPiInput,
+    keymap,
   ]);
 }

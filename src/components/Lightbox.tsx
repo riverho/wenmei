@@ -10,17 +10,16 @@ import {
   Eye,
   ExternalLink,
   AlertCircle,
-  Link2,
 } from "lucide-react";
 import {
   runInstallScript,
   installCliIntegration,
-  cliIntegrationStatus,
   completeOnboarding,
   ensureDefaultVault,
   readFile,
   listVaults,
 } from "@/lib/tauri-bridge";
+import SettingsPanel from "./SettingsPanel";
 
 const SIZE_CLASSES: Record<string, string> = {
   sm: "max-w-sm",
@@ -140,7 +139,7 @@ function LightboxContent({ variant }: { variant: string | null }) {
     case "onboarding":
       return <OnboardingContent />;
     case "settings":
-      return <SettingsPlaceholder />;
+      return <SettingsPanel />;
     default:
       return <DefaultPlaceholder />;
   }
@@ -617,153 +616,6 @@ function OnboardingPage2({ onDone }: { onDone: () => void }) {
         >
           Close
         </button>
-      </div>
-    </div>
-  );
-}
-
-function SettingsPlaceholder() {
-  const [cliInstalled, setCliInstalled] = useState<boolean | null>(null);
-  const [cliPath, setCliPath] = useState<string | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    cliIntegrationStatus()
-      .then(status => {
-        if (cancelled) return;
-        setCliInstalled(status.installed);
-        setCliPath(status.path);
-      })
-      .catch(err => {
-        if (cancelled) return;
-        setCliInstalled(false);
-        setError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function handleInstallCli() {
-    if (installing) return;
-    setInstalling(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await installCliIntegration();
-      const status = await cliIntegrationStatus();
-      setCliInstalled(status.installed);
-      setCliPath(status.path);
-      setMessage(result || "CLI integration installed.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setInstalling(false);
-    }
-  }
-
-  return (
-    <div className="p-8 space-y-4">
-      <div className="text-center space-y-1.5">
-        <div className="flex items-center justify-center gap-2">
-          <Terminal size={16} style={{ color: "var(--accent-teal)" }} />
-          <span
-            className="display-font text-base font-medium"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Settings
-          </span>
-        </div>
-        <p
-          className="text-xs leading-relaxed"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          System integrations and local app preferences.
-        </p>
-      </div>
-
-      <div
-        className="rounded-xl border p-3 space-y-3"
-        style={{
-          background: "var(--surface-0)",
-          borderColor: "var(--surface-3)",
-        }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5 min-w-0">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                background: "var(--surface-1)",
-                color: "var(--accent-teal)",
-              }}
-            >
-              <Link2 size={15} />
-            </div>
-            <div className="min-w-0">
-              <p
-                className="text-xs font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                CLI integration
-              </p>
-              <p
-                className="text-[10px] mt-0.5 leading-relaxed"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                Installs the `wenmei` command and Finder service.
-              </p>
-              {cliPath && (
-                <p
-                  className="text-[10px] mt-1 truncate"
-                  style={{ color: "var(--text-secondary)" }}
-                  title={cliPath}
-                >
-                  {cliPath}
-                </p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleInstallCli}
-            disabled={installing || cliInstalled === true}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-60"
-            style={{
-              background:
-                cliInstalled === true
-                  ? "var(--surface-2)"
-                  : "var(--accent-teal)",
-              color: cliInstalled === true ? "var(--text-secondary)" : "#fff",
-            }}
-          >
-            {installing ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={12} className="animate-spin" />
-                Installing
-              </span>
-            ) : cliInstalled === true ? (
-              "Installed"
-            ) : cliInstalled === null ? (
-              "Checking"
-            ) : (
-              "Install"
-            )}
-          </button>
-        </div>
-
-        {message && (
-          <p className="text-[10px]" style={{ color: "var(--accent-teal)" }}>
-            {message}
-          </p>
-        )}
-        {error && (
-          <p className="text-[10px]" style={{ color: "var(--accent-rose)" }}>
-            {error}
-          </p>
-        )}
       </div>
     </div>
   );

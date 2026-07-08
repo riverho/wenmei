@@ -24,7 +24,8 @@ mod vault;
 
 use crate::platform::Platform;
 use crate::state::WenmeiState;
-use tauri::{Emitter, Listener, Manager};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 
 fn is_wsl() -> bool {
     // WSL1/2 detection: /proc/version contains "microsoft" or "WSL",
@@ -33,6 +34,40 @@ fn is_wsl() -> bool {
         .map(|s| s.to_lowercase().contains("microsoft") || s.to_lowercase().contains("wsl"))
         .unwrap_or(false)
         || std::path::Path::new("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+}
+
+fn encode_query_value(value: &str) -> String {
+    let mut out = String::new();
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
+#[tauri::command]
+fn open_file_window(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("path is required".into());
+    }
+    let started_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let label = format!("file-window-{started_at}");
+    let name = path.rsplit('/').next().unwrap_or(&path);
+    let url = format!("index.html?openFile={}", encode_query_value(&path));
+
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+        .title(format!("Wenmei - {name}"))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 fn main() {
@@ -156,6 +191,7 @@ fn main() {
             terminal::terminal_set_narration_enabled,
             terminal::pty_run_commands,
             platform::get_platform,
+            open_file_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

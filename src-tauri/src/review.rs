@@ -8,8 +8,9 @@ use walkdir::WalkDir;
 
 use crate::file_ops::resolve_path;
 use crate::journal::{
-    append_journal_event, emit_files_changed, KIND_REVIEW_APPROVED, KIND_REVIEW_REJECTED,
-    KIND_REVIEW_SESSION_CLOSED, KIND_REVIEW_SESSION_STARTED,
+    append_journal_event, emit_files_changed, emit_notification, KIND_REVIEW_APPROVED,
+    KIND_REVIEW_REJECTED, KIND_REVIEW_SESSION_CLOSED, KIND_REVIEW_SESSION_STARTED,
+    NOTIFY_REVIEW_CHANGES,
 };
 use crate::state::{active_vault, relative_path, WenmeiState};
 
@@ -475,6 +476,15 @@ pub fn observe_external_change(
 }
 
 fn emit_changeset_updated(app: &AppHandle, entries: Vec<ChangesetEntry>) {
+    if !entries.is_empty() {
+        emit_notification(
+            app,
+            NOTIFY_REVIEW_CHANGES,
+            "Review changeset updated",
+            &format!("{} file(s) awaiting review", entries.len()),
+            None,
+        );
+    }
     let _ = app.emit("changeset-updated", entries);
 }
 

@@ -3,6 +3,7 @@ use crate::narration;
 use crate::review::ReviewSession;
 use portable_pty::{Child as PtyChild, MasterPty};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -113,6 +114,30 @@ pub struct AppState {
     pub license_tier: String,
     #[serde(default)]
     pub license_key: Option<String>,
+    #[serde(default = "default_true")]
+    pub narrate_by_default: bool,
+    #[serde(default = "default_tab_limit")]
+    pub terminal_tab_limit: u32,
+    #[serde(default)]
+    pub terminal_tabs_unlimited: bool,
+    #[serde(default = "default_true")]
+    pub sandbox_new_windows: bool,
+    #[serde(default = "default_narration_depth")]
+    pub narration_depth: String,
+    #[serde(default = "default_keymap")]
+    pub keymap: HashMap<String, String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_tab_limit() -> u32 {
+    8
+}
+
+fn default_narration_depth() -> String {
+    "brief".to_string()
 }
 
 fn default_open_mode() -> String {
@@ -164,6 +189,25 @@ fn default_agent_profiles() -> Vec<AgentProfile> {
     ]
 }
 
+fn default_keymap() -> HashMap<String, String> {
+    HashMap::from([
+        ("toggleLeftPanel".to_string(), "mod+1".to_string()),
+        ("focusEditor".to_string(), "mod+2".to_string()),
+        ("focusPi".to_string(), "mod+3".to_string()),
+        ("editMode".to_string(), "mod+e".to_string()),
+        ("previewMode".to_string(), "mod+shift+p".to_string()),
+        ("splitMode".to_string(), "mod+\\".to_string()),
+        ("togglePaper".to_string(), "mod+p".to_string()),
+        ("toggleTerminal".to_string(), "mod+`".to_string()),
+        ("focusSearch".to_string(), "mod+b".to_string()),
+        ("commandPalette".to_string(), "mod+k".to_string()),
+        ("newFile".to_string(), "mod+n".to_string()),
+        ("newFolder".to_string(), "mod+shift+n".to_string()),
+        ("toggleTheme".to_string(), "mod+,".to_string()),
+        ("workspaceSearch".to_string(), "mod+shift+f".to_string()),
+    ])
+}
+
 impl AppState {
     pub fn with_default_vault(vault_path: PathBuf) -> Self {
         let vault = Vault {
@@ -209,6 +253,12 @@ impl AppState {
             recipes: vec![],
             license_tier: default_license_tier(),
             license_key: None,
+            narrate_by_default: true,
+            terminal_tab_limit: default_tab_limit(),
+            terminal_tabs_unlimited: false,
+            sandbox_new_windows: true,
+            narration_depth: default_narration_depth(),
+            keymap: default_keymap(),
         }
     }
 }
@@ -255,6 +305,7 @@ impl Default for SandboxRegistry {
 }
 
 pub struct TerminalSession {
+    pub session_id: String,
     pub writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub child: Arc<Mutex<Box<dyn PtyChild + Send + Sync>>>,
     pub master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
@@ -278,6 +329,7 @@ pub struct WenmeiState {
     pub state_file: PathBuf,
     pub registry_file: PathBuf,
     pub terminal: Mutex<Option<TerminalSession>>,
+    pub terminal_sessions: Mutex<HashMap<String, String>>,
     pub pi_rpc: Mutex<Option<PiRpcSession>>,
     pub initial_file: Mutex<Option<String>>,
     pub review_session: Mutex<Option<ReviewSession>>,
@@ -777,6 +829,7 @@ impl WenmeiState {
             state_file,
             registry_file,
             terminal: Mutex::new(None),
+            terminal_sessions: Mutex::new(HashMap::new()),
             pi_rpc: Mutex::new(None),
             initial_file: Mutex::new(initial_file_rel),
             review_session: Mutex::new(None),

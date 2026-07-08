@@ -1005,7 +1005,7 @@ tasks:
     design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#f11f14--sidecar-surgery-addendum-approved-08-jul-2026
     acceptance_checks:
       - grep -q "narrate_by_default" ../src-tauri/src/state.rs
-      - grep -q "narrateByDefault" ../src/lib/tauri-bridge.ts
+      - grep -q "narrate_by_default" ../src/lib/tauri-bridge.ts
       - grep -q "SettingRow\|Segmented" ../src/components/SettingsPanel.tsx
       - bash -c 'test "$(wc -l < ../src/components/SettingsPanel.tsx)" -gt 300'
       - cd .. && npm run check

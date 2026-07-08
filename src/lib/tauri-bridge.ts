@@ -187,6 +187,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       return mocks.copyFilePath((args as { path: string }).path);
     case "reveal_in_folder":
       return mocks.revealInFolder((args as { path: string }).path);
+    case "open_file_window":
+      return undefined;
     case "pi_panel_start":
       return mocks.piPanelStart(
         (args as { thinking: string | null }).thinking,
@@ -303,6 +305,12 @@ export interface AppPersistedState {
   recipes?: Recipe[];
   license_tier?: "free" | "pro";
   license_key?: string | null;
+  narrate_by_default?: boolean;
+  terminal_tab_limit?: number;
+  terminal_tabs_unlimited?: boolean;
+  sandbox_new_windows?: boolean;
+  narration_depth?: string;
+  keymap?: Record<string, string>;
 }
 
 export interface RecentDocument {
@@ -629,10 +637,13 @@ export async function reviewAnnotate(
 // ─── Terminal ───
 
 export interface TerminalStarted {
+  session_id: string;
+  sessionId?: string;
   cwd: string;
   log_file: string;
   reused: boolean;
   snapshot: number[];
+  activity?: "active" | "idle" | "stuck";
 }
 
 export async function terminalStart(
@@ -679,6 +690,10 @@ export async function copyFilePath(path: string): Promise<string> {
 
 export async function revealInFolder(path: string): Promise<void> {
   return invoke("reveal_in_folder", { path });
+}
+
+export async function openFileWindow(path: string): Promise<void> {
+  return invoke("open_file_window", { path });
 }
 
 // ─── Pi Panel RPC ───

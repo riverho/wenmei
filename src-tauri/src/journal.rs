@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::state::{active_terminal_context, TerminalContext, WenmeiState};
@@ -12,6 +15,16 @@ pub const KIND_REVIEW_SESSION_STARTED: &str = "review.session_started";
 pub const KIND_REVIEW_SESSION_CLOSED: &str = "review.session_closed";
 pub const KIND_REVIEW_APPROVED: &str = "review.approved";
 pub const KIND_REVIEW_REJECTED: &str = "review.rejected";
+
+// Notification kinds surfaced as alerts in the unified sidecar feed
+// (docs/design/unified-sidecar.md). Journaled as `notification.<kind>`.
+pub const NOTIFY_REVIEW_CHANGES: &str = "review.changes";
+pub const NOTIFY_NARRATION_RISKY: &str = "narration.risky";
+pub const NOTIFY_TERMINAL_STUCK: &str = "terminal.stuck";
+pub const NOTIFY_TERMINAL_DONE: &str = "terminal.done";
+pub const NOTIFY_NIGHTSHIFT_DONE: &str = "nightshift.done";
+pub const NOTIFY_NIGHTSHIFT_BLOCKED: &str = "nightshift.blocked";
+pub const NOTIFY_SYSTEM: &str = "system";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEvent {
@@ -35,6 +48,75 @@ pub struct AuditExport {
     pub json_path: String,
     pub markdown_path: String,
     pub event_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WenmeiNotification {
+    pub kind: String,
+    pub title: String,
+    pub body: String,
+    pub session_id: Option<String>,
+    pub ts: String,
+}
+
+/// Identical (kind, session, title) within this window collapses (no re-emit),
+/// so a stuck terminal or a chatty agent doesn't spam alerts.
+const NOTIFY_DEDUP_SECS: u64 = 60;
+
+fn notify_dedup_map() -> &'static Mutex<HashMap<String, Instant>> {
+    static MAP: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Emit an alert into the unified sidecar feed: journals `notification.<kind>`,
+/// emits `wenmei-notification` to the frontend, and raises an OS notification
+/// when the main window is unfocused. Best-effort — never fails the caller.
+pub fn emit_notification(
+    app: &AppHandle,
+    kind: &str,
+    title: &str,
+    body: &str,
+    session_id: Option<String>,
+) {
+    let dedup_key = format!("{kind}|{}|{title}", session_id.as_deref().unwrap_or(""));
+    {
+        let mut map = notify_dedup_map().lock().unwrap();
+        let now = Instant::now();
+        map.retain(|_, at| now.duration_since(*at).as_secs() < NOTIFY_DEDUP_SECS);
+        if map.contains_key(&dedup_key) {
+            return;
+        }
+        map.insert(dedup_key, now);
+    }
+
+    let note = WenmeiNotification {
+        kind: kind.to_string(),
+        title: title.to_string(),
+        body: body.to_string(),
+        session_id: session_id.clone(),
+        ts: chrono::Utc::now().to_rfc3339(),
+    };
+    let _ = app.emit("wenmei-notification", &note);
+
+    if let Some(state) = app.try_state::<WenmeiState>() {
+        let _ = append_journal_event(
+            &state,
+            &format!("notification.{kind}"),
+            "notifier",
+            None,
+            format!("{title} — {body}"),
+            serde_json::json!({ "session_id": session_id }),
+        );
+    }
+
+    let focused = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_focused().ok())
+        .unwrap_or(true);
+    if !focused {
+        use tauri_plugin_notification::NotificationExt;
+        let _ = app.notification().builder().title(title).body(body).show();
+    }
 }
 
 fn journal_path(ctx: &TerminalContext) -> PathBuf {

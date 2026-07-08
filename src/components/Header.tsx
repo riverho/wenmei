@@ -31,6 +31,7 @@ import {
   Bot,
   CheckCircle2,
   Info,
+  Settings,
 } from "lucide-react";
 
 function findFirstFile(nodes: FileNode[]): FileNode | null {
@@ -72,6 +73,7 @@ export default function Header() {
     exitPaperMode,
     setMobileMenuOpen,
     setMobilePiOpen,
+    openLightbox,
   } = useAppStore();
 
   const isPaper = mode === "paper";
@@ -380,6 +382,16 @@ export default function Header() {
           title={`Theme: ${theme} (Ctrl+,)`}
         >
           <ThemeIcon size={15} />
+        </button>
+
+        {/* Settings */}
+        <button
+          onClick={() => openLightbox("settings", "Settings", "lg")}
+          className="settings-btn flex items-center justify-center w-8 h-8 rounded transition-all duration-200 hover:-translate-y-0.5"
+          style={{ color: "var(--text-secondary)" }}
+          title="Settings"
+        >
+          <Settings size={15} />
         </button>
 
         {/* Keyboard hint */}

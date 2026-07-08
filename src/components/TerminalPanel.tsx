@@ -13,6 +13,7 @@ import {
 import "@xterm/xterm/css/xterm.css";
 
 interface TerminalOutputPayload {
+  session_id?: string;
   data: number[];
   activity?: TerminalActivityStatus;
 }
@@ -23,12 +24,46 @@ const STUCK_AFTER_INPUT_MS = 30000;
 
 type TerminalActivityStatus = "active" | "idle" | "stuck";
 
+interface TerminalTab {
+  sessionId: string;
+  title: string;
+}
+
+function TerminalTabBar({ tabs }: { tabs: TerminalTab[] }) {
+  return (
+    <div
+      className="flex items-center gap-1 px-3 py-1 border-b text-[11px]"
+      style={{
+        borderColor: "var(--surface-3)",
+        background: "#080b0e",
+        color: "var(--text-tertiary)",
+      }}
+    >
+      {tabs.map(tab => (
+        <button
+          key={tab.sessionId}
+          className="px-2 py-1 rounded border"
+          style={{
+            borderColor: "var(--accent-teal)",
+            color: "var(--accent-teal)",
+            background: "rgba(94, 234, 212, 0.08)",
+          }}
+          title={tab.sessionId}
+        >
+          {tab.title}
+        </button>
+      ))}
+      {tabs.length === 0 && <span>Terminal</span>}
+    </div>
+  );
+}
+
 function resetMessage(error: unknown) {
   return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
 }
 
 export default function TerminalPanel() {
-  const { activeVaultId, activeSandboxId } = useAppStore();
+  const { activeVaultId, activeSandboxId, narrateByDefault } = useAppStore();
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -41,7 +76,9 @@ export default function TerminalPanel() {
   const [context, setContext] = useState<TerminalStarted | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<TerminalActivityStatus>("idle");
-  const [narrationEnabled, setNarrationEnabled] = useState(false);
+  const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>([]);
+  // Mirrors the backend: new sessions inherit narrate_by_default (state.json).
+  const [narrationEnabled, setNarrationEnabled] = useState(narrateByDefault);
   const [narrationOffline, setNarrationOffline] = useState(false);
 
   useEffect(() => {
@@ -154,6 +191,12 @@ export default function TerminalPanel() {
         contextRef.current = started;
         if (!disposed) {
           setContext(started);
+          setTerminalTabs([
+            {
+              sessionId: started.session_id,
+              title: started.cwd.split("/").filter(Boolean).pop() ?? "Terminal",
+            },
+          ]);
           refreshActivity();
         }
 
@@ -224,6 +267,7 @@ export default function TerminalPanel() {
       className="flex flex-col h-full overflow-hidden"
       style={{ background: "#0a0d10" }}
     >
+      <TerminalTabBar tabs={terminalTabs} />
       <div
         className="flex items-center justify-between gap-3 px-4 py-2 border-b text-xs"
         style={{

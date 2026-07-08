@@ -1,18 +1,23 @@
 use portable_pty::{native_pty_system, MasterPty, PtySize};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::journal::{append_journal_event, emit_files_changed};
+use crate::journal::{
+    append_journal_event, emit_files_changed, emit_notification, NOTIFY_TERMINAL_DONE,
+};
 use crate::narration::{spawn_narration_flush_thread, NarrationBuffer, SharedNarrationBuffer};
 use crate::platform::Platform;
 use crate::state::{
     active_terminal_context, log_action, save_state, terminal_log_file, terminal_pi_session_dir,
     TerminalSession, WenmeiState,
 };
+
+type TerminalSessionMap = HashMap<String, String>;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -24,12 +29,14 @@ pub enum TerminalActivity {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TerminalOutput {
+    pub session_id: String,
     pub data: Vec<u8>,
     pub activity: TerminalActivity,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TerminalStarted {
+    pub session_id: String,
     pub cwd: String,
     pub log_file: String,
     pub reused: bool,
@@ -109,6 +116,13 @@ pub fn terminal_start(
     force_restart: Option<bool>,
 ) -> Result<TerminalStarted, String> {
     let ctx = active_terminal_context(&state)?;
+    let session_id = state
+        .app_state
+        .lock()
+        .unwrap()
+        .active_sandbox_id
+        .clone()
+        .unwrap_or_else(|| "default-terminal".to_string());
     let cwd = ctx.cwd.clone();
     let terminal_cwd = crate::platform::Current::terminal_cwd(&cwd);
     let log_file = terminal_log_file(&ctx);
@@ -127,6 +141,7 @@ pub fn terminal_start(
                     pixel_height: 0,
                 });
                 return Ok(TerminalStarted {
+                    session_id: session.session_id.clone(),
                     cwd: session.cwd.clone(),
                     log_file: session.log_file.clone(),
                     reused: true,
@@ -183,9 +198,19 @@ pub fn terminal_start(
     let backlog = Arc::new(Mutex::new(Vec::<u8>::new()));
     let narration_buffer: SharedNarrationBuffer = Arc::new(Mutex::new(NarrationBuffer::new()));
 
+    // New sessions inherit the machine-level narrate default (Settings ›
+    // Terminal, ships on) — the per-tab toggle can still switch it off.
+    let narrate_default = state.app_state.lock().unwrap().narrate_by_default;
+    if narrate_default {
+        if let Ok(mut nb) = narration_buffer.lock() {
+            nb.set_enabled(true);
+        }
+    }
+
     {
         let mut current = state.terminal.lock().unwrap();
         *current = Some(TerminalSession {
+            session_id: session_id.clone(),
             writer: Arc::new(Mutex::new(writer)),
             child,
             master: master.clone(),
@@ -193,13 +218,18 @@ pub fn terminal_start(
             log_file: desired_log_file.clone(),
             backlog: backlog.clone(),
             narration_buffer: narration_buffer.clone(),
-            narration_enabled: false,
+            narration_enabled: narrate_default,
         });
     }
+    if let Ok(mut sessions) = state.terminal_sessions.lock() {
+        let sessions: &mut TerminalSessionMap = &mut sessions;
+        sessions.insert(session_id.clone(), desired_cwd.clone());
+    }
 
-    spawn_narration_flush_thread(app.clone(), narration_buffer.clone());
+    spawn_narration_flush_thread(app.clone(), narration_buffer.clone(), session_id.clone());
 
     let app_for_read = app.clone();
+    let session_id_for_read = session_id.clone();
     let buf_for_read = narration_buffer.clone();
     thread::spawn(move || {
         let mut buf = [0u8; 8192];
@@ -222,6 +252,7 @@ pub fn terminal_start(
                     let _ = app_for_read.emit(
                         "terminal-output",
                         TerminalOutput {
+                            session_id: session_id_for_read.clone(),
                             data,
                             activity: TerminalActivity::Active,
                         },
@@ -231,6 +262,7 @@ pub fn terminal_start(
                     let _ = app_for_read.emit(
                         "terminal-output",
                         TerminalOutput {
+                            session_id: session_id_for_read.clone(),
                             data: format!("\r\n[Wenmei terminal read error: {}]\r\n", e)
                                 .into_bytes(),
                             activity: TerminalActivity::Stuck,
@@ -240,6 +272,13 @@ pub fn terminal_start(
                 }
             }
         }
+        emit_notification(
+            &app_for_read,
+            NOTIFY_TERMINAL_DONE,
+            "Terminal session ended",
+            "The embedded terminal PTY closed.",
+            None,
+        );
     });
 
     log_action(
@@ -262,6 +301,7 @@ pub fn terminal_start(
     let _ = save_state(&state);
 
     Ok(TerminalStarted {
+        session_id,
         cwd: desired_cwd,
         log_file: desired_log_file,
         reused: false,

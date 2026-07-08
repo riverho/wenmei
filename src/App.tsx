@@ -19,6 +19,7 @@ import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
 import PiPanel from "./components/PiPanel";
 import ReviewPanel from "./components/ReviewPanel";
+import Notifications from "./components/Notifications";
 import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
 import Lightbox from "./components/Lightbox";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -77,8 +78,11 @@ function AppContent() {
         }
 
         // CLI/Finder-launched file takes priority over last active
+        const windowFile = new URLSearchParams(window.location.search).get(
+          "openFile"
+        );
         const cliFile = await getInitialFile();
-        const fileToOpen = cliFile ?? persisted.last_active_file;
+        const fileToOpen = windowFile ?? cliFile ?? persisted.last_active_file;
         if (fileToOpen) {
           try {
             const file = await readFile(fileToOpen);
@@ -131,6 +135,13 @@ function AppContent() {
     useAppStore(s => s.splitRatio),
     useAppStore(s => s.openFolders),
     useAppStore(s => s.onboardingCompleted),
+    useAppStore(s => s.narrateByDefault),
+    useAppStore(s => s.terminalTabLimit),
+    useAppStore(s => s.terminalTabsUnlimited),
+    useAppStore(s => s.sandboxNewWindows),
+    useAppStore(s => s.narrationDepth),
+    useAppStore(s => s.licenseKey),
+    useAppStore(s => s.keymap),
     activeFilePath,
     initialized,
   ]);
@@ -216,6 +227,7 @@ function AppContent() {
       style={{ background: "var(--surface-0)" }}
     >
       <Header />
+      <Notifications />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel — Desktop */}

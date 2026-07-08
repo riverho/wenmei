@@ -4,7 +4,9 @@ use std::time::{Duration, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
 
-use crate::journal::{append_journal_event, emit_files_changed};
+use crate::journal::{
+    append_journal_event, emit_files_changed, emit_notification, NOTIFY_REVIEW_CHANGES,
+};
 use crate::review::observe_external_change;
 use crate::state::{active_vault, WenmeiState};
 
@@ -83,6 +85,16 @@ pub fn start_file_polling(app: AppHandle) {
                     }
                 }
                 if !review_entries.is_empty() {
+                    emit_notification(
+                        &app,
+                        NOTIFY_REVIEW_CHANGES,
+                        "Agent changed files",
+                        &format!(
+                            "{} file(s) changed — awaiting review",
+                            review_entries.len()
+                        ),
+                        None,
+                    );
                     let _ = app.emit("changeset-updated", review_entries);
                 }
 

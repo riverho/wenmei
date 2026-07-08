@@ -205,6 +205,7 @@ fn terminal_snapshot(app: &tauri::AppHandle) -> Result<serde_json::Value, String
         .ok_or_else(|| "Terminal is not running".to_string())?;
     let snapshot = session.backlog.lock().unwrap().clone();
     Ok(json!({
+        "session_id": session.session_id,
         "cwd": session.cwd,
         "log_file": session.log_file,
         "narration_enabled": session.narration_enabled,
@@ -316,7 +317,7 @@ fn handle_rpc(app: &tauri::AppHandle, request: RpcRequest) -> serde_json::Value 
         }
         "nightshift.start" => {
             let state = app.state::<WenmeiState>();
-            nightshift::night_shift_start(state).map(|run| json!(run))
+            nightshift::night_shift_start(state, app.clone()).map(|run| json!(run))
         }
         "nightshift.status" => {
             let state = app.state::<WenmeiState>();
