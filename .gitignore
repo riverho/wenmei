@@ -73,9 +73,11 @@ src-tauri/target/release/bundle/
 # Agent
 AGENTS.md
 
-# Docs stay local, except docs/design/ — backlog design_refs that must survive in git
+# Docs stay local, except docs/design/ and the revamp plan — backlog
+# design_refs and the roadmap anchor must survive in git
 docs/*
 !docs/design/
+!docs/revamp-phase-improvement-plan-04Jul2026.md
 .wenmei
 
 # Agent-Playbook generated reports (keep folder)

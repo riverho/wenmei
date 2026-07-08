@@ -946,3 +946,94 @@ tasks:
       Human run: open tabs with narrate on, see digests per tab in the feed,
       trigger an alert, filter chips work, every settings control persists
       across an app restart. Gate before L4.
+
+  - id: F11
+    title: Sidecar feed surgery — overlay mechanics into PiPanel
+    status: todo
+    priority: 60
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - sidecar
+      - pi-panel
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#f11f14--sidecar-surgery-addendum-approved-08-jul-2026
+    acceptance_checks:
+      - test -f ../src/lib/sidecar-types.ts
+      - grep -q "inputActive" ../src/components/PiPanel.tsx
+      - grep -q "filteredItems" ../src/components/PiPanel.tsx
+      - grep -qi "lastSeen" ../src/store/appStore.ts
+      - cd .. && npm run check
+      - cd .. && npm run lint
+    notes: >-
+      Port app_design/src/lib/sidecar-types.ts; assemble overlay SidecarItems
+      from existing narration/wenmei-notification/review listeners plus
+      journal hydrate on open; unread model (lastSeenTs per class, dots,
+      divider); inputActive collapse, chips-to-dots, filteredItems. Chat
+      rendering and composer behavior untouched.
+
+  - id: F12
+    title: Sidecar detail pane — click overlay item to expand
+    status: todo
+    priority: 61
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - sidecar
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#f11f14--sidecar-surgery-addendum-approved-08-jul-2026
+    acceptance_checks:
+      - test -f ../src/components/SidecarDetail.tsx
+      - grep -q "SidecarDetail" ../src/components/PiPanel.tsx
+      - cd .. && npm run check
+    notes: >-
+      Port app_design SidecarDetail: long-form content, tool uses, diff lines,
+      artifacts, file refs opening via existing readFile bridge. Chat items do
+      not open the detail pane.
+
+  - id: F13
+    title: Settings for real — full panel + state.json persistence
+    status: todo
+    priority: 62
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - rust
+      - settings
+      - business
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#f11f14--sidecar-surgery-addendum-approved-08-jul-2026
+    acceptance_checks:
+      - grep -q "narrate_by_default" ../src-tauri/src/state.rs
+      - grep -q "narrateByDefault" ../src/lib/tauri-bridge.ts
+      - grep -q "SettingRow\|Segmented" ../src/components/SettingsPanel.tsx
+      - bash -c 'test "$(wc -l < ../src/components/SettingsPanel.tsx)" -gt 300'
+      - cd .. && npm run check
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Replace the 34-line read-only stub with the playground SettingsPanel
+      adapted to real store/bridge; persist narrate_by_default,
+      terminal_tab_limit, terminal_tabs_unlimited, sandbox_new_windows,
+      narration_depth in AppState/state.json. No dead toggles.
+
+  - id: F14
+    title: Bell into Header with deep-link; salvage UX-agent worktree
+    status: todo
+    priority: 63
+    skill: run-task
+    phase: F
+    tags:
+      - tsx
+      - notifications
+      - header
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#f11f14--sidecar-surgery-addendum-approved-08-jul-2026
+    acceptance_checks:
+      - grep -q "Notifications" ../src/components/Header.tsx
+      - bash -c '! grep -q "fixed top-2 right-2" ../src/components/Notifications.tsx'
+      - grep -qi "alerts" ../src/components/Notifications.tsx
+      - cd .. && npm run check
+    notes: >-
+      Move the bell out of the floating fixed div into the Header button row;
+      unread count from the feed unread model; click opens sidecar with
+      Alerts filter scrolled to the divider. Diff and salvage
+      .claude/worktrees/agent-* before removal.

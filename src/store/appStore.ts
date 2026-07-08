@@ -9,10 +9,29 @@ import type {
   PlatformName,
   ChangesetEntry,
 } from "@/lib/tauri-bridge";
+import type { SidecarItem, SidecarItemKind } from "@/lib/sidecar-types";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
 export type LightboxVariant =
   "onboarding" | "settings" | "pi-chat" | "alert" | "custom" | null;
+export type Keymap = Record<string, string>;
+
+export const DEFAULT_KEYMAP: Keymap = {
+  toggleLeftPanel: "mod+1",
+  focusEditor: "mod+2",
+  focusPi: "mod+3",
+  editMode: "mod+e",
+  previewMode: "mod+shift+p",
+  splitMode: "mod+\\",
+  togglePaper: "mod+p",
+  toggleTerminal: "mod+`",
+  focusSearch: "mod+b",
+  commandPalette: "mod+k",
+  newFile: "mod+n",
+  newFolder: "mod+shift+n",
+  toggleTheme: "mod+,",
+  workspaceSearch: "mod+shift+f",
+};
 
 export interface CommentaryItem {
   id: string;
@@ -54,6 +73,7 @@ interface AppState {
   sandboxAuthStatus: string;
   licenseTier: "free" | "pro";
   licenseKey: string | null;
+  keymap: Keymap;
 
   // Pi Terminal
   piMessages: PiMessage[];
@@ -62,6 +82,10 @@ interface AppState {
 
   // Narration commentary
   commentary: CommentaryItem[];
+
+  // Unified sidecar overlay items (chat stays in piMessages)
+  sidecarItems: SidecarItem[];
+  sidecarLastSeen: Record<string, string>;
 
   // Review session
   activeReviewSession: string | null;
@@ -114,6 +138,10 @@ interface AppState {
 
   // Narration commentary
   addCommentary: (item: CommentaryItem) => void;
+
+  // Unified sidecar overlay items
+  addSidecarItem: (item: SidecarItem) => void;
+  markSidecarClassRead: (kinds: SidecarItemKind[]) => void;
   clearCommentary: () => void;
 
   // Review session
@@ -133,6 +161,7 @@ interface AppState {
     key: string,
     status: "idle" | "installing" | "done" | "error"
   ) => void;
+  setKeymapBinding: (action: string, chord: string) => void;
   enterPaperMode: () => void;
   exitPaperMode: () => void;
   togglePanel: (panel: "left" | "right") => void;
@@ -177,11 +206,14 @@ export const useAppStore = create<AppState>()(
       sandboxAuthStatus: "promoted",
       licenseTier: "free",
       licenseKey: null,
+      keymap: DEFAULT_KEYMAP,
       isDirty: false,
       piMessages: [],
       piInput: "",
       isProcessing: false,
       commentary: [],
+      sidecarItems: [],
+      sidecarLastSeen: {},
       activeReviewSession: null,
       changeset: [],
       mobileMenuOpen: false,
@@ -270,6 +302,26 @@ export const useAppStore = create<AppState>()(
         }),
       clearCommentary: () => set({ commentary: [] }),
 
+      addSidecarItem: item => {
+        const existing = get().sidecarItems;
+        if (existing.some(i => i.id === item.id)) return;
+        // Newest first; cap keeps the in-memory overlay window bounded —
+        // older history stays reachable through the journal.
+        set({ sidecarItems: [item, ...existing].slice(0, 200) });
+      },
+      markSidecarClassRead: kinds =>
+        set({
+          sidecarItems: get().sidecarItems.map(i =>
+            kinds.includes(i.kind) ? { ...i, read: true } : i
+          ),
+          sidecarLastSeen: {
+            ...get().sidecarLastSeen,
+            ...Object.fromEntries(
+              kinds.map(k => [k, new Date().toISOString()])
+            ),
+          },
+        }),
+
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),
 
@@ -295,6 +347,10 @@ export const useAppStore = create<AppState>()(
       setInstallResult: (key, status) =>
         set(state => ({
           installResults: { ...state.installResults, [key]: status },
+        })),
+      setKeymapBinding: (action, chord) =>
+        set(state => ({
+          keymap: { ...state.keymap, [action]: chord },
         })),
       enterPaperMode: () => {
         const prev =
@@ -352,6 +408,7 @@ export const useAppStore = create<AppState>()(
           sandboxAuthStatus: state.sandbox_auth_status ?? "promoted",
           licenseTier: state.license_tier ?? "free",
           licenseKey: state.license_key ?? null,
+          keymap: { ...DEFAULT_KEYMAP, ...(state.keymap ?? {}) },
         });
         // Apply theme
         const isDark = resolveTheme(state.theme as "system" | "light" | "dark");
@@ -387,6 +444,7 @@ export const useAppStore = create<AppState>()(
         sandbox_auth_status: get().sandboxAuthStatus,
         license_tier: get().licenseTier,
         license_key: get().licenseKey,
+        keymap: get().keymap,
       }),
     }),
     {
@@ -401,6 +459,8 @@ export const useAppStore = create<AppState>()(
         splitRatio: state.splitRatio,
         openFolders: state.openFolders,
         piMessages: state.piMessages.slice(-200),
+        keymap: state.keymap,
+        sidecarLastSeen: state.sidecarLastSeen,
       }),
     }
   )

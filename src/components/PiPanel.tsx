@@ -28,6 +28,14 @@ import {
   writeFile,
 } from "@/lib/tauri-bridge";
 import type { FileNode, PiMessage, SearchResult } from "@/lib/tauri-bridge";
+import type { ChangesetEntry } from "@/lib/tauri-bridge";
+import type { SidecarItem } from "@/lib/sidecar-types";
+import {
+  journalEventToItem,
+  relTime,
+  type FeedFilter,
+} from "@/lib/sidecar-feed";
+import { FeedChips, OverlayCard } from "./SidecarOverlay";
 import {
   Send,
   Clock,
@@ -192,6 +200,9 @@ export default function PiPanel() {
     setIsProcessing,
     addCommentary,
     clearCommentary,
+    sidecarItems,
+    addSidecarItem,
+    markSidecarClassRead,
   } = useAppStore();
 
   const [showHistory, setShowHistory] = useState(false);
@@ -211,6 +222,9 @@ export default function PiPanel() {
   );
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [runDetails, setRunDetails] = useState<string[]>([]);
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
+  // True while the user is in the composer — overlays collapse to chat-only.
+  const [inputActive, setInputActive] = useState(false);
   const [driftAlert, setDriftAlert] = useState<{
     reason: string;
     digest: string;
@@ -223,6 +237,86 @@ export default function PiPanel() {
 
   const narrateBufferRef = useRef("");
   const narratePendingRef = useRef(false);
+  const [overlayPage, setOverlayPage] = useState(0);
+  const OVERLAYS_PER_PAGE = 20;
+
+  // Hydrate overlay history from the journal once on mount — the journal is
+  // the persistence (docs/design/unified-sidecar.md).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const lastSeen = useAppStore.getState().sidecarLastSeen;
+    listJournalEvents(60)
+      .then(events => {
+        // events arrive newest-first; prepend oldest-first so the newest
+        // ends up at the head of the store list.
+        for (const event of [...events].reverse()) {
+          const item = journalEventToItem(event);
+          if (!item) continue;
+          const seenAt = lastSeen[item.kind];
+          addSidecarItem({
+            ...item,
+            read: seenAt ? item.ts <= seenAt : false,
+          });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Overlay visibility — the three handoff mechanics.
+  const showChat = inputActive || feedFilter === "chat" || feedFilter === "all";
+  const filteredItems = useMemo<SidecarItem[]>(() => {
+    if (inputActive || feedFilter === "chat") return [];
+    if (feedFilter === "all") return sidecarItems;
+    if (feedFilter === "narrate")
+      return sidecarItems.filter(i => i.kind === "narrate");
+    if (feedFilter === "alerts")
+      return sidecarItems.filter(i => i.kind === "alert");
+    return sidecarItems.filter(
+      i => i.kind === "review_change" || i.kind === "review_decision"
+    );
+  }, [sidecarItems, feedFilter, inputActive]);
+  const visibleItems = useMemo(
+    () => filteredItems.slice(0, (overlayPage + 1) * OVERLAYS_PER_PAGE),
+    [filteredItems, overlayPage]
+  );
+  const unreadNarration = useMemo(
+    () => sidecarItems.filter(i => !i.read && i.kind === "narrate").length,
+    [sidecarItems]
+  );
+  const unreadAlerts = useMemo(
+    () => sidecarItems.filter(i => !i.read && i.kind === "alert").length,
+    [sidecarItems]
+  );
+  const unreadReview = useMemo(
+    () =>
+      sidecarItems.filter(
+        i =>
+          !i.read &&
+          (i.kind === "review_change" || i.kind === "review_decision")
+      ).length,
+    [sidecarItems]
+  );
+
+  // A class visible for 1.2s counts as seen.
+  useEffect(() => {
+    if (inputActive || feedFilter === "chat") return;
+    const kinds =
+      feedFilter === "all"
+        ? (["narrate", "alert", "review_change", "review_decision"] as const)
+        : feedFilter === "narrate"
+          ? (["narrate"] as const)
+          : feedFilter === "alerts"
+            ? (["alert"] as const)
+            : (["review_change", "review_decision"] as const);
+    const timer = window.setTimeout(
+      () => markSidecarClassRead([...kinds]),
+      1200
+    );
+    return () => window.clearTimeout(timer);
+  }, [feedFilter, inputActive, sidecarItems.length, markSidecarClassRead]);
 
   const startPiForFocusedSandbox = useCallback(
     async (forceRestart = false) => {
@@ -570,6 +664,7 @@ export default function PiPanel() {
     addPiMessage(userMsg);
     setIsProcessing(true);
     setPiInput("");
+    setInputActive(false);
     setShowCommands(false);
 
     const mentionExpanded = await expandFileMentionsForPrompt(currentInput);
@@ -841,6 +936,8 @@ export default function PiPanel() {
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
     let unlistenNarration: UnlistenFn | null = null;
+    let unlistenNotification: UnlistenFn | null = null;
+    let unlistenChangeset: UnlistenFn | null = null;
     let mounted = true;
 
     async function startPi() {
@@ -881,7 +978,21 @@ export default function PiPanel() {
         if (id && id.startsWith("narrate-")) {
           const text = narrateBufferRef.current.trim();
           if (text) {
-            addCommentary({ id, text, ts: new Date().toISOString() });
+            const ts = new Date().toISOString();
+            addCommentary({ id, text, ts });
+            addSidecarItem({
+              id: `narrate-item-${id}`,
+              kind: "narrate",
+              label: "Narration",
+              ts,
+              tsLabel: relTime(ts),
+              summary: text.split("\n")[0] ?? text,
+              body: text,
+              artifacts: [],
+              read: false,
+              expanded: false,
+              inOverlay: false,
+            });
           }
           narrateBufferRef.current = "";
           narratePendingRef.current = false;
@@ -992,6 +1103,7 @@ export default function PiPanel() {
 
     listen<{
       id: string;
+      session_id?: string;
       digest: string;
       file_changes: string[];
       drift?: boolean;
@@ -1029,6 +1141,63 @@ export default function PiPanel() {
       unlistenNarration = fn;
     });
 
+    listen<{
+      kind: string;
+      title: string;
+      body: string;
+      session_id?: string | null;
+      ts: string;
+    }>("wenmei-notification", evt => {
+      const note = evt.payload;
+      addRunDetail(`alert: ${note.kind} ${note.title}`);
+      addSidecarItem({
+        id: `alert-${note.ts}-${note.kind}`,
+        kind: "alert",
+        label: "Alert",
+        ts: note.ts,
+        tsLabel: relTime(note.ts),
+        summary: note.title,
+        body: `${note.title}\n${note.body}`,
+        sessionId: note.session_id ?? undefined,
+        severity:
+          note.kind.includes("risky") || note.kind.includes("stuck")
+            ? "warning"
+            : note.kind.includes("done")
+              ? "success"
+              : "info",
+        alertLabel: note.kind,
+        artifacts: [],
+        read: false,
+        expanded: false,
+        inOverlay: false,
+      });
+    }).then(fn => {
+      unlistenNotification = fn;
+    });
+
+    listen<ChangesetEntry[]>("changeset-updated", evt => {
+      const entries = evt.payload;
+      if (!entries || entries.length === 0) return;
+      const ts = new Date().toISOString();
+      addSidecarItem({
+        id: `review-${ts}-${entries.length}`,
+        kind: "review_change",
+        label: "Review",
+        ts,
+        tsLabel: relTime(ts),
+        summary: `${entries.length} file(s) in the changeset`,
+        body: entries
+          .map(e => `${e.status.toUpperCase().padEnd(9)} ${e.path}`)
+          .join("\n"),
+        artifacts: [],
+        read: false,
+        expanded: false,
+        inOverlay: false,
+      });
+    }).then(fn => {
+      unlistenChangeset = fn;
+    });
+
     startPi();
 
     const handleWorkspaceAuthorized = () => {
@@ -1062,8 +1231,11 @@ export default function PiPanel() {
       );
       unlisten?.();
       unlistenNarration?.();
+      unlistenNotification?.();
+      unlistenChangeset?.();
     };
   }, [
+    addSidecarItem,
     appendPiMessageText,
     setFileTree,
     setIsProcessing,
@@ -1172,6 +1344,24 @@ export default function PiPanel() {
           </div>
         </div>
       )}
+
+      <FeedChips
+        filter={feedFilter}
+        inputActive={inputActive}
+        unreadChat={0}
+        unreadNarration={unreadNarration}
+        unreadAlerts={unreadAlerts}
+        unreadReview={unreadReview}
+        onSelect={next => {
+          setFeedFilter(next);
+          setOverlayPage(0);
+          if (next !== "chat") setInputActive(false);
+        }}
+        onChatFocus={() => {
+          setInputActive(true);
+          inputRef.current?.focus();
+        }}
+      />
 
       {runDetails.length > 0 && (
         <div
@@ -1330,138 +1520,172 @@ export default function PiPanel() {
           </div>
         )}
 
-        {piMessages.map(msg => {
-          const displayText = msg.text;
-
-          return (
-            <div
-              key={msg.id}
-              className={`mb-3 ${
-                msg.role === "user" ? "flex justify-end" : "flex justify-start"
-              }`}
-            >
-              <div
-                className="max-w-[92%] min-w-0"
+        {/* Overlay stack — narrate/alert/review cards above the chat base
+            layer; collapses entirely while the user is in the composer. */}
+        {visibleItems.length > 0 && (
+          <div
+            className="mb-3 -mx-3 rounded-md overflow-hidden"
+            style={{ border: "1px solid var(--surface-3)" }}
+          >
+            {visibleItems.map(item => (
+              <OverlayCard
+                key={item.id}
+                item={item}
+                onMarkRead={() => markSidecarClassRead([item.kind])}
+              />
+            ))}
+            {filteredItems.length > visibleItems.length && (
+              <button
+                onClick={() => setOverlayPage(p => p + 1)}
+                className="w-full px-3 py-1.5 text-[10px] uppercase tracking-wider"
                 style={{
-                  background:
-                    msg.role === "user" ? "var(--surface-2)" : "transparent",
-                  padding: msg.role === "user" ? "6px 10px" : "4px 0",
-                  borderRadius: msg.role === "user" ? "8px" : "0",
+                  color: "var(--text-tertiary)",
+                  background: "var(--surface-0)",
                 }}
               >
-                {msg.role === "system" && (
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <span
-                      className="text-[10px] font-semibold uppercase tracking-wider"
-                      style={{ color: "var(--accent-teal)" }}
-                    >
-                      {msg.type === "diff" && "Diff"}
-                      {msg.type === "log" && "Log"}
-                      {msg.type === "confirm" && "Confirm"}
-                      {msg.type === "action" && "Action"}
-                      {msg.type === "chat" && "Pi"}
-                    </span>
-                  </div>
-                )}
+                Show {filteredItems.length - visibleItems.length} more
+              </button>
+            )}
+          </div>
+        )}
 
+        {showChat &&
+          piMessages.map(msg => {
+            const displayText = msg.text;
+
+            return (
+              <div
+                key={msg.id}
+                className={`mb-3 ${
+                  msg.role === "user"
+                    ? "flex justify-end"
+                    : "flex justify-start"
+                }`}
+              >
                 <div
-                  className="terminal-font text-xs leading-relaxed whitespace-pre-wrap break-words overflow-visible"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="max-w-[92%] min-w-0"
+                  style={{
+                    background:
+                      msg.role === "user" ? "var(--surface-2)" : "transparent",
+                    padding: msg.role === "user" ? "6px 10px" : "4px 0",
+                    borderRadius: msg.role === "user" ? "8px" : "0",
+                  }}
                 >
-                  {msg.type === "diff" ? (
-                    <div
-                      className="rounded overflow-hidden"
-                      style={{ background: "var(--surface-0)" }}
-                    >
-                      {msg.text.split("\n").map((line, i) => (
-                        <div
-                          key={i}
-                          className="px-2 py-0.5"
-                          style={{
-                            background: line.startsWith("-")
-                              ? "rgba(194, 74, 74, 0.12)"
-                              : line.startsWith("+")
-                                ? "rgba(0, 134, 115, 0.12)"
-                                : "transparent",
-                            color: line.startsWith("-")
-                              ? "var(--accent-rose)"
-                              : line.startsWith("+")
-                                ? "var(--accent-teal)"
-                                : "var(--text-secondary)",
-                          }}
-                        >
-                          {line}
-                        </div>
-                      ))}
+                  {msg.role === "system" && (
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: "var(--accent-teal)" }}
+                      >
+                        {msg.type === "diff" && "Diff"}
+                        {msg.type === "log" && "Log"}
+                        {msg.type === "confirm" && "Confirm"}
+                        {msg.type === "action" && "Action"}
+                        {msg.type === "chat" && "Pi"}
+                      </span>
                     </div>
-                  ) : msg.type === "confirm" ? (
-                    <div>
-                      <p className="mb-2">{msg.text}</p>
-                      <div className="flex gap-2">
-                        {msg.actions?.map(action => (
-                          <button
-                            key={action.action}
-                            onClick={() => handleAction(action.action)}
-                            className="px-3 py-1 rounded text-xs font-medium"
+                  )}
+
+                  <div
+                    className="terminal-font text-xs leading-relaxed whitespace-pre-wrap break-words overflow-visible"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {msg.type === "diff" ? (
+                      <div
+                        className="rounded overflow-hidden"
+                        style={{ background: "var(--surface-0)" }}
+                      >
+                        {msg.text.split("\n").map((line, i) => (
+                          <div
+                            key={i}
+                            className="px-2 py-0.5"
                             style={{
-                              background:
-                                action.action.includes("confirm") ||
-                                action.action.includes("delete")
-                                  ? "var(--accent-rose)"
-                                  : "var(--surface-2)",
-                              color:
-                                action.action.includes("confirm") ||
-                                action.action.includes("delete")
-                                  ? "#fff"
+                              background: line.startsWith("-")
+                                ? "rgba(194, 74, 74, 0.12)"
+                                : line.startsWith("+")
+                                  ? "rgba(0, 134, 115, 0.12)"
+                                  : "transparent",
+                              color: line.startsWith("-")
+                                ? "var(--accent-rose)"
+                                : line.startsWith("+")
+                                  ? "var(--accent-teal)"
                                   : "var(--text-secondary)",
                             }}
                           >
-                            {action.label}
-                          </button>
+                            {line}
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  ) : msg.type === "action" && msg.actions ? (
-                    <div>
-                      <p className="mb-2">{msg.text}</p>
-                      <div className="flex gap-2 flex-wrap">
-                        {msg.actions.map(action => (
-                          <button
-                            key={action.action}
-                            onClick={() => handleAction(action.action)}
-                            className="px-3 py-1 rounded text-xs font-medium"
-                            style={{
-                              background: "var(--surface-1)",
-                              color: "var(--accent-teal)",
-                              border: "1px solid var(--accent-teal)",
-                            }}
-                          >
-                            {action.label}
-                          </button>
-                        ))}
+                    ) : msg.type === "confirm" ? (
+                      <div>
+                        <p className="mb-2">{msg.text}</p>
+                        <div className="flex gap-2">
+                          {msg.actions?.map(action => (
+                            <button
+                              key={action.action}
+                              onClick={() => handleAction(action.action)}
+                              className="px-3 py-1 rounded text-xs font-medium"
+                              style={{
+                                background:
+                                  action.action.includes("confirm") ||
+                                  action.action.includes("delete")
+                                    ? "var(--accent-rose)"
+                                    : "var(--surface-2)",
+                                color:
+                                  action.action.includes("confirm") ||
+                                  action.action.includes("delete")
+                                    ? "#fff"
+                                    : "var(--text-secondary)",
+                              }}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="whitespace-pre-wrap break-words max-w-full overflow-visible">
-                      {renderMessageText(
-                        displayText ||
-                          (msg.id === activeAssistantId ? activeStreamText : "")
-                      )}
-                      {msg.role === "system" &&
-                        isProcessing &&
-                        msg.id === activeAssistantId && (
-                          <span
-                            className="cursor-blink inline-block w-0.5 h-3 ml-0.5 align-middle"
-                            style={{ background: "var(--accent-teal)" }}
-                          />
+                    ) : msg.type === "action" && msg.actions ? (
+                      <div>
+                        <p className="mb-2">{msg.text}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {msg.actions.map(action => (
+                            <button
+                              key={action.action}
+                              onClick={() => handleAction(action.action)}
+                              className="px-3 py-1 rounded text-xs font-medium"
+                              style={{
+                                background: "var(--surface-1)",
+                                color: "var(--accent-teal)",
+                                border: "1px solid var(--accent-teal)",
+                              }}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words max-w-full overflow-visible">
+                        {renderMessageText(
+                          displayText ||
+                            (msg.id === activeAssistantId
+                              ? activeStreamText
+                              : "")
                         )}
-                    </div>
-                  )}
+                        {msg.role === "system" &&
+                          isProcessing &&
+                          msg.id === activeAssistantId && (
+                            <span
+                              className="cursor-blink inline-block w-0.5 h-3 ml-0.5 align-middle"
+                              style={{ background: "var(--accent-teal)" }}
+                            />
+                          )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
         {isProcessing && (
           <div className="flex justify-start mb-3">
@@ -1579,6 +1803,8 @@ export default function PiPanel() {
             value={piInput}
             onChange={e => setPiInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setInputActive(true)}
+            onBlur={() => setInputActive(false)}
             placeholder="Ask Pi, type / for commands, @ to attach files..."
             className="pi-input flex-1 bg-transparent outline-none resize-none terminal-font text-xs"
             style={{
