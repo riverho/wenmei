@@ -436,5 +436,14 @@
     "agent_id": "agent",
     "mode": "coding",
     "updated_at": "2026-07-08T06:20:50.398Z"
+  },
+  "F12": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-08T06:28:32.605Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-08T06:32:53.455Z"
   }
 }

@@ -36,6 +36,7 @@ import {
   type FeedFilter,
 } from "@/lib/sidecar-feed";
 import { FeedChips, OverlayCard } from "./SidecarOverlay";
+import SidecarDetail from "./SidecarDetail";
 import {
   Send,
   Clock,
@@ -238,6 +239,8 @@ export default function PiPanel() {
   const narrateBufferRef = useRef("");
   const narratePendingRef = useRef(false);
   const [overlayPage, setOverlayPage] = useState(0);
+  // Overlay item expanded into the detail pane; chat items never open it.
+  const [detailItem, setDetailItem] = useState<SidecarItem | null>(null);
   const OVERLAYS_PER_PAGE = 20;
 
   // Hydrate overlay history from the journal once on mount — the journal is
@@ -1532,6 +1535,7 @@ export default function PiPanel() {
                 key={item.id}
                 item={item}
                 onMarkRead={() => markSidecarClassRead([item.kind])}
+                onOpen={setDetailItem}
               />
             ))}
             {filteredItems.length > visibleItems.length && (
@@ -1834,6 +1838,11 @@ export default function PiPanel() {
           </button>
         </div>
       </div>
+
+      {/* Detail pane — overlay items expand here; Escape or ✕ closes. */}
+      {detailItem && (
+        <SidecarDetail item={detailItem} onClose={() => setDetailItem(null)} />
+      )}
     </div>
   );
 }

@@ -17,11 +17,11 @@ Every powerful agent is a terminal. **Wenmei gives it a manager.**
 The core pattern is a **blackboard architecture** — two intelligences of
 different kinds working the same shared surface (the folder):
 
-| Role | Surface | Character |
-| --- | --- | --- |
-| **Workhorse** | PTY terminal | Any CLI agent (Claude Code, Codex, Aider, Pi interactive, …). Freeform, powerful, opaque. Does the heavy lifting. |
-| **Sidecar** | Pi `--mode rpc` (JSON-RPC) | Structured, programmatically drivable, always-on. Doesn't do the work — *understands* the work. |
-| **Shared memory** | The sandbox/vault folder | Both see the same files. `sandbox-files-changed` events + action log let the sidecar observe everything the workhorse does, without the workhorse cooperating or even knowing. |
+| Role              | Surface                    | Character                                                                                                                                                                      |
+| ----------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Workhorse**     | PTY terminal               | Any CLI agent (Claude Code, Codex, Aider, Pi interactive, …). Freeform, powerful, opaque. Does the heavy lifting.                                                              |
+| **Sidecar**       | Pi `--mode rpc` (JSON-RPC) | Structured, programmatically drivable, always-on. Doesn't do the work — _understands_ the work.                                                                                |
+| **Shared memory** | The sandbox/vault folder   | Both see the same files. `sandbox-files-changed` events + action log let the sidecar observe everything the workhorse does, without the workhorse cooperating or even knowing. |
 
 The asymmetry — one raw channel, one structured channel, both grounded in the
 same disk — is the whole product.
@@ -46,7 +46,7 @@ for agent labor; agents do not scrape it, they participate in it.
   workflow, audit trail, chief of staff) while agents commoditize each other.
   When a better CLI agent ships next quarter, users point a PTY at it; their
   everything-else stays in Wenmei.
-- Local control plane = agents can operate Wenmei *through Wenmei's rules*.
+- Local control plane = agents can operate Wenmei _through Wenmei's rules_.
   They can update status, annotate review findings, request human sign-off, and
   receive decisions without needing brittle GUI automation or vendor-specific
   hooks.
@@ -94,10 +94,10 @@ The sidecar narrates the workhorse in human language.
 
 - Tee `terminal-output` (and `sandbox-files-changed`) into the Pi RPC session
   as observations.
-- Pi produces a running plain-language commentary in the sidebar: *"It
+- Pi produces a running plain-language commentary in the sidebar: _"It
   refactored the billing module across 6 files. Two are risky — it changed a
-  date calculation you didn't ask about."*
-- Non-developers can suddenly *employ* developer-grade agents because someone
+  date calculation you didn't ask about."_
+- Non-developers can suddenly _employ_ developer-grade agents because someone
   in the room speaks both languages.
 
 **This alone is a paid product.**
@@ -109,10 +109,10 @@ Pair programming, both seats AI, the human sets the destination.
 - **Prompt crafting:** user tells Pi what they want in plain language; Pi
   crafts the actual prompt and types it into the PTY (keystroke injection
   through the existing PTY handle).
-- **Drift detection:** Pi watches the workhorse wander and steers it — *"You're
-  rewriting the config loader; the task was the parser. Refocus."* — injected
+- **Drift detection:** Pi watches the workhorse wander and steers it — _"You're
+  rewriting the config loader; the task was the parser. Refocus."_ — injected
   straight into the terminal.
-- **Intent review:** Pi reviews every changeset against the user's *intent*,
+- **Intent review:** Pi reviews every changeset against the user's _intent_,
   not just correctness: "It did what it said, not what you meant. Reject files
   3 and 4?"
 
@@ -145,7 +145,7 @@ Wenmei is no longer an app; it's the employment layer for AI labor.
   interchangeable, hired per-task. **Pi** is the chief of staff who onboards,
   briefs, watches, and reports. **The human** is the executive who sees
   briefings and signs off.
-- Wenmei owns supervision, memory, trust, and review across *all* agents.
+- Wenmei owns supervision, memory, trust, and review across _all_ agents.
 
 ---
 
@@ -167,7 +167,7 @@ Wenmei is no longer an app; it's the employment layer for AI labor.
    Repeatable agent jobs on folders = the recurring-revenue justification.
 5. **Memory surface browser:** agent workspaces (Claude Code projects, OpenClaw
    workspaces, memory dirs) are piles of markdown nobody has a good viewer
-   for. Wenmei as *the* browser for agent memory/sessions — the wedge into the
+   for. Wenmei as _the_ browser for agent memory/sessions — the wedge into the
    early-adopter crowd who will evangelize it.
 6. **Local Agent Control Plane:** a local-only bridge that lets agents connect
    to the running app, update GUI state, request approvals, annotate review
@@ -201,12 +201,12 @@ Wenmei that external agents and sidecars can speak to.
 
 ### Surfaces
 
-| Surface | Role |
-| --- | --- |
+| Surface                   | Role                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Wenmei control server** | Local JSON-RPC/MCP-compatible service owned by the running app. Holds app state, sessions, active vault, policy, and event stream. |
-| **Agent adapter** | MCP server, JSON-RPC client library, or tiny wrapper that lets Claude Code/Codex/Aider/Pi call Wenmei tools. |
-| **`wenmeictl` CLI** | Thin fallback client for scripts and tests. It talks to the same control server; it is not the core architecture. |
-| **GUI console** | Live dashboard for connected agents, task state, review cards, approval requests, drift alerts, and human decisions. |
+| **Agent adapter**         | MCP server, JSON-RPC client library, or tiny wrapper that lets Claude Code/Codex/Aider/Pi call Wenmei tools.                       |
+| **`wenmeictl` CLI**       | Thin fallback client for scripts and tests. It talks to the same control server; it is not the core architecture.                  |
+| **GUI console**           | Live dashboard for connected agents, task state, review cards, approval requests, drift alerts, and human decisions.               |
 
 ### Core Objects
 
@@ -392,15 +392,15 @@ real frontend. Design doc: `docs/design/unified-sidecar.md`.
 stream in the right panel replaces the Pi-chat-only view. Every event class
 lands in the same scrollable feed, tagged and filterable by chips:
 
-| Chip | Contents | Source |
-| --- | --- | --- |
-| All | everything, interleaved | — |
-| Chat | user ↔ Pi work messages | Pi RPC session |
-| Narrate | narration digests, per terminal tab | `narration-digest` (+ `session_id`) |
-| Alerts | review changes, risky flags, terminal finished/stuck, system | new `wenmei-notification` event |
-| Review | changeset approve/reject trail | `changeset-updated` + journal |
+| Chip    | Contents                                                     | Source                              |
+| ------- | ------------------------------------------------------------ | ----------------------------------- |
+| All     | everything, interleaved                                      | —                                   |
+| Chat    | user ↔ Pi work messages                                      | Pi RPC session                      |
+| Narrate | narration digests, per terminal tab                          | `narration-digest` (+ `session_id`) |
+| Alerts  | review changes, risky flags, terminal finished/stuck, system | new `wenmei-notification` event     |
+| Review  | changeset approve/reject trail                               | `changeset-updated` + journal       |
 
-Long scrolling: the feed hydrates from `journal.jsonl` (the journal *is* the
+Long scrolling: the feed hydrates from `journal.jsonl` (the journal _is_ the
 persistence — no new store) and streams live events on top; older pages load
 on scroll-up. Unread divider; header bell shows the unread Alerts count and
 deep-links into the feed with the Alerts filter on.
@@ -473,13 +473,13 @@ carry over verbatim:
   costs nothing (no backend, no inference — BYO agent + API key).
 - **Pro** (~$8–15/mo or one-time ~$79): narration, diff review, run history,
   multiple vaults/composite workspaces, steering, scheduled recipes,
-  cross-vault search. Solo professionals pay for *safety and repeatability*,
+  cross-vault search. Solo professionals pay for _safety and repeatability_,
   not the editor.
 - **Teams (later):** shared vault conventions + audit log export. "We can show
   what AI touched" is a procurement checkbox in legal/consulting/finance.
 
-Local-first is the feature, not the limitation: *"your files never leave your
-machine; bring your own agent"* — and Wenmei never carries inference costs.
+Local-first is the feature, not the limitation: _"your files never leave your
+machine; bring your own agent"_ — and Wenmei never carries inference costs.
 
 ---
 
