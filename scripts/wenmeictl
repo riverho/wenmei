@@ -43,30 +43,78 @@ function findUp(start, rel) {
   }
 }
 
-function discoveryPath() {
+function discoveryCandidates() {
+  const candidates = [];
   const envPath = process.env.WENMEI_CONTROL_FILE;
-  if (envPath && existsSync(envPath)) return envPath;
+  if (envPath) candidates.push(envPath);
 
   const local = findUp(process.cwd(), join(".wenmei", "wenmei-control.json"));
-  if (local) return local;
+  if (local) candidates.push(local);
 
-  const support = join(
-    homedir(),
-    "Library",
-    "Application Support",
-    "Wenmei",
-    "wenmei-control.json"
+  candidates.push(
+    join(
+      homedir(),
+      "Library",
+      "Application Support",
+      "Wenmei",
+      "wenmei-control.json"
+    )
   );
-  if (existsSync(support)) return support;
-
-  throw new Error(
-    "Cannot find wenmei-control.json. Launch Wenmei first or set WENMEI_CONTROL_FILE."
-  );
+  return candidates.filter(existsSync);
 }
 
-function readDiscovery() {
-  const path = discoveryPath();
-  return { path, ...JSON.parse(readFileSync(path, "utf8")) };
+function pidAlive(pid) {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM means the process exists but belongs to another user.
+    return err.code === "EPERM";
+  }
+}
+
+async function probe(discovery) {
+  try {
+    const response = await fetch(`${discovery.url}/rpc`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${discovery.token}`,
+      },
+      body: JSON.stringify({ id: "wenmeictl-probe", command: "app.status", params: {} }),
+      signal: AbortSignal.timeout(1500),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pick the first LIVE control file. A stale repo-local
+ * .wenmei/wenmei-control.json (dead pid or unresponsive server) no longer
+ * shadows the installed app's app-support file — dead candidates are skipped.
+ */
+async function readDiscovery() {
+  const tried = [];
+  for (const path of discoveryCandidates()) {
+    tried.push(path);
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(path, "utf8"));
+    } catch {
+      continue;
+    }
+    const discovery = { path, ...parsed };
+    if (!pidAlive(discovery.pid)) continue;
+    if (await probe(discovery)) return discovery;
+  }
+  throw new Error(
+    `No live wenmei-control.json (stale candidates skipped).\nTried:\n  ${
+      tried.join("\n  ") || "(none found)"
+    }\nLaunch Wenmei first or set WENMEI_CONTROL_FILE.`
+  );
 }
 
 function flag(args, name) {
@@ -180,7 +228,7 @@ async function main() {
   const command = commandFromArgs(
     process.argv.slice(2).filter(arg => arg !== "--json")
   );
-  const discovery = readDiscovery();
+  const discovery = await readDiscovery();
   const request = { id: `wenmeictl-${Date.now()}`, ...command };
   const response = await fetch(`${discovery.url}/rpc`, {
     method: "POST",
