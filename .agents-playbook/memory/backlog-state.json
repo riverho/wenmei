@@ -486,5 +486,14 @@
     "agent_id": "agent",
     "mode": "coding",
     "updated_at": "2026-07-10T15:37:07.333Z"
+  },
+  "plan-20260708-004": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-10T15:37:23.729Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-10T15:38:37.728Z"
   }
 }
