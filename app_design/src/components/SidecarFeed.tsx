@@ -18,6 +18,8 @@ import {
 } from "@/lib/sidecar-types";
 import {
   Terminal,
+  BookOpenCheck,
+  Eye,
   MessageSquare,
   Bell,
   GitCompare,
@@ -670,6 +672,10 @@ export default function SidecarFeed() {
   const [chatInput, setChatInput] = useState("");
   // True when user is typing — overlays collapse, pure chat mode
   const [inputActive, setInputActive] = useState(false);
+  // Phase H: Narrate binds to the ledger — managed projects have
+  // .agents-playbook; Pi engages on demand, never on terminal open.
+  const [projectManaged, setProjectManaged] = useState(true);
+  const [piEngaged, setPiEngaged] = useState(false);
   const ITEMS_PER_PAGE = 20;
   const feedRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -859,7 +865,7 @@ export default function SidecarFeed() {
         style={{ borderBottom: "1px solid var(--surface-3)" }}
       >
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <Terminal size={13} style={{ color: "var(--accent-teal)" }} />
             <span
               className="text-xs font-semibold uppercase tracking-wider"
@@ -867,8 +873,66 @@ export default function SidecarFeed() {
             >
               Feed
             </span>
+            {/* Narrate is a project property, not a toggle: managed projects
+                (with .agents-playbook) get ledger-bound reporting; bare
+                folders are watched (observer facts only). */}
+            {projectManaged ? (
+              <span
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium truncate"
+                style={{
+                  background: "rgba(0, 134, 115, 0.1)",
+                  color: "var(--accent-teal)",
+                }}
+                title="Narrate reports this project's playbook ledger — memory, journal, backlog, drift against the cycle brief"
+              >
+                <BookOpenCheck size={9} />
+                Managed · .agents-playbook
+              </span>
+            ) : (
+              <button
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium truncate"
+                style={{
+                  background: "var(--surface-2)",
+                  color: "var(--text-tertiary)",
+                  border: "1px dashed var(--surface-3)",
+                }}
+                title="Observer facts only (alerts, changesets, timeline). Click to scaffold .agents-playbook and turn on Narrate."
+                onClick={() => setProjectManaged(true)}
+              >
+                <Eye size={9} />
+                Watching · Manage this project
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1">
+            {/* Pi engages on demand — opening a terminal never starts it */}
+            <button
+              onClick={() => setPiEngaged(e => !e)}
+              className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full"
+              style={{
+                background: piEngaged
+                  ? "rgba(0, 134, 115, 0.1)"
+                  : "var(--surface-2)",
+                color: piEngaged
+                  ? "var(--accent-teal)"
+                  : "var(--text-tertiary)",
+              }}
+              title={
+                piEngaged
+                  ? "Pi sidecar running — click to stop"
+                  : "Pi is idle. It starts when you chat or a managed project reports — never because a terminal opened."
+              }
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  background: piEngaged
+                    ? "var(--accent-teal)"
+                    : "var(--text-tertiary)",
+                }}
+              />
+              {piEngaged ? "Pi active" : "Pi idle · start"}
+            </button>
             {/* Mark all read */}
             {items.some(i => !i.read) && (
               <button

@@ -504,5 +504,25 @@
     "agent_id": "agent",
     "mode": "coding",
     "updated_at": "2026-07-10T15:54:46.663Z"
+  },
+  "H2": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-10T16:58:06.262Z"
+  },
+  "H3": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-10T16:58:49.657Z"
+  },
+  "H4": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-10T16:58:50.116Z"
+  },
+  "H5": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "updated_at": "2026-07-10T16:58:50.553Z"
   }
 }

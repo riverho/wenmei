@@ -1111,3 +1111,151 @@ tasks:
       - cd ../src-tauri && cargo check
       - test -d ../src-tauri/target/release/bundle/macos/Wenmei.app
       - grep -qi "go/no-go\|go/no go\|launch checklist" ../memory/2026-07-08.md
+
+  - id: H1
+    title: Sentinel/ledger Narrate design doc
+    status: todo
+    priority: 84
+    skill: run-task
+    phase: H
+    tags: [docs, design, narrate]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - test -f ../docs/design/sentinel-ledger.md
+      - grep -qi "ledger" ../docs/design/sentinel-ledger.md
+      - grep -qi "drift" ../docs/design/sentinel-ledger.md
+      - grep -qi "write-back\|write back" ../docs/design/sentinel-ledger.md
+    notes: >-
+      Event-taxonomy union (playbook + wenmei journals), drift grounded in
+      brief/north-star, write-back rules (lessons yes, backlog status never),
+      managed/unmanaged gradient, per-project token budget.
+
+  - id: H2
+    title: Playground UI — managed-project sidecar state and Pi engage-on-demand
+    status: todo
+    priority: 80
+    skill: run-task
+    phase: H
+    tags: [playground, ui, sidecar]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -qi "managed" ../app_design/src/components/SidecarFeed.tsx
+      - grep -qi "agents-playbook\|agent-playbook" ../app_design/src/components/SidecarFeed.tsx
+      - cd ../app_design && npx tsc -b
+    notes: >-
+      Managed · .agents-playbook chip vs Watching-only; Pi status pill idle →
+      Start on demand; Narrate shown as project property, no toggle.
+
+  - id: H3
+    title: Playground UI — terminal decoupled from Pi, narrate toggle removed
+    status: todo
+    priority: 81
+    skill: run-task
+    phase: H
+    tags: [playground, ui, terminal]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - bash -c '! grep -q "setTabNarrate" ../app_design/src/components/TerminalPanel.tsx'
+      - cd ../app_design && npx tsc -b
+    notes: >-
+      Opening a terminal never auto-starts Pi; per-tab narrate dot/toggle
+      removed (activity dot only). Narrate is a project property.
+
+  - id: H4
+    title: Playground UI — vault menu +/- and Settings Vaults section
+    status: todo
+    priority: 82
+    skill: run-task
+    phase: H
+    tags: [playground, ui, vaults, settings]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -qi "removeVault" ../app_design/src/store/appStore.ts
+      - grep -qi "Vaults" ../app_design/src/components/SettingsPanel.tsx
+      - grep -qi "select all\|selectAll" ../app_design/src/components/SettingsPanel.tsx
+      - cd ../app_design && npx tsc -b
+    notes: >-
+      Custom vault pulldown with add-folder and per-vault soft-remove;
+      Settings › Vaults with multi-select, select-all, add/remove many.
+      Copy states removal is a soft detach (state.json), files untouched.
+
+  - id: H5
+    title: Playground UI — multi-instance windows per vault
+    status: todo
+    priority: 83
+    skill: run-task
+    phase: H
+    tags: [playground, ui, windows]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -qi "open in new window" ../app_design/src/components/VaultMenu.tsx
+      - grep -q "VaultMenu" ../app_design/src/components/Header.tsx
+      - cd ../app_design && npx tsc -b
+    notes: >-
+      Vault menu row action opens that vault in a separate window mock
+      (ChildWindowLayer) labeled as its own instance with sandbox scope.
+
+  - id: H6
+    title: Heartbeat engine — run cards, tick scheduler, wake on stuck/idle
+    status: todo
+    priority: 85
+    skill: run-task
+    phase: H
+    tags: [rust, heartbeat]
+    design_ref: docs/design/sentinel-ledger.md
+    acceptance_checks:
+      - test -f ../src-tauri/src/heartbeat.rs
+      - grep -q "RunCard" ../src-tauri/src/heartbeat.rs
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Native tick engine: run cards (goal/wake policy/stop) persisted per
+      project, scheduler thread, observer-heuristic wake, emit_notification
+      output only. Gated on H1 design doc.
+
+  - id: H7
+    title: Production-grade resources and error handling
+    status: todo
+    priority: 86
+    skill: run-task
+    phase: H
+    tags: [rust, tsx, hardening]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -qi "panic" ../src-tauri/src/main.rs
+      - grep -qi "ErrorBoundary" ../src/App.tsx
+      - cd ../src-tauri && cargo check
+      - cd .. && npm run check
+    notes: >-
+      Panic hook to journal+alert, frontend error boundary, disk/staging-cap
+      alerts, per-session PTY memory caps (tab memory meter becomes real).
+
+  - id: H8
+    title: In-app updater wired with signing
+    status: todo
+    priority: 87
+    skill: run-task
+    phase: H
+    tags: [rust, ci, updater]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -qi "updater" ../src-tauri/Cargo.toml
+      - grep -qi "updater" ../.github/workflows/release.yml
+      - cd ../src-tauri && cargo check
+    notes: >-
+      tauri-plugin-updater + release.yml artifacts + signing keys as one
+      workflow; Settings gains a Check for updates row.
+
+  - id: H9
+    title: Alpha business closure — trial, payments, token plan design
+    status: todo
+    priority: 88
+    skill: run-task
+    phase: H
+    tags: [business]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -qi "trial" ../docs/design/business-alpha.md
+      - grep -qi "token" ../docs/design/business-alpha.md
+    notes: >-
+      Trial mechanics, payment provider selection (offline-verifiable keys),
+      token add-on plan design for the later consumer tier. Developer-first.

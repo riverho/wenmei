@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { Plus, X, Volume2 } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { listen, type UnlistenFn } from "@/lib/tauri-events";
 import { useAppStore, TERMINAL_TAB_MB } from "@/store/appStore";
 import {
   terminalResize,
-  terminalSetNarrationEnabled,
   terminalStart,
   terminalWrite,
   type TerminalStarted,
@@ -40,7 +39,6 @@ function TerminalTabBar() {
     addTerminalTab,
     closeTerminalTab,
     setActiveTerminalTab,
-    setTabNarrate,
   } = useAppStore();
 
   const atLimit =
@@ -70,20 +68,13 @@ function TerminalTabBar() {
               minWidth: 0,
             }}
           >
-            {/* Narration indicator dot */}
+            {/* Session dot — plain terminal indicator, no narrate control */}
             <div
               className="w-2 h-2 rounded-full shrink-0"
               style={{
-                background: tab.narrate ? "#5eead4" : "#2a333d",
-                boxShadow: tab.narrate ? "0 0 4px #5eead4" : "none",
+                background: active ? "#5eead4" : "#2a333d",
               }}
-              title={
-                tab.narrate ? `Narration on · click to toggle` : "Narration off"
-              }
-              onClick={e => {
-                e.stopPropagation();
-                setTabNarrate(tab.id, !tab.narrate);
-              }}
+              title="Terminal session"
             />
 
             {/* Tab title */}
@@ -165,7 +156,6 @@ export default function TerminalPanel() {
   const { activeVaultId, activeSandboxId } = useAppStore();
   const terminalTabs = useAppStore(s => s.terminalTabs);
   const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
-  const setTabNarrate = useAppStore(s => s.setTabNarrate);
   const activeTab =
     terminalTabs.find(t => t.id === activeTerminalTabId) ??
     terminalTabs[0] ??
@@ -183,9 +173,7 @@ export default function TerminalPanel() {
   const [context, setContext] = useState<TerminalStarted | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<TerminalActivityStatus>("idle");
-  const [narrationOffline, setNarrationOffline] = useState(false);
 
-  const narrationEnabled = activeTab?.narrate ?? false;
 
   // Initialize xterm
   useEffect(() => {
@@ -349,29 +337,17 @@ export default function TerminalPanel() {
     startRef.current?.();
   }, [activeVaultId, activeSandboxId]);
 
-  // Tab switch: announce in terminal
+  // Tab switch: announce in terminal. Narration is a project property now
+  // (ledger-bound, Settings-managed) — the terminal neither shows nor
+  // controls it, and opening a terminal never starts the Pi sidecar.
   useEffect(() => {
     if (!termRef.current || !activeTab) return;
     termRef.current.writeln(
-      `\r\n\x1b[2m── ${activeTab.title} · ${activeTab.narrate ? "narration on" : "narration off"} ──\x1b[0m\r\n`
+      `\r\n\x1b[2m── ${activeTab.title} ──\x1b[0m\r\n`
     );
-    // Sync narration with backend when switching tabs
-    terminalSetNarrationEnabled(activeTab.narrate).catch(() => {
-      setNarrationOffline(true);
-    });
+    // Fire only on tab switch; activeTab.title read is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTerminalTabId]);
-
-  const toggleNarration = async () => {
-    if (!activeTab) return;
-    const next = !narrationEnabled;
-    try {
-      await terminalSetNarrationEnabled(next);
-      setTabNarrate(activeTab.id, next);
-      setNarrationOffline(false);
-    } catch {
-      setNarrationOffline(true);
-    }
-  };
 
   const activityColor =
     activity === "active"
@@ -424,33 +400,6 @@ export default function TerminalPanel() {
           />
           {activity}
         </div>
-
-        {/* Narration toggle */}
-        <button
-          onClick={toggleNarration}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors shrink-0"
-          style={{
-            borderColor: narrationEnabled ? "var(--accent-teal)" : "#2a333d",
-            color: narrationEnabled ? "var(--accent-teal)" : "#7c8894",
-            background: narrationEnabled
-              ? "rgba(94, 234, 212, 0.08)"
-              : "transparent",
-          }}
-          title={
-            narrationOffline
-              ? "Sidecar offline"
-              : narrationEnabled
-                ? "Narration on for this tab — click to disable"
-                : "Narration off — click to enable"
-          }
-        >
-          <Volume2 size={10} />
-          {narrationOffline
-            ? "Sidecar offline"
-            : narrationEnabled
-              ? "Narrate on"
-              : "Narrate"}
-        </button>
 
         {/* Error */}
         {error && (

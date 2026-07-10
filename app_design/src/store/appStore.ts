@@ -176,6 +176,9 @@ interface AppState {
   setRenameValue: (val: string) => void;
   cancelRename: () => void;
   setVaults: (vaults: Vault[]) => void;
+  removeVault: (id: string) => void;
+  removeVaults: (ids: string[]) => void;
+  addLocalVault: (name: string, path: string) => void;
   setSandboxes: (sandboxes: Sandbox[]) => void;
   setActionLog: (log: string[]) => void;
   openTerminal: () => void;
@@ -344,6 +347,29 @@ export const useAppStore = create<AppState>()(
           activeVaultId:
             vaults.find(v => v.is_active)?.id ?? get().activeVaultId,
         }),
+      // Soft detach — vaults are entries in state.json, never a physical
+      // removal. The active vault can't be removed (switch first).
+      removeVault: id => {
+        if (id === get().activeVaultId) return;
+        set({ vaults: get().vaults.filter(v => v.id !== id) });
+      },
+      removeVaults: ids => {
+        const active = get().activeVaultId;
+        set({
+          vaults: get().vaults.filter(
+            v => v.id === active || !ids.includes(v.id)
+          ),
+        });
+      },
+      addLocalVault: (name, path) => {
+        const vault = {
+          id: `vault-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name,
+          path,
+          is_active: false,
+        };
+        set({ vaults: [...get().vaults, vault] });
+      },
       setSandboxes: sandboxes =>
         set({
           sandboxes,

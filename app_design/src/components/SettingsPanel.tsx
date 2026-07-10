@@ -17,6 +17,8 @@ import {
   Check,
   ExternalLink,
   Copy,
+  FolderOpen,
+  Trash2,
 } from "lucide-react";
 
 // ─── Toggle component ─────────────────────────────────────────────────────────
@@ -302,6 +304,158 @@ const DEFAULT_SHORTCUTS = [
   { action: "previewMode", label: "Preview mode" },
 ];
 
+function MultiInstanceToggle() {
+  const [on, setOn] = useState(true);
+  return (
+    <Toggle
+      checked={on}
+      onChange={setOn}
+      label="One window per vault"
+      description="Vault menu › Open in new window"
+    />
+  );
+}
+
+// ─── Vaults section — multi-select management ─────────────────────────────────
+
+function VaultsSection() {
+  const vaults = useAppStore(s => s.vaults);
+  const activeVaultId = useAppStore(s => s.activeVaultId);
+  const removeVaults = useAppStore(s => s.removeVaults);
+  const addLocalVault = useAppStore(s => s.addLocalVault);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const removable = vaults.filter(v => v.id !== activeVaultId);
+  const allSelected =
+    removable.length > 0 && removable.every(v => selected.has(v.id));
+
+  function toggle(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(removable.map(v => v.id)));
+  }
+
+  function handleAdd() {
+    const n = vaults.length + 1;
+    addLocalVault(`folder-${n}`, `~/Projects/folder-${n}`);
+  }
+
+  function handleRemoveSelected() {
+    removeVaults([...selected]);
+    setSelected(new Set());
+  }
+
+  return (
+    <Section icon={FolderOpen} title="Vaults">
+      <div className="flex items-center justify-between gap-2">
+        <label
+          className="flex items-center gap-2 text-[11px] cursor-pointer select-none"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            className="accent-[var(--accent-teal)]"
+          />
+          Select all
+        </label>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium"
+            style={{ background: "var(--accent-teal)", color: "#fff" }}
+          >
+            <Plus size={10} />
+            Add folder
+          </button>
+          <button
+            onClick={handleRemoveSelected}
+            disabled={selected.size === 0}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium disabled:opacity-40"
+            style={{ background: "var(--accent-rose)", color: "#fff" }}
+          >
+            <Trash2 size={10} />
+            Remove {selected.size > 0 ? `(${selected.size})` : ""}
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="rounded-lg overflow-hidden"
+        style={{ border: "1px solid var(--surface-3)" }}
+      >
+        {vaults.map(vault => {
+          const isActive = vault.id === activeVaultId;
+          return (
+            <label
+              key={vault.id}
+              className={`flex items-center gap-2.5 px-3 py-2 select-none ${
+                isActive ? "cursor-default" : "cursor-pointer"
+              }`}
+              style={{
+                borderBottom: "1px solid var(--surface-3)",
+                background: selected.has(vault.id)
+                  ? "rgba(194, 74, 74, 0.05)"
+                  : "transparent",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(vault.id)}
+                onChange={() => toggle(vault.id)}
+                disabled={isActive}
+                className="accent-[var(--accent-teal)] disabled:opacity-30"
+              />
+              <div className="min-w-0 flex-1">
+                <div
+                  className="text-xs font-medium truncate"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {vault.name}
+                </div>
+                <div
+                  className="text-[10px] truncate"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {vault.path}
+                </div>
+              </div>
+              {isActive && (
+                <span
+                  className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{
+                    background: "rgba(0, 134, 115, 0.1)",
+                    color: "var(--accent-teal)",
+                  }}
+                >
+                  Active
+                </span>
+              )}
+            </label>
+          );
+        })}
+      </div>
+
+      <p
+        className="text-[10px] leading-relaxed"
+        style={{ color: "var(--text-tertiary)" }}
+      >
+        Removing a vault only detaches the folder from Wenmei's list — a soft
+        boundary in state.json. Files on disk are never touched, so there is
+        nothing to archive; add the folder back anytime.
+      </p>
+    </Section>
+  );
+}
+
 // ─── Main Settings panel ───────────────────────────────────────────────────────
 
 export default function SettingsPanel() {
@@ -356,6 +510,11 @@ export default function SettingsPanel() {
             />
           </SettingRow>
         </Section>
+
+        <Divider />
+
+        {/* ── Vaults ── */}
+        <VaultsSection />
 
         <Divider />
 
@@ -428,6 +587,13 @@ export default function SettingsPanel() {
               label="Sandbox in new windows"
               description="New windows share the same vault/sandbox context"
             />
+          </SettingRow>
+
+          <SettingRow
+            label="Multiple app instances"
+            description="Run Wenmei windows for different folders side by side — each vault gets its own window, sandbox scope, and terminal sessions (single-instance lock removed)"
+          >
+            <MultiInstanceToggle />
           </SettingRow>
 
           <SettingRow

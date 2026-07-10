@@ -510,6 +510,76 @@ launch sign-off.
       checks, Rust check, Tauri app bundle build, control-plane smoke, and the
       written launch checklist.
 
+### Phase H — Master control: ledger-bound Narrate + heartbeat (opened 11 Jul 2026)
+
+Wenmei becomes the desktop master control for agentic workflow/loop
+management. The strategic decision that anchors this phase: **Narrate binds
+to the ledger, not the wire.**
+
+**The model.** Three layers, one loop:
+
+1. **Local observer** (Rust, zero tokens, zero leakage) — activity
+   heuristics, changeset watcher, journal writer. Watches *any* agent in any
+   terminal and records **facts**. Always on, free.
+2. **The playbook ledger** (`.agents-playbook/` per project) — memory,
+   backlog, journal, cycle brief, north star. The structured record of
+   intent and progress. This is the integration surface for "managing many
+   AI tools": any agent that speaks playbook gets supervision for free.
+3. **Narrate** (Pi, invoked — never streaming) — reports playbook activity,
+   runs secondary research/analysis, and monitors drift *grounded in the
+   brief and north star it holds*. **Not optional and not a button**: it is
+   the reporting layer of every managed project. Cost scales with task
+   events, not terminal output; secrets never transit because the input is
+   the ledger, not PTY bytes.
+
+**Managed vs unmanaged gradient** (the adoption funnel): a folder without a
+playbook gets observer facts only — alerts, changesets, timeline. "Manage
+this project" scaffolds `.agents-playbook/` and turns on Narrate: briefings,
+task-aware reports, drift watch, lesson write-back. Narrate may write to
+`memory/lessons` and briefings; it never touches backlog status or
+acceptance checks (the analyst reports on the ledger; it does not cook the
+books).
+
+**What dies:** the per-terminal Narrate toggle, PTY-stream narration as a
+default path, the 10-second digest cadence, and the terminal auto-starting
+Pi. Pi starts when the sidecar is engaged or a managed project needs it —
+opening a terminal is just opening a terminal.
+
+**Heartbeat** refits on top: a native tick engine (run cards with goal/wake
+policy/stop condition persisted per project) that wakes runs, watches
+stuck/idle via observer heuristics, and speaks only through
+`emit_notification`. The `/loop` + agent-playbook pattern that built this
+app, productized.
+
+**UI-first workflow:** every Phase H surface is designed in `app_design/`
+first, accepted, then ported (the F11–F14 pattern).
+
+- [ ] H1 sentinel/ledger design doc: event-taxonomy union (playbook journal
+      + wenmei journal), drift grounding on brief/north-star, write-back
+      rules, managed/unmanaged gradient, per-project token budget.
+- [ ] H2 playground UI: managed-project state in the sidecar (Managed ·
+      `.agents-playbook` chip vs Watching-only), Narrate as reporting policy
+      not toggle, Pi engage-on-demand status.
+- [ ] H3 terminal decoupled from Pi: opening a terminal never auto-starts
+      the Pi sidecar; per-tab narrate toggle removed (Narrate is a project
+      property, not a terminal property).
+- [ ] H4 vault management: +/− in the vault pulldown (add folder, soft-remove
+      vault) and a Settings › Vaults section — multi-select, select-all,
+      add/remove many. Removal is a soft detach from `state.json`; files are
+      never touched.
+- [ ] H5 multi-instance: multiple Wenmei windows from different folders
+      (drop single-instance-per-machine; one window per vault/project, each
+      with its own sandbox scope).
+- [ ] H6 heartbeat engine: run cards, tick scheduler, stuck/idle wake,
+      notifications integration.
+- [ ] H7 resource + error production-grade pass: panic hook → journal +
+      alert, frontend error boundary, disk/staging-cap alerts, per-session
+      PTY memory caps.
+- [ ] H8 in-app updater (tauri-plugin-updater) wired to release.yml
+      artifacts, together with signing keys (one workflow).
+- [ ] H9 alpha business closure: trial mechanics, payment provider
+      selection, token add-on plan design for the later consumer tier.
+
 ---
 
 ## 5. Monetization sketch

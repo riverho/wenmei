@@ -256,3 +256,22 @@ npm run format     # Prettier
 ## Mock Mode
 
 When running `npm run dev` (outside Tauri), all backend calls fall through to `src/mocks/mock-bridge.ts` — a complete in-browser mock of the Rust backend including file system, Pi RPC, and terminal.
+
+### Phase H direction (11 Jul 2026) — master control
+
+- **Narrate binds to the ledger, not the wire.** SidecarFeed header shows
+  `Managed · .agents-playbook` (project property, no toggle) or
+  `Watching · Manage this project` (observer facts only; click scaffolds a
+  playbook). Pi is engage-on-demand (`Pi idle · start` pill) — opening a
+  terminal never starts it.
+- **Terminal decoupled.** Per-tab narrate dots/toggles removed; the tab dot
+  is a plain session indicator.
+- **VaultMenu** replaces the `<select>`: switch with active check, `+ Add
+  folder`, per-vault `−` soft-remove (disabled on active), per-vault `Open
+  in new window` (separate instance mock via ChildWindowLayer), and a
+  `Manage vaults` link into Settings.
+- **Settings › Vaults**: multi-select list, select-all, add/remove many.
+  Removal is a soft detach from state.json — files never touched, nothing
+  to archive.
+- **Settings › Windows** gains `Multiple app instances` (one window per
+  vault; single-instance lock removed).
