@@ -524,5 +524,14 @@
     "status": "done",
     "loop_id": "loop-20260705-002",
     "updated_at": "2026-07-10T16:58:50.553Z"
+  },
+  "H1": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-10T17:14:47.643Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-10T17:16:00.780Z"
   }
 }

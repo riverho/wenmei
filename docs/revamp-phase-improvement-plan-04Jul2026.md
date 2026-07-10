@@ -579,6 +579,27 @@ first, accepted, then ported (the F11–F14 pattern).
       artifacts, together with signing keys (one workflow).
 - [ ] H9 alpha business closure: trial mechanics, payment provider
       selection, token add-on plan design for the later consumer tier.
+- [ ] H10 approval relay — alerts with hands: headless virtual screen (vt
+      parser) per PTY session, needs-input prompt detection via agent-profile
+      patterns, alert cards carrying [Allow]/[Deny] actions that inject
+      verified keystrokes (re-hash screen before send; abort if the prompt
+      moved). y/n + Enter first; cursor menus later. Native adapters (e.g.
+      Claude Code hooks → control plane) preferred over scraping when the
+      agent supports them.
+- [ ] H11 orchestrator skill — the sidecar runs the agent-playbook loop
+      (orient → claim → dispatch to a workhorse terminal → observe → verify →
+      record → repeat) through the control plane, with a context-isolated
+      checker agent scoring changesets against the cycle brief via the review
+      ledger. Failure policy is mechanical: worker dies → salvage + reassign;
+      checks fail ×3 → block + alert; drift threshold → pause + ask. The
+      product claim is supervised autonomy: hours unattended, human at phase
+      gates.
+
+**Orchestration doctrine (from the six-day dogfood):** checks catch
+structure, not truth — the checker never shares context or incentives with
+the doer; guardrails live in Rust/pb where model goodwill is irrelevant;
+failure policy is written before failures; the human steers direction at
+phase boundaries, not diffs.
 
 ---
 

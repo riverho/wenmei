@@ -1,51 +1,25 @@
 ---
-phase: 8
-started: "2026-07-08T12:50:38.035Z"
-goal: "Phase G: v1.0 RC hardening — turn the Phase F-complete app into a release candidate by cleaning agent-facing state, fixing known high-confidence bugs, validating desktop install/runtime behavior, and producing a clear go/no-go launch checklist."
-stop: "Stop before L4 release actions: no v1.0.0 version bump, no v1.0 tag, no GitHub release publishing, and no announcement until River gives explicit launch sign-off."
+phase: 9
+started: "2026-07-10T17:14:32.018Z"
+goal: "Phase H all-in: sentinel-ledger design, heartbeat engine, production hardening, updater+signing, business alpha docs, approval relay, orchestrator skill — run the loop until the session limit"
+stop: "Hard stops: no version bump, no tag, no push, no publish (L4 human-gated); risky keystroke injection ships design+scaffold only until F10-style human validation"
 ---
-
-# Cycle Brief — phase 8
+# Cycle Brief — phase 9
 
 > Confirm this at the START of each phase, before claiming work. The North Star does
 > not change; this cycle's goal does. Fill all five, then `node scripts/pb.mjs status`.
 
 ## 1. What is this cycle's goal?
-
-Phase G: v1.0 RC hardening — turn the Phase F-complete app into a release candidate by cleaning agent-facing state, fixing known high-confidence bugs, validating desktop install/runtime behavior, and producing a clear go/no-go launch checklist.
+Phase H all-in: sentinel-ledger design, heartbeat engine, production hardening, updater+signing, business alpha docs, approval relay, orchestrator skill — run the loop until the session limit
 
 ## 2. What challenges do I foresee?
-
-The biggest risk is confusing release-candidate hardening with launch. L4 must
-remain blocked until explicit human sign-off, so this phase should produce
-evidence and fixes, not publish anything. The tree is intentionally dirty in
-several categories: accepted `app_design/` playground work, real app Phase F
-ports, playbook state, and agent-facing `memory/`, `sessions/`, and
-`design-contract.yaml`. Treat them as material to consolidate and commit
-deliberately, not as accidental trash. Known technical risks are the Finder
-file-open path bug, stale `.wenmei/wenmei-control.json` shadowing the live
-app-support control file, the full-WalkDir poller causing macOS permission
-dialogs, and release-signing/notarization uncertainty.
+Long autonomous run: the risk is momentum over truth. Guardrails: every task's checks must pass mechanically; no grep-green without a compile/lint pass alongside; big Rust surfaces (heartbeat, virtual screen) land as compiling scaffolds with real seams rather than fake-complete features. Session limit will cut the run — commit per task so any cut point is clean.
 
 ## 3. What were the previous challenges?
-
-Phase F closed after F1-F14: the real app now has unified sidecar overlays,
-alert bell deep-linking, full settings persistence, terminal tab scaffolding,
-and the accepted playground direction captured in `design-contract.yaml`.
-The close checks passed, including root lint/check/test, app_design check/build,
-Rust cargo check, Tauri app bundle build, and installed desktop ACP status.
-Carry-over: `app_design/` remains the accepted visual playground; it should not
-be deleted as cleanup. The roadmap now names this RC work as Phase G. L4 is
-still blocked pending explicit launch sign-off.
+Phase G closed clean (RC1-RC5, fresh bundle). Phase H UI (H2-H5) accepted in playground. Lesson standing: checks catch structure, not truth — record honest notes about what is scaffold vs validated.
 
 ## 4. Where do I stop / hand back?
-
-Stop before L4 release actions: no v1.0.0 version bump, no v1.0 tag, no GitHub release publishing, and no announcement until River gives explicit launch sign-off.
+Hard stops: no version bump, no tag, no push, no publish (L4 human-gated); risky keystroke injection ships design+scaffold only until F10-style human validation
 
 ## 5. Conflicts with my own (agent) memory?
-
-Host memory or earlier session notes may imply the playground is temporary
-handoff code or that F11-F14 still need porting. Folder state wins: River has
-accepted `app_design/` visually, Phase F is closed, and the next work is RC
-hardening with no publishing. The agent should not silently clean up
-`app_design/`, `memory/`, `sessions/`, or `design-contract.yaml`.
+None. Folder and conversation agree: all-in on H1, H6-H11; L4 stays blocked; publish/push/tag forbidden without River's sign-off.

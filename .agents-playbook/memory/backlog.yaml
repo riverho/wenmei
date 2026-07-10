@@ -1259,3 +1259,42 @@ tasks:
     notes: >-
       Trial mechanics, payment provider selection (offline-verifiable keys),
       token add-on plan design for the later consumer tier. Developer-first.
+
+  - id: H10
+    title: Approval relay — virtual screen, prompt detection, alerts with hands
+    status: todo
+    priority: 89
+    skill: run-task
+    phase: H
+    tags: [rust, tsx, terminal, approvals]
+    design_ref: docs/design/sentinel-ledger.md
+    acceptance_checks:
+      - grep -qi "screen\|vt100\|prompt" ../src-tauri/src/terminal.rs
+      - grep -qi "needs_input\|needs-input\|NeedsInput" ../src-tauri/src/terminal.rs
+      - grep -qi "Allow\|Approve" ../src/components/SidecarOverlay.tsx
+      - cd ../src-tauri && cargo check
+      - cd .. && npm run check
+    notes: >-
+      Headless screen model per PTY session; needs-input detection via
+      agent-profile patterns; alert cards with Allow/Deny that inject
+      verified keystrokes (re-hash before send, abort if prompt moved).
+      y/n + Enter tier first. Gated on H1 design.
+
+  - id: H11
+    title: Orchestrator skill — sidecar runs the playbook loop with isolated checker
+    status: todo
+    priority: 90
+    skill: run-task
+    phase: H
+    tags: [rust, design, orchestration]
+    design_ref: docs/design/sentinel-ledger.md
+    acceptance_checks:
+      - grep -qi "orchestrat" ../docs/design/sentinel-ledger.md
+      - grep -qi "checker" ../docs/design/sentinel-ledger.md
+      - grep -qi "orchestrat" ../src-tauri/src/control.rs
+      - cd ../src-tauri && cargo check
+    notes: >-
+      Control-plane surface for the loop (orient/claim/dispatch/verify/
+      record); checker role context-isolated from doer, writes to review
+      ledger; mechanical failure policy (salvage/block/pause). Supervised
+      autonomy, human at phase gates.
