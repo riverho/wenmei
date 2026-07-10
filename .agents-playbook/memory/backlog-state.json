@@ -450,5 +450,23 @@
     "status": "done",
     "loop_id": "loop-20260705-002",
     "updated_at": "2026-07-08T07:09:39.790Z"
+  },
+  "F14": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-08T07:14:56.685Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-08T11:26:21.256Z"
+  },
+  "plan-20260708-001": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-10T15:22:57.101Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-10T15:26:51.034Z"
   }
 }

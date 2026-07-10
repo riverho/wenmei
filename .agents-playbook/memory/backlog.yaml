@@ -1037,3 +1037,77 @@ tasks:
       unread count from the feed unread model; click opens sidecar with
       Alerts filter scrolled to the divider. Diff and salvage
       .claude/worktrees/agent-* before removal.
+  - id: plan-20260708-001
+    title: >-
+      RC1 consolidate the dirty tree into intentional buckets and produce a v1.0 RC go/no-go checklist
+      without deleting accepted app_design playground or agent-facing memory
+    status: todo
+    skill: run-task
+    mode: coding
+    phase: G
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-g--v10-rc-hardening-opened-08-jul-2026
+    priority: 70
+    acceptance_checks:
+      - test -f ../design-contract.yaml
+      - test -f ../memory/2026-07-08.md
+      - grep -q "app_design/" ../memory/2026-07-08.md
+      - grep -q "go/no-go\|go/no go\|RC" ../memory/2026-07-08.md
+  - id: plan-20260708-002
+    title: >-
+      RC2 fix the known Finder/opened path formatting bug so vault-relative file-open paths use /path
+      instead of / path
+    status: todo
+    skill: run-task
+    mode: coding
+    phase: G
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-g--v10-rc-hardening-opened-08-jul-2026
+    priority: 71
+    acceptance_checks:
+      - grep -q 'format!("/{}", rel)' ../src-tauri/src/main.rs
+      - cd ../src-tauri && cargo check
+  - id: plan-20260708-003
+    title: >-
+      RC3 make wenmeictl/control discovery robust against stale repo-local .wenmei/wenmei-control.json
+      shadowing the live app-support control file
+    status: todo
+    skill: run-task
+    mode: coding
+    phase: G
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-g--v10-rc-hardening-opened-08-jul-2026
+    priority: 72
+    acceptance_checks:
+      - grep -q "pid" ../scripts/wenmeictl
+      - grep -q "app.status" ../scripts/wenmeictl
+      - cd .. && npm run check
+  - id: plan-20260708-004
+    title: >-
+      RC4 reduce macOS permission-dialog risk from the background file poller by avoiding unnecessary
+      full-tree walks when the app is idle or the vault is in protected locations
+    status: todo
+    skill: run-task
+    mode: coding
+    phase: G
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-g--v10-rc-hardening-opened-08-jul-2026
+    priority: 73
+    acceptance_checks:
+      - test -f ../src-tauri/src/polling.rs
+      - grep -qi "poll\|walk\|interval" ../src-tauri/src/polling.rs
+      - cd ../src-tauri && cargo check
+  - id: plan-20260708-005
+    title: >-
+      RC5 run release-candidate desktop validation: root checks, app_design checks, Rust check, Tauri
+      app bundle build, control-plane smoke, and a written go/no-go launch checklist
+    status: todo
+    skill: run-task
+    mode: coding
+    phase: G
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-g--v10-rc-hardening-opened-08-jul-2026
+    priority: 74
+    acceptance_checks:
+      - cd .. && npm run lint
+      - cd .. && npm run check
+      - cd .. && npm run test
+      - cd ../app_design && npm run check
+      - cd ../src-tauri && cargo check
+      - test -d ../src-tauri/target/release/bundle/macos/Wenmei.app
+      - grep -qi "go/no-go\|go/no go\|launch checklist" ../memory/2026-07-08.md
