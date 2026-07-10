@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bell, Bot, GitCompare, MessageSquare, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -7,6 +8,7 @@ import {
   type SidecarItem,
 } from "@/lib/sidecar-types";
 import { FILTER_CONFIG, relTime, type FeedFilter } from "@/lib/sidecar-feed";
+import { approvePrompt, currentPrompt } from "@/lib/tauri-bridge";
 
 // ─── Overlay layer for the unified sidecar feed (docs/design/unified-sidecar.md)
 // Chat stays the untouched base layer in PiPanel; these cards stack above it.
@@ -124,6 +126,73 @@ export function OverlayCard({
           ? item.body
           : truncateBody(item.body)}
       </div>
+
+      {/* Approval relay (H10): input.needs_response carries hands. */}
+      {item.alertLabel === "input.needs_response" && (
+        <ApprovalActions />
+      )}
+    </div>
+  );
+}
+
+function ApprovalActions() {
+  const [state, setState] = useState<"idle" | "sending" | "done" | "moved">(
+    "idle"
+  );
+
+  async function answer(allow: boolean) {
+    if (state === "sending") return;
+    setState("sending");
+    try {
+      // Re-derive pattern + screen hash at click time (verify-then-act).
+      const prompt = await currentPrompt();
+      if (!prompt) {
+        setState("moved");
+        return;
+      }
+      await approvePrompt(prompt.pattern_id, allow, prompt.screen_hash);
+      setState("done");
+    } catch {
+      setState("moved");
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <div className="mt-1.5 text-[10px]" style={{ color: "var(--accent-teal)" }}>
+        Sent — journaled as steering.injected
+      </div>
+    );
+  }
+  if (state === "moved") {
+    return (
+      <div className="mt-1.5 text-[10px]" style={{ color: "#f59e0b" }}>
+        Prompt moved — nothing sent. Open the terminal.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => answer(true)}
+        disabled={state === "sending"}
+        className="px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-60"
+        style={{ background: "var(--accent-teal)", color: "#fff" }}
+      >
+        Allow
+      </button>
+      <button
+        onClick={() => answer(false)}
+        disabled={state === "sending"}
+        className="px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-60"
+        style={{
+          background: "var(--surface-2)",
+          color: "var(--text-secondary)",
+        }}
+      >
+        Deny
+      </button>
     </div>
   );
 }

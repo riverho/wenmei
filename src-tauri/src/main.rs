@@ -20,6 +20,7 @@ mod review;
 mod search;
 mod state;
 mod terminal;
+mod approval;
 mod heartbeat;
 mod vault;
 
@@ -242,6 +243,9 @@ fn main() {
             journal::build_briefing,
             journal::export_audit,
             check_for_update,
+            approval::list_prompt_patterns,
+            approval::current_prompt,
+            approval::approve_prompt,
             heartbeat::run_card_create,
             heartbeat::run_card_list,
             heartbeat::run_card_set_status,

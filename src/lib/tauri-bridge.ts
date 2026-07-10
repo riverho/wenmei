@@ -629,6 +629,42 @@ export async function checkForUpdate(): Promise<string | null> {
   return invoke("check_for_update");
 }
 
+// ─── Approval relay (docs/design/sentinel-ledger.md §3) ───
+
+export interface PromptPattern {
+  id: string;
+  markers: string[];
+  allow_keys: string;
+  deny_keys: string;
+  label: string;
+}
+
+export interface DetectedPrompt {
+  pattern_id: string;
+  label: string;
+  prompt_text: string;
+  screen_hash: number;
+}
+
+export async function listPromptPatterns(): Promise<PromptPattern[]> {
+  return invoke("list_prompt_patterns");
+}
+
+/** The prompt currently on the active terminal, or null. */
+export async function currentPrompt(): Promise<DetectedPrompt | null> {
+  return invoke("current_prompt");
+}
+
+/** Inject the pattern's Allow/Deny keys — only if the screen still matches
+ *  expectedHash (verify-then-act). Rejects if the prompt moved. */
+export async function approvePrompt(
+  patternId: string,
+  allow: boolean,
+  expectedHash: number
+): Promise<void> {
+  return invoke("approve_prompt", { patternId, allow, expectedHash });
+}
+
 export interface AuditExport {
   json_path: string;
   markdown_path: string;

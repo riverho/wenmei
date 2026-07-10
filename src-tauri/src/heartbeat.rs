@@ -223,12 +223,21 @@ fn dir_size(path: &PathBuf) -> u64 {
 pub fn start_heartbeat(app: AppHandle) {
     thread::spawn(move || {
         let mut tick: u32 = 0;
+        let mut last_prompt_hash: u64 = 0;
         loop {
         thread::sleep(Duration::from_millis(TICK_MS));
         tick = tick.wrapping_add(1);
         let Some(state) = app.try_state::<WenmeiState>() else {
             continue;
         };
+        // Approval relay (H10): scan the active terminal for actionable
+        // prompts; dedup on the screen hash so one prompt alerts once.
+        if let Some(detected) = crate::approval::detect_active_prompt(&state) {
+            if detected.screen_hash != last_prompt_hash {
+                last_prompt_hash = detected.screen_hash;
+                crate::approval::alert_prompt(&app, &state, &detected);
+            }
+        }
         let Ok(vault) = active_vault(&state) else {
             continue;
         };

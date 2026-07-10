@@ -47,9 +47,6 @@ impl NarrationBuffer {
     }
 
     pub fn push_bytes(&mut self, data: &[u8]) {
-        if !self.enabled {
-            return;
-        }
         self.last_output = Instant::now();
         let cleaned = strip_ansi_escapes::strip_str(
             String::from_utf8_lossy(data).as_ref(),
@@ -72,15 +69,33 @@ impl NarrationBuffer {
             {
                 continue;
             }
+            // recent_lines is always maintained (approval detection needs
+            // the screen tail even when narration is off); only the digest
+            // buffer gates on `enabled`.
             self.recent_lines.push_back(trimmed.to_string());
             if self.recent_lines.len() > MAX_WINDOW_LINES {
                 self.recent_lines.pop_front();
             }
-            if !self.buf.is_empty() {
-                self.buf.push('\n');
+            if self.enabled {
+                if !self.buf.is_empty() {
+                    self.buf.push('\n');
+                }
+                self.buf.push_str(trimmed);
             }
-            self.buf.push_str(trimmed);
         }
+    }
+
+    /// The recent stripped-output tail used for approval-prompt detection
+    /// (docs/design/sentinel-ledger.md §3) — the T1 stand-in for a full VT
+    /// grid. Newest lines last.
+    pub fn recent_text(&self, lines: usize) -> String {
+        let n = self.recent_lines.len().saturating_sub(lines);
+        self.recent_lines
+            .iter()
+            .skip(n)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     pub fn annotate_file_changes(&mut self, changes: Vec<String>) {
