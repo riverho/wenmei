@@ -82,9 +82,30 @@ fn main() {
         .manage(WenmeiState::new())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // argv[0] is the executable path; argv[1+] are the file paths
-            // from a double-click file-open event on Windows/Linux.
+            // from a double-click file-open event on Windows/Linux. The
+            // frontend's read_file takes vault-relative paths, so absolute
+            // paths inside a known vault convert to "/rel" here (the macOS
+            // Opened handler does the same in platform/macos.rs).
             if argv.len() > 1 {
-                let _ = app.emit("single-instance", argv[1..].to_vec());
+                let paths: Vec<String> = argv[1..]
+                    .iter()
+                    .map(|arg| {
+                        let path = std::path::Path::new(arg);
+                        if let Some(state) = app.try_state::<WenmeiState>() {
+                            if let Ok(app_state) = state.app_state.lock() {
+                                for vault in &app_state.vaults {
+                                    if let Ok(rel) = path.strip_prefix(&vault.path) {
+                                        let rel =
+                                            rel.to_string_lossy().replace('\\', "/");
+                                        return format!("/{}", rel);
+                                    }
+                                }
+                            }
+                        }
+                        arg.clone()
+                    })
+                    .collect();
+                let _ = app.emit("single-instance", paths);
             }
         }))
         .plugin(tauri_plugin_shell::init())
