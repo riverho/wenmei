@@ -183,6 +183,22 @@ function commandFromArgs(args) {
     return { command: "sandbox.run", params: { command } };
   }
 
+  if (args[0] === "orchestrator") {
+    const sub = args[1];
+    if (sub === "status") {
+      return { command: "orchestrator.status", params: {} };
+    }
+    if (sub === "report") {
+      const verdict = args[2];
+      if (!verdict) throw new Error("orchestrator report requires a verdict (pass|risk|block)");
+      return {
+        command: "orchestrator.checker_report",
+        params: { verdict, notes: args.slice(3).join(" ") },
+      };
+    }
+    throw new Error("orchestrator: use `status` or `report <verdict> [notes]`");
+  }
+
   if (args[0] === "terminal") {
     const sub = args[1];
     if (sub === "start") {

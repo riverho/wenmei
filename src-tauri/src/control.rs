@@ -197,6 +197,51 @@ fn sandbox_run(app: &tauri::AppHandle, command: String) -> Result<serde_json::Va
     }))
 }
 
+/// The observable loop state for the orchestrator: run cards, the active
+/// review changeset, and any prompt currently blocking a terminal. A
+/// context-isolated checker reads this + the review ledger to score work
+/// against the cycle brief without ever seeing the doer's transcript.
+fn orchestrator_status(app: &tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<WenmeiState>();
+    let runs = crate::heartbeat::run_card_list(state.clone()).unwrap_or_default();
+    let changeset = crate::review::review_changeset(state.clone()).unwrap_or_default();
+    let prompt = crate::approval::detect_active_prompt(&state);
+    Ok(json!({
+        "runs": runs,
+        "changeset": changeset,
+        "pending_prompt": prompt,
+    }))
+}
+
+/// The checker's verdict channel. `verdict` is "pass" | "risk" | "block".
+/// Anything but "pass" journals and raises a safety alert so the human is
+/// escalated — the doer cannot self-approve past a checker flag.
+fn orchestrator_checker_report(
+    app: &tauri::AppHandle,
+    verdict: &str,
+    notes: &str,
+) -> Result<serde_json::Value, String> {
+    let state = app.state::<WenmeiState>();
+    crate::journal::append_journal_event(
+        &state,
+        "orchestrator.checker",
+        "checker",
+        None,
+        format!("Checker verdict: {verdict} — {notes}"),
+        json!({ "verdict": verdict }),
+    )?;
+    if verdict != "pass" {
+        crate::journal::emit_notification(
+            app,
+            "safety.checker_flag",
+            "Checker flagged the work",
+            &format!("{verdict}: {notes}"),
+            None,
+        );
+    }
+    Ok(json!({ "recorded": verdict }))
+}
+
 fn terminal_snapshot(app: &tauri::AppHandle) -> Result<serde_json::Value, String> {
     let state = app.state::<WenmeiState>();
     let current = state.terminal.lock().unwrap();
@@ -359,6 +404,21 @@ fn handle_rpc(app: &tauri::AppHandle, request: RpcRequest) -> serde_json::Value 
             let command = param_string(&request.params, "command");
             match command {
                 Ok(command) => sandbox_run(app, command),
+                Err(err) => Err(err),
+            }
+        }
+        // Orchestrator surface (H11, docs/design/sentinel-ledger.md §5): the
+        // observable loop state a doer or a context-isolated checker reads
+        // over the control plane, and the checker's verdict channel.
+        "orchestrator.status" => orchestrator_status(app),
+        "orchestrator.checker_report" => {
+            let verdict = param_string(&request.params, "verdict");
+            match verdict {
+                Ok(verdict) => {
+                    let notes = param_optional_string(&request.params, "notes")
+                        .unwrap_or_default();
+                    orchestrator_checker_report(app, &verdict, &notes)
+                }
                 Err(err) => Err(err),
             }
         }
