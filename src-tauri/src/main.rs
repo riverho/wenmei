@@ -71,6 +71,20 @@ fn open_file_window(app: tauri::AppHandle, path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Check the release feed for a newer version. Returns the new version
+/// string, or None when up to date. Errors mean "updates not configured"
+/// (placeholder pubkey / no network) — the UI treats that as informational.
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(Some(update.version.clone())),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn main() {
     // WSL has no GPU driver for WebKitGTK's threaded compositor;
     // disabling it avoids libEGL/MESA/ZINK warnings and long startup.
@@ -113,6 +127,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             logging::init(&state::config_dir());
 
@@ -226,6 +241,7 @@ fn main() {
             journal::list_journal_events,
             journal::build_briefing,
             journal::export_audit,
+            check_for_update,
             heartbeat::run_card_create,
             heartbeat::run_card_list,
             heartbeat::run_card_set_status,

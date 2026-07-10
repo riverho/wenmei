@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import {
+  checkForUpdate,
   cliIntegrationStatus,
   installCliIntegration,
   runInstallScript,
@@ -459,6 +460,66 @@ function InstallScriptRow({
           </button>
         )}
       </div>
+    </SettingRow>
+  );
+}
+
+function CheckUpdateRow() {
+  const [state, setState] = useState<
+    "idle" | "checking" | "current" | "available" | "unconfigured"
+  >("idle");
+  const [version, setVersion] = useState<string | null>(null);
+
+  async function handleCheck() {
+    if (state === "checking") return;
+    setState("checking");
+    try {
+      const next = await checkForUpdate();
+      if (next) {
+        setVersion(next);
+        setState("available");
+      } else {
+        setState("current");
+      }
+    } catch {
+      // Placeholder pubkey / offline — updates not configured yet.
+      setState("unconfigured");
+    }
+  }
+
+  return (
+    <SettingRow
+      label="Check for updates"
+      description={
+        state === "available"
+          ? `Version ${version} is available — download from the releases page`
+          : state === "current"
+            ? "You're on the latest version"
+            : state === "unconfigured"
+              ? "Updates aren't configured for this build"
+              : "Checks the release feed; nothing installs without you"
+      }
+    >
+      <button
+        onClick={handleCheck}
+        disabled={state === "checking"}
+        className="flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium disabled:opacity-60"
+        style={{
+          background:
+            state === "available" ? "var(--accent-teal)" : "var(--surface-2)",
+          color:
+            state === "available" ? "#fff" : "var(--text-secondary)",
+        }}
+      >
+        {state === "checking" ? (
+          <>
+            <Loader2 size={10} className="animate-spin" />
+            Checking
+          </>
+        ) : (
+          "Check now"
+        )}
+      </button>
     </SettingRow>
   );
 }
@@ -940,6 +1001,8 @@ export default function SettingsPanel() {
               0.2.1 · aarch64-apple-darwin
             </span>
           </SettingRow>
+
+          <CheckUpdateRow />
 
           <SettingRow
             label="Build date"

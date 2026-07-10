@@ -87,7 +87,18 @@ jobs:
 
       # Windows builds the default (host) target so bundle paths match
       # build-windows.yml; mac/linux pass the explicit target.
+      #
+      # Updater artifacts: with createUpdaterArtifacts enabled in
+      # tauri.conf.json, the build emits .sig files next to each bundle when
+      # TAURI_SIGNING_PRIVATE_KEY is present (generate the keypair with
+      # `npm run tauri signer generate`; the matching pubkey goes in
+      # tauri.conf.json plugins.updater.pubkey). The latest.json manifest for
+      # the update endpoint is assembled at release time from these
+      # signatures — see docs/PACKAGING.md.
       - name: Tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run desktop:build ${{ matrix.os != 'windows-latest' && format('-- --target {0}', matrix.target) || '' }}
 
       - name: Upload installers

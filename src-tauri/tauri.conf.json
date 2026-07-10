@@ -29,8 +29,17 @@
       "capabilities": []
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "UPDATER_PUBKEY_PLACEHOLDER — generate with `npm run tauri signer generate`, keep the private key in GitHub secret TAURI_SIGNING_PRIVATE_KEY",
+      "endpoints": [
+        "https://github.com/riverho/wenmei/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/16x16.png",

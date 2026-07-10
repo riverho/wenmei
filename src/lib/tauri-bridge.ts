@@ -623,6 +623,12 @@ export async function runCardDelete(id: string): Promise<void> {
   return invoke("run_card_delete", { id });
 }
 
+/** Newer version string, null when up to date; rejects when updates are
+ *  not configured (placeholder pubkey) or the network is unavailable. */
+export async function checkForUpdate(): Promise<string | null> {
+  return invoke("check_for_update");
+}
+
 export interface AuditExport {
   json_path: string;
   markdown_path: string;
