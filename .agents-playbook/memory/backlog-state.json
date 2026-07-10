@@ -542,5 +542,14 @@
     "agent_id": "agent",
     "mode": "coding",
     "updated_at": "2026-07-10T17:19:04.423Z"
+  },
+  "H7": {
+    "status": "done",
+    "loop_id": "loop-20260705-002",
+    "claimed_at": "2026-07-10T17:19:31.677Z",
+    "claimed_by": "agent",
+    "agent_id": "agent",
+    "mode": "coding",
+    "updated_at": "2026-07-10T17:22:44.657Z"
   }
 }

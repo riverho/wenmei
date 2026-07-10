@@ -115,6 +115,33 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             logging::init(&state::config_dir());
+
+            // Production panic hook: any thread panic lands in crash.log and,
+            // best-effort, in the sidecar feed as a system alert. State may be
+            // poisoned mid-panic, so the file write is the reliable half.
+            let panic_app = app.handle().clone();
+            std::panic::set_hook(Box::new(move |info| {
+                let msg = format!(
+                    "[{}] panic: {}\n",
+                    chrono::Utc::now().to_rfc3339(),
+                    info
+                );
+                let crash_file = state::config_dir().join("crash.log");
+                let _ = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&crash_file)
+                    .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
+                eprintln!("{msg}");
+                journal::emit_notification(
+                    &panic_app,
+                    "system.panic",
+                    "Wenmei hit an internal error",
+                    "Details were written to crash.log — please report this.",
+                    None,
+                );
+            }));
+
             polling::start_file_polling(app.handle().clone());
             control::start_control_server(app.handle().clone());
             heartbeat::start_heartbeat(app.handle().clone());

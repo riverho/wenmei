@@ -194,18 +194,60 @@ pub fn run_card_delete(state: State<'_, WenmeiState>, id: String) -> Result<(), 
     Ok(())
 }
 
+/// Staging dir soft alarm — warn before the review baseline cap bites and
+/// files start landing as BaselineMissing (unrestorable on reject).
+const STAGING_ALERT_BYTES: u64 = 160 * 1024 * 1024; // 80% of the 200 MB cap
+const RESOURCE_CHECK_EVERY_TICKS: u32 = 12; // ~1 min at 5s ticks
+
+fn dir_size(path: &PathBuf) -> u64 {
+    let Ok(entries) = fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                dir_size(&p)
+            } else {
+                e.metadata().map(|m| m.len()).unwrap_or(0)
+            }
+        })
+        .sum()
+}
+
 /// Scheduler thread: scans the active project's run cards and raises
-/// overdue/stuck alerts. Dispatching work into terminals is the
-/// orchestrator's job (H11) — this thread only watches and notifies.
+/// overdue/stuck alerts, plus periodic resource checks. Dispatching work
+/// into terminals is the orchestrator's job (H11) — this thread only
+/// watches and notifies.
 pub fn start_heartbeat(app: AppHandle) {
-    thread::spawn(move || loop {
+    thread::spawn(move || {
+        let mut tick: u32 = 0;
+        loop {
         thread::sleep(Duration::from_millis(TICK_MS));
+        tick = tick.wrapping_add(1);
         let Some(state) = app.try_state::<WenmeiState>() else {
             continue;
         };
         let Ok(vault) = active_vault(&state) else {
             continue;
         };
+        if tick % RESOURCE_CHECK_EVERY_TICKS == 0 {
+            let staging = PathBuf::from(&vault.path).join(".wenmei/staging");
+            let bytes = dir_size(&staging);
+            if bytes > STAGING_ALERT_BYTES {
+                emit_notification(
+                    &app,
+                    "resource.staging",
+                    "Review staging near its cap",
+                    &format!(
+                        "{} MB of baselines staged (cap 200 MB) — approve or reject pending changesets, or new files won't be restorable.",
+                        bytes / (1024 * 1024)
+                    ),
+                    None,
+                );
+            }
+        }
         for mut card in load_cards(&vault.path) {
             if card.status != RunStatus::Running {
                 continue;
@@ -230,6 +272,7 @@ pub fn start_heartbeat(app: AppHandle) {
                     None,
                 );
             }
+        }
         }
     });
 }

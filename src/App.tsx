@@ -21,6 +21,7 @@ import PiPanel from "./components/PiPanel";
 import ReviewPanel from "./components/ReviewPanel";
 import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
 import Lightbox from "./components/Lightbox";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import "./App.css";
 
@@ -350,5 +351,9 @@ function RightPanel() {
 }
 
 export default function App() {
-  return <AppContent />;
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  );
 }
