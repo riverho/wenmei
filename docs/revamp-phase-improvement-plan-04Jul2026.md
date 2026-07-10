@@ -419,18 +419,18 @@ UI prefs and keymap in the Zustand store, machine/vault-level settings
 key) in Rust `AppState` → `state.json` through the bridge. No dead toggles:
 a control that isn't wired doesn't ship.
 
-- [ ] F1 unified-sidecar design doc (event taxonomy, hydration, filters).
-- [ ] F2 notifications backend: journal kinds + `wenmei-notification` emits
+- [x] F1 unified-sidecar design doc (event taxonomy, hydration, filters).
+- [x] F2 notifications backend: journal kinds + `wenmei-notification` emits
       from review/nightshift/terminal-stuck/narration paths; OS notification
       (plugin already initialized) when the window is unfocused.
-- [ ] F3 multi-session terminal backend with per-session narration.
-- [ ] F4 terminal tab strip wired to real sessions; per-tab narrate.
-- [ ] F5 sidecar unified feed panel (filters, long scroll, journal hydrate).
-- [ ] F6 settings port + full persistence (UX agent + bridge wiring).
-- [ ] F7 header bell + settings gear in the real app (UX agent).
-- [ ] F8 multi-window: file → new Tauri window with its own sandbox scope.
-- [ ] F9 custom keymap persisted; shortcuts hook reads it.
-- [ ] F10 exit validation: checks green + a human run of tabs, feed, and
+- [x] F3 multi-session terminal backend with per-session narration.
+- [x] F4 terminal tab strip wired to real sessions; per-tab narrate.
+- [x] F5 sidecar unified feed panel (filters, long scroll, journal hydrate).
+- [x] F6 settings port + full persistence (UX agent + bridge wiring).
+- [x] F7 header bell + settings gear in the real app (UX agent).
+- [x] F8 multi-window: file → new Tauri window with its own sandbox scope.
+- [x] F9 custom keymap persisted; shortcuts hook reads it.
+- [x] F10 exit validation: checks green + a human run of tabs, feed, and
       every settings control round-tripping through restart.
 
 #### F11–F14 — Sidecar surgery addendum (approved 08 Jul 2026)
@@ -451,19 +451,64 @@ carry over verbatim:
 3. `filteredItems` — `inputActive || filter === "chat"` → chat only;
    `all` → interleaved by timestamp; otherwise filter-matched.
 
-- [ ] F11 feed surgery in PiPanel: port sidecar-types, assemble overlay items
+- [x] F11 feed surgery in PiPanel: port sidecar-types, assemble overlay items
       from the existing narration/notification/review listeners + journal
       hydrate on open, unread model (`lastSeenTs`, dots, divider), the three
       mechanics above. Chat pipeline untouched.
-- [ ] F12 detail pane: port SidecarDetail; overlay items click-to-expand
+- [x] F12 detail pane: port SidecarDetail; overlay items click-to-expand
       (long content, diffs, artifacts, file refs via readFile); chat items
       deliberately don't.
-- [ ] F13 settings for real: port the full playground SettingsPanel; persist
+- [x] F13 settings for real: port the full playground SettingsPanel; persist
       machine-level fields (`narrate_by_default`, `terminal_tab_limit`,
       `terminal_tabs_unlimited`, `sandbox_new_windows`, `narration_depth`)
       in AppState/state.json via bridge. Replace the read-only stub.
-- [ ] F14 bell into Header + deep-link (opens sidecar, Alerts filter, scrolls
+- [x] F14 bell into Header + deep-link (opens sidecar, Alerts filter, scrolls
       to unread divider); salvage the dead UX-agent worktree, then remove it.
+
+**Phase F close note (08 Jul 2026):** F1-F14 are recorded done in the
+playbook. `app_design/` remains the accepted ongoing visual playground; the
+real app adapts the approved sidecar/settings/bell mechanics into production
+components rather than deleting the playground.
+
+### Phase G — v1.0 RC hardening (opened 08 Jul 2026)
+
+Goal: turn the Phase F-complete app into a release candidate. This phase is
+not a launch phase and not a new feature phase. It hardens the local-first
+agent cockpit so a human can make a clear go/no-go decision for L4.
+
+**Boundary:** stop before L4. No `1.0.0` version bump, no `v1.0` git tag, no
+GitHub release publishing, and no announcement until River gives explicit
+launch sign-off.
+
+**What "RC" means here:**
+
+- The dirty tree is intentional and explainable: accepted playground changes,
+  real app Phase F ports, playbook records, and agent-facing memory/contract
+  files are bucketed and ready for review.
+- Known high-confidence bugs are fixed before subjective launch judgment:
+  Finder/opened path formatting, stale control-plane discovery, and the
+  background poller behavior that can trigger macOS permission prompts.
+- The desktop app is validated as a product surface, not just compiled:
+  root checks, playground checks, Rust checks, Tauri bundle build, and
+  control-plane smoke all produce evidence.
+- The launch decision is written as a go/no-go checklist, with remaining
+  risks named plainly.
+
+**RC tasks:**
+
+- [ ] RC1 consolidate the dirty tree into intentional buckets and produce a
+      v1.0 RC go/no-go checklist. Do not delete `app_design/`, `memory/`,
+      `sessions/`, or `design-contract.yaml`; they are current project inputs.
+- [ ] RC2 fix the known Finder/opened path formatting bug so vault-relative
+      file-open paths use `/path`, not `/ path`.
+- [ ] RC3 make `wenmeictl`/control discovery robust against stale repo-local
+      `.wenmei/wenmei-control.json` shadowing the live app-support control file.
+- [ ] RC4 reduce macOS permission-dialog risk from the background file poller
+      by avoiding unnecessary full-tree walks when idle or when vaults live in
+      protected locations.
+- [ ] RC5 run release-candidate desktop validation: root checks, `app_design`
+      checks, Rust check, Tauri app bundle build, control-plane smoke, and the
+      written launch checklist.
 
 ---
 

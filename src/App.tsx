@@ -19,7 +19,6 @@ import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
 import PiPanel from "./components/PiPanel";
 import ReviewPanel from "./components/ReviewPanel";
-import Notifications from "./components/Notifications";
 import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
 import Lightbox from "./components/Lightbox";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -227,7 +226,6 @@ function AppContent() {
       style={{ background: "var(--surface-0)" }}
     >
       <Header />
-      <Notifications />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel — Desktop */}

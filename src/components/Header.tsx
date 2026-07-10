@@ -33,6 +33,7 @@ import {
   Info,
   Settings,
 } from "lucide-react";
+import Notifications from "./Notifications";
 
 function findFirstFile(nodes: FileNode[]): FileNode | null {
   for (const node of nodes) {
@@ -393,6 +394,9 @@ export default function Header() {
         >
           <Settings size={15} />
         </button>
+
+        {/* Alerts */}
+        <Notifications />
 
         {/* Keyboard hint */}
         <div

@@ -210,6 +210,7 @@ export default function PiPanel() {
   const [showCommands, setShowCommands] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const overlayStackRef = useRef<HTMLDivElement>(null);
   const [typedResponses, setTypedResponses] = useState<Record<string, string>>(
     {}
   );
@@ -320,6 +321,28 @@ export default function PiPanel() {
     );
     return () => window.clearTimeout(timer);
   }, [feedFilter, inputActive, sidecarItems.length, markSidecarClassRead]);
+
+  useEffect(() => {
+    const onOpenFilter = (event: Event) => {
+      const filter = (event as CustomEvent<{ filter?: FeedFilter }>).detail
+        ?.filter;
+      if (filter !== "alerts" && filter !== "review" && filter !== "narrate") {
+        return;
+      }
+      setFeedFilter(filter);
+      setInputActive(false);
+      setOverlayPage(0);
+      window.setTimeout(() => {
+        overlayStackRef.current?.scrollIntoView({
+          block: "start",
+          behavior: "smooth",
+        });
+      }, 0);
+    };
+    window.addEventListener("wenmei-open-sidecar-filter", onOpenFilter);
+    return () =>
+      window.removeEventListener("wenmei-open-sidecar-filter", onOpenFilter);
+  }, []);
 
   const startPiForFocusedSandbox = useCallback(
     async (forceRestart = false) => {
@@ -1527,6 +1550,7 @@ export default function PiPanel() {
             layer; collapses entirely while the user is in the composer. */}
         {visibleItems.length > 0 && (
           <div
+            ref={overlayStackRef}
             className="mb-3 -mx-3 rounded-md overflow-hidden"
             style={{ border: "1px solid var(--surface-3)" }}
           >
