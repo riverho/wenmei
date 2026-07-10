@@ -20,6 +20,7 @@ mod review;
 mod search;
 mod state;
 mod terminal;
+mod heartbeat;
 mod vault;
 
 use crate::platform::Platform;
@@ -116,6 +117,7 @@ fn main() {
             logging::init(&state::config_dir());
             polling::start_file_polling(app.handle().clone());
             control::start_control_server(app.handle().clone());
+            heartbeat::start_heartbeat(app.handle().clone());
 
             let app_handle = app.handle().clone();
             app.listen("narration-digest", move |event| {
@@ -197,6 +199,11 @@ fn main() {
             journal::list_journal_events,
             journal::build_briefing,
             journal::export_audit,
+            heartbeat::run_card_create,
+            heartbeat::run_card_list,
+            heartbeat::run_card_set_status,
+            heartbeat::run_card_touch,
+            heartbeat::run_card_delete,
             nightshift::night_shift_start,
             nightshift::night_shift_status,
             pi_rpc::pi_panel_start,

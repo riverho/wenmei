@@ -572,6 +572,57 @@ export async function nightShiftStatus(): Promise<NightShiftRun | null> {
   return invoke("night_shift_status");
 }
 
+// ─── Heartbeat run cards (docs/design/sentinel-ledger.md §4) ───
+
+export type RunStatus =
+  | "idle"
+  | "running"
+  | "waiting_input"
+  | "stuck"
+  | "done"
+  | "blocked";
+
+export interface RunCard {
+  id: string;
+  goal: string;
+  wake: { kind: "interval"; secs: number } | { kind: "on_event"; event: string } | { kind: "manual" };
+  stop:
+    | { kind: "checks_pass"; command: string }
+    | { kind: "human_gate" }
+    | { kind: "budget"; tokens: number };
+  status: RunStatus;
+  created_at: string;
+  last_progress_epoch: number;
+  overdue_notified: boolean;
+}
+
+export async function runCardCreate(
+  goal: string,
+  wakeSecs?: number,
+  humanGate?: boolean
+): Promise<RunCard> {
+  return invoke("run_card_create", { goal, wakeSecs, humanGate });
+}
+
+export async function runCardList(): Promise<RunCard[]> {
+  return invoke("run_card_list");
+}
+
+export async function runCardSetStatus(
+  id: string,
+  status: RunStatus
+): Promise<RunCard> {
+  return invoke("run_card_set_status", { id, status });
+}
+
+export async function runCardTouch(id: string): Promise<void> {
+  return invoke("run_card_touch", { id });
+}
+
+export async function runCardDelete(id: string): Promise<void> {
+  return invoke("run_card_delete", { id });
+}
+
 export interface AuditExport {
   json_path: string;
   markdown_path: string;
