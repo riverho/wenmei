@@ -55,10 +55,7 @@ export const mockAppState: AppPersistedState = {
   active_vault_id: "vault-mock-001",
   sandboxes: mockSandboxes,
   active_sandbox_id: "default-root",
-  action_log: [
-    "[mock] initialized mock vault",
-    "[mock] loaded file tree",
-  ],
+  action_log: ["[mock] initialized mock vault", "[mock] loaded file tree"],
   open_mode: "vault",
   metadata_mode: "local",
   sandbox_auth_status: "promoted",
@@ -402,10 +399,7 @@ set -euo pipefail
 open -na "Wenmei" --args "$@"
 `,
   ],
-  [
-    "/public/logo-icon.png",
-    "[binary data: logo icon]",
-  ],
+  ["/public/logo-icon.png", "[binary data: logo icon]"],
 ]);
 
 function buildMockTree(): FileNode[] {
@@ -643,14 +637,19 @@ export function removeNode(nodes: FileNode[], path: string): boolean {
   return false;
 }
 
-export function addChild(nodes: FileNode[], parentPath: string, child: FileNode): boolean {
+export function addChild(
+  nodes: FileNode[],
+  parentPath: string,
+  child: FileNode
+): boolean {
   for (const node of nodes) {
     if (node.path === parentPath && node.node_type === "folder") {
       node.children = node.children ?? [];
       node.children.push(child);
       return true;
     }
-    if (node.children && addChild(node.children, parentPath, child)) return true;
+    if (node.children && addChild(node.children, parentPath, child))
+      return true;
   }
   return false;
 }

@@ -293,3 +293,32 @@
 .cursor-blink {
   animation: cursor-blink 530ms infinite;
 }
+
+/* Keyboard shortcut kbd elements */
+kbd {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 10px;
+}
+
+/* ─── Sidecar Detail Overlay Animation ─── */
+@keyframes sidecar-detail-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes sidecar-detail-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+}

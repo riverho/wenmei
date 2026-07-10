@@ -56,10 +56,10 @@ When prototyping new features:
 
 ```css
 /* Light */
---surface-0: #f6f4f2;   /* Page background */
---surface-1: #ffffff;    /* Card/panel background */
---surface-2: #eae7e3;    /* Hover/selected background */
---surface-3: #d9d5cf;    /* Borders */
+--surface-0: #f6f4f2; /* Page background */
+--surface-1: #ffffff; /* Card/panel background */
+--surface-2: #eae7e3; /* Hover/selected background */
+--surface-3: #d9d5cf; /* Borders */
 --text-primary: #111111;
 --text-secondary: #5c5c5c;
 --text-tertiary: #9a9590;

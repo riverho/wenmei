@@ -6,18 +6,19 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 
 ## Design Principles
 
-| Principle | Implementation |
-|-----------|----------------|
-| **Warm & Calm** | Surface colors like warm paper (#f6f4f2 / #0f0f0f) — not clinical white/black |
-| **Teal Accent** | Primary actions, links, active states (#008673 light / #00d9b5 dark) |
-| **Rose for Danger** | Destructive actions only (#c24a4a light / #ff6b6b dark) |
-| **Journal Feel** | Playfair Display serif for headings; JetBrains Mono for code/terminal |
-| **Glass Morphism** | Subtle backdrop blur on Pi/Review panels (16px blur, 140% saturate) |
-| **Micro-animations** | Panel slide-ins, paper reveal, logo glitch on hover |
+| Principle            | Implementation                                                                |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **Warm & Calm**      | Surface colors like warm paper (#f6f4f2 / #0f0f0f) — not clinical white/black |
+| **Teal Accent**      | Primary actions, links, active states (#008673 light / #00d9b5 dark)          |
+| **Rose for Danger**  | Destructive actions only (#c24a4a light / #ff6b6b dark)                       |
+| **Journal Feel**     | Playfair Display serif for headings; JetBrains Mono for code/terminal         |
+| **Glass Morphism**   | Subtle backdrop blur on Pi/Review panels (16px blur, 140% saturate)           |
+| **Micro-animations** | Panel slide-ins, paper reveal, logo glitch on hover                           |
 
 ## Color Tokens
 
 ### Light Theme
+
 ```
 --surface-0: #f6f4f2   /* Page background */
 --surface-1: #ffffff   /* Card/panel background */
@@ -31,6 +32,7 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 ```
 
 ### Dark Theme
+
 ```
 --surface-0: #0f0f0f
 --surface-1: #141414
@@ -45,17 +47,18 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 
 ## Typography
 
-| Role | Font | Weight | Size |
-|------|------|--------|------|
-| Headings | Playfair Display | 400 | 28–38px |
-| Body | Inter | 400 | 15–16px |
-| Editor | JetBrains Mono | 400 | 15px / line-height 24px |
-| Terminal | Geist Mono | 400 | 13px / line-height 1.35 |
-| UI Labels | Inter | 500–600 | 10–12px uppercase tracking-wider |
+| Role      | Font             | Weight  | Size                             |
+| --------- | ---------------- | ------- | -------------------------------- |
+| Headings  | Playfair Display | 400     | 28–38px                          |
+| Body      | Inter            | 400     | 15–16px                          |
+| Editor    | JetBrains Mono   | 400     | 15px / line-height 24px          |
+| Terminal  | Geist Mono       | 400     | 13px / line-height 1.35          |
+| UI Labels | Inter            | 500–600 | 10–12px uppercase tracking-wider |
 
 ## Components
 
 ### Header
+
 - Logo with glitch animation on hover
 - Vault switcher dropdown
 - Mode toggle pills (Edit / Preview / Split)
@@ -64,6 +67,7 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 - Theme cycle button (system → light → dark → ...)
 
 ### FileTree
+
 - Hierarchical file/folder browser with chevron expand
 - Search input with live filtering
 - New file (+/-) buttons
@@ -74,6 +78,7 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 - Move to folder modal
 
 ### CenterPanel — View Modes
+
 1. **Edit** — Plain textarea with line numbers
 2. **Preview** — Rendered markdown
 3. **Split** — Editor left, preview right, draggable divider
@@ -81,6 +86,7 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 5. **Terminal** — Embedded PTY (xterm.js)
 
 ### PiPanel
+
 - Glass-morphism background
 - Status bar (connected/offline, thinking level)
 - Message history with role differentiation (user = right-aligned, system = left)
@@ -92,6 +98,7 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 - Run details expandable panel
 
 ### ReviewPanel
+
 - Tab alongside Pi in right panel
 - Session start/stop controls
 - Changeset list with status badges (Added/Modified/Deleted)
@@ -100,6 +107,7 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 - Run timeline footer
 
 ### TerminalPanel
+
 - Full-width dark terminal (#0a0d10 background)
 - Activity indicator (active/idle/stuck)
 - Narration toggle
@@ -107,43 +115,45 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 - Session context display (cwd, log file path)
 
 ### Lightbox
+
 - Backdrop blur overlay
 - Onboarding wizard (2 pages)
 - Settings modal (CLI install status)
 - Slides up from bottom on mobile, centered on desktop
 
 ### MobileDrawers
+
 - File drawer: slides in from left
 - Pi sheet: slides up from bottom with drag handle
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| Cmd/Ctrl + 1 | Toggle left panel |
-| Cmd/Ctrl + 2 | Focus editor |
-| Cmd/Ctrl + 3 | Toggle right panel + focus Pi input |
-| Cmd/Ctrl + E | Edit mode |
-| Cmd/Ctrl + P | Paper mode |
-| Cmd/Ctrl + Shift + P | Preview mode |
-| Cmd/Ctrl + ` | Toggle terminal |
-| Cmd/Ctrl + B | Focus file search |
-| Cmd/Ctrl + K | Command palette (Pi input) |
-| Cmd/Ctrl + N | New file |
-| Cmd/Ctrl + Shift + N | New folder |
-| Cmd/Ctrl + , | Cycle theme |
-| Cmd/Ctrl + \ | Split mode |
-| Escape | Exit paper/terminal mode |
-| Cmd/Ctrl + Shift + ` | Toggle plain terminal (narration on by default) |
-| Cmd/Ctrl + Shift + T | New terminal tab (opens terminal if not already there) |
+| Shortcut             | Action                                                   |
+| -------------------- | -------------------------------------------------------- |
+| Cmd/Ctrl + 1         | Toggle left panel                                        |
+| Cmd/Ctrl + 2         | Focus editor                                             |
+| Cmd/Ctrl + 3         | Toggle right panel + focus Pi input                      |
+| Cmd/Ctrl + E         | Edit mode                                                |
+| Cmd/Ctrl + P         | Paper mode                                               |
+| Cmd/Ctrl + Shift + P | Preview mode                                             |
+| Cmd/Ctrl + `         | Toggle terminal                                          |
+| Cmd/Ctrl + B         | Focus file search                                        |
+| Cmd/Ctrl + K         | Command palette (Pi input)                               |
+| Cmd/Ctrl + N         | New file                                                 |
+| Cmd/Ctrl + Shift + N | New folder                                               |
+| Cmd/Ctrl + ,         | Cycle theme                                              |
+| Cmd/Ctrl + \         | Split mode                                               |
+| Escape               | Exit paper/terminal mode                                 |
+| Cmd/Ctrl + Shift + ` | Toggle plain terminal (narration on by default)          |
+| Cmd/Ctrl + Shift + T | New terminal tab (opens terminal if not already there)   |
 | Cmd/Ctrl + Shift + O | Open the active file in a new Wenmei window (sandbox on) |
-| Cmd/Ctrl + Shift + , | Open Settings |
+| Cmd/Ctrl + Shift + , | Open Settings                                            |
 
 ### Production features (07 Jul 2026)
 
 - **Plain terminal, narrate-on-default.** The header Terminal button and
   `Ctrl+Shift+\`` open a plain shell — no Pi seat unless narration is on.
-  New tabs inherit the `Narrate new tabs by default` preference
+New tabs inherit the `Narrate new tabs by default` preference
   (Settings › Terminal), which ships **on**.
 - **Terminal tabs.** `TerminalPanel` renders a tab strip (`TerminalTabBar`)
   with per-tab narrate dot, close buttons, a `+` (`Ctrl+Shift+T`), and a
@@ -177,39 +187,61 @@ Complete UI/UX design sandbox for the Wenmei desktop app — an agentic thinking
 
 ```css
 /* Panel slide-ins */
-.animate-header-slide  { animation: header-slide-down 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-left-panel    { animation: left-panel-slide 0.7s 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-right-panel   { animation: right-panel-slide 0.6s 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-paper-reveal  { animation: paper-reveal 0.5s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-header-slide {
+  animation: header-slide-down 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-left-panel {
+  animation: left-panel-slide 0.7s 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-right-panel {
+  animation: right-panel-slide 0.6s 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-paper-reveal {
+  animation: paper-reveal 0.5s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
 /* Logo glitch on hover */
-.logo-glitch:hover { animation: wenmei-text-glitch 2.5s steps(10, end) infinite; }
+.logo-glitch:hover {
+  animation: wenmei-text-glitch 2.5s steps(10, end) infinite;
+}
 
 /* Cursor blink for Pi terminal streaming */
-.cursor-blink { animation: cursor-blink 530ms infinite; }
+.cursor-blink {
+  animation: cursor-blink 530ms infinite;
+}
 ```
 
 ## Custom Scrollbar
 
 ```css
-.wenmei-scroll::-webkit-scrollbar { width: 6px; }
-.wenmei-scroll::-webkit-scrollbar-track { background: transparent; }
-.wenmei-scroll::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
-.wenmei-scroll::-webkit-scrollbar-thumb:hover { width: 10px; background: var(--text-tertiary); }
+.wenmei-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.wenmei-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wenmei-scroll::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 3px;
+}
+.wenmei-scroll::-webkit-scrollbar-thumb:hover {
+  width: 10px;
+  background: var(--text-tertiary);
+}
 ```
 
 ## Markdown Preview Classes
 
-| Class | Description |
-|-------|-------------|
-| `.md-h1` – `.md-h6` | Serif headings with proper spacing |
-| `.md-p` | Body paragraphs (16px, line-height 1.7) |
-| `.md-blockquote` | Teal left-border quote block |
-| `.md-pre` / `.md-code` | Code blocks with syntax-bg background |
-| `.inline-code` | Inline code (teal color, surface-2 background) |
-| `.md-table-wrap` | Scrollable table wrapper |
-| `.md-task` | Task list checkbox (accent-teal) |
-| `.prose-paper .*` | Enhanced typography for paper mode |
+| Class                  | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `.md-h1` – `.md-h6`    | Serif headings with proper spacing             |
+| `.md-p`                | Body paragraphs (16px, line-height 1.7)        |
+| `.md-blockquote`       | Teal left-border quote block                   |
+| `.md-pre` / `.md-code` | Code blocks with syntax-bg background          |
+| `.inline-code`         | Inline code (teal color, surface-2 background) |
+| `.md-table-wrap`       | Scrollable table wrapper                       |
+| `.md-task`             | Task list checkbox (accent-teal)               |
+| `.prose-paper .*`      | Enhanced typography for paper mode             |
 
 ## Running
 

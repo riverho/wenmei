@@ -51,7 +51,8 @@ export async function readFile(path: string): Promise<FileContent> {
   if (!node || node.node_type !== "file") {
     throw new Error(`File not found: ${path}`);
   }
-  const content = mockFileContents.get(path) ?? "// No content for this file.\n";
+  const content =
+    mockFileContents.get(path) ?? "// No content for this file.\n";
   return { path, content, name: node.name };
 }
 
@@ -123,7 +124,8 @@ export async function renameFile(
   if (!node) throw new Error(`File not found: ${oldPath}`);
 
   const parentPath = findParentPath(oldPath);
-  const newPath = parentPath === "/" ? `/${newName}` : `${parentPath}/${newName}`;
+  const newPath =
+    parentPath === "/" ? `/${newName}` : `${parentPath}/${newName}`;
 
   if (oldPath !== newPath && findNode(mockFileTree, newPath)) {
     throw new Error(`Name already exists: ${newName}`);
@@ -199,9 +201,7 @@ export async function moveFile(
   removeNode(mockFileTree, source);
 
   const newPath =
-    targetFolder === "/"
-      ? `/${node.name}`
-      : `${targetFolder}/${node.name}`;
+    targetFolder === "/" ? `/${node.name}` : `${targetFolder}/${node.name}`;
 
   // Avoid collision
   let finalPath = newPath;
@@ -286,9 +286,7 @@ export async function searchWorkspace(query: string): Promise<SearchResult[]> {
   return mockSearchResults(query);
 }
 
-export async function searchAllVaults(
-  query: string
-): Promise<SearchResult[]> {
+export async function searchAllVaults(query: string): Promise<SearchResult[]> {
   return searchWorkspace(query);
 }
 
@@ -309,7 +307,10 @@ function loadMockAppState(): AppPersistedState {
 function persistMockAppState() {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(MOCK_STATE_KEY, JSON.stringify(currentAppState));
+    window.localStorage.setItem(
+      MOCK_STATE_KEY,
+      JSON.stringify(currentAppState)
+    );
   } catch {
     // Browser dev mode should keep working even if localStorage is unavailable.
   }
@@ -322,9 +323,7 @@ export async function getAppState(): Promise<AppPersistedState> {
   return { ...currentAppState };
 }
 
-export async function saveAppState(
-  state: AppPersistedState
-): Promise<void> {
+export async function saveAppState(state: AppPersistedState): Promise<void> {
   await delay(20);
   currentAppState = { ...state };
   persistMockAppState();
@@ -518,9 +517,7 @@ export async function appendJournal(
   });
 }
 
-export async function listJournalEvents(
-  limit = 50
-): Promise<JournalEvent[]> {
+export async function listJournalEvents(limit = 50): Promise<JournalEvent[]> {
   await delay(20);
   return mockJournalEvents.slice(0, limit);
 }
@@ -558,9 +555,7 @@ export async function reviewReject(path: string): Promise<void> {
 
 export async function reviewChangeset(): Promise<unknown[]> {
   await delay(20);
-  return mockReviewSession
-    ? Object.values(mockReviewSession.entries)
-    : [];
+  return mockReviewSession ? Object.values(mockReviewSession.entries) : [];
 }
 
 export async function reviewAnnotate(
@@ -612,7 +607,9 @@ export async function terminalStop(): Promise<void> {
   // no-op in mock
 }
 
-export async function terminalSetNarrationEnabled(_enabled: boolean): Promise<boolean> {
+export async function terminalSetNarrationEnabled(
+  _enabled: boolean
+): Promise<boolean> {
   return _enabled;
 }
 

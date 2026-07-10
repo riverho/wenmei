@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { Plus, X, Radio } from "lucide-react";
+import { Plus, X, Volume2 } from "lucide-react";
 import { listen, type UnlistenFn } from "@/lib/tauri-events";
 import { useAppStore, TERMINAL_TAB_MB } from "@/store/appStore";
 import {
@@ -14,6 +14,7 @@ import {
 import "@xterm/xterm/css/xterm.css";
 
 interface TerminalOutputPayload {
+  session_id?: string;
   data: number[];
   activity?: TerminalActivityStatus;
 }
@@ -28,11 +29,8 @@ function resetMessage(error: unknown) {
   return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
 }
 
-/**
- * Tab strip for the terminal mode. Each tab is a separate PTY session in the
- * real app; the playground keeps one xterm and drives its header/narration
- * from the active tab so the tab UX can be reviewed without N live sessions.
- */
+// ─── Tab strip ─────────────────────────────────────────────────────────────────
+
 function TerminalTabBar() {
   const {
     terminalTabs,
@@ -42,15 +40,20 @@ function TerminalTabBar() {
     addTerminalTab,
     closeTerminalTab,
     setActiveTerminalTab,
+    setTabNarrate,
   } = useAppStore();
 
   const atLimit =
     !terminalTabsUnlimited && terminalTabs.length >= terminalTabLimit;
   const usedMb = terminalTabs.length * TERMINAL_TAB_MB;
 
+  const handleAddTab = () => {
+    addTerminalTab();
+  };
+
   return (
     <div
-      className="flex items-stretch gap-px overflow-x-auto shrink-0"
+      className="flex items-stretch overflow-x-auto shrink-0"
       style={{ background: "#070a0d", borderBottom: "1px solid #1b2127" }}
     >
       {terminalTabs.map(tab => {
@@ -59,48 +62,71 @@ function TerminalTabBar() {
           <div
             key={tab.id}
             onClick={() => setActiveTerminalTab(tab.id)}
-            className="group flex items-center gap-2 pl-3 pr-2 py-1.5 cursor-pointer shrink-0 transition-colors"
+            className="group flex items-center gap-2 pl-3 pr-2 py-1.5 cursor-pointer shrink-0 transition-colors border-t-2"
             style={{
               background: active ? "#0a0d10" : "transparent",
-              borderTop: active
-                ? "2px solid var(--accent-teal)"
-                : "2px solid transparent",
+              borderTopColor: active ? "var(--accent-teal)" : "transparent",
               color: active ? "#d7dde5" : "#7c8894",
+              minWidth: 0,
             }}
           >
-            <Radio
-              size={11}
+            {/* Narration indicator dot */}
+            <div
+              className="w-2 h-2 rounded-full shrink-0"
               style={{
-                color: tab.narrate ? "#5eead4" : "#41505c",
+                background: tab.narrate ? "#5eead4" : "#2a333d",
+                boxShadow: tab.narrate ? "0 0 4px #5eead4" : "none",
               }}
-            />
-            <span className="text-[11px] font-mono whitespace-nowrap">
-              {tab.title}
-            </span>
-            <button
+              title={
+                tab.narrate ? `Narration on · click to toggle` : "Narration off"
+              }
               onClick={e => {
                 e.stopPropagation();
-                closeTerminalTab(tab.id);
+                setTabNarrate(tab.id, !tab.narrate);
               }}
-              className="flex items-center justify-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: "#7c8894" }}
-              title="Close tab"
-            >
-              <X size={11} />
-            </button>
+            />
+
+            {/* Tab title */}
+            <span className="text-[11px] font-mono whitespace-nowrap truncate max-w-[120px]">
+              {tab.title}
+            </span>
+
+            {/* Close button */}
+            {terminalTabs.length > 1 && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  closeTerminalTab(tab.id);
+                }}
+                className="flex items-center justify-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 shrink-0"
+                style={{ color: "#7c8894" }}
+                title="Close tab"
+              >
+                <X size={11} />
+              </button>
+            )}
           </div>
         );
       })}
 
+      {/* New tab button */}
       <button
-        onClick={() => addTerminalTab()}
+        onClick={handleAddTab}
         disabled={atLimit}
-        className="flex items-center justify-center w-8 shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
+        className="flex items-center justify-center w-8 shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         style={{ color: "#7c8894" }}
+        onMouseEnter={e => {
+          if (!atLimit)
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(255,255,255,0.05)";
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLElement).style.background = "transparent";
+        }}
         title={
           atLimit
             ? `Tab limit reached (${terminalTabLimit}) — raise it in Settings`
-            : "New terminal tab (Ctrl+Shift+T)"
+            : "New terminal tab"
         }
       >
         <Plus size={14} />
@@ -108,32 +134,42 @@ function TerminalTabBar() {
 
       <div className="flex-1" />
 
+      {/* Memory indicator */}
       <div
-        className="flex items-center gap-1.5 px-3 shrink-0 text-[10px] uppercase tracking-wider"
+        className="flex items-center gap-1.5 px-3 shrink-0 text-[10px]"
         style={{ color: "#5a6570" }}
         title={
           terminalTabsUnlimited
-            ? "Unlimited tabs (bounded by available memory)"
-            : `${terminalTabs.length} of ${terminalTabLimit} tabs · ~${usedMb} MB`
+            ? "Unlimited tabs"
+            : `${usedMb} MB used by ${terminalTabs.length} tabs · limit ${terminalTabLimit}`
         }
       >
-        <span>
-          {terminalTabs.length}
-          {terminalTabsUnlimited ? "" : `/${terminalTabLimit}`} tabs
-        </span>
-        <span style={{ color: "#3a434c" }}>·</span>
         <span>~{usedMb} MB</span>
+        {!terminalTabsUnlimited && (
+          <span
+            style={{
+              color: usedMb > TERMINAL_TAB_MB * 5 ? "#f59e0b" : "#3a434c",
+            }}
+          >
+            {terminalTabs.length}/{terminalTabLimit}
+          </span>
+        )}
       </div>
     </div>
   );
 }
+
+// ─── Main panel ───────────────────────────────────────────────────────────────
 
 export default function TerminalPanel() {
   const { activeVaultId, activeSandboxId } = useAppStore();
   const terminalTabs = useAppStore(s => s.terminalTabs);
   const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
   const setTabNarrate = useAppStore(s => s.setTabNarrate);
-  const activeTab = terminalTabs.find(t => t.id === activeTerminalTabId) ?? null;
+  const activeTab =
+    terminalTabs.find(t => t.id === activeTerminalTabId) ??
+    terminalTabs[0] ??
+    null;
 
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -151,6 +187,7 @@ export default function TerminalPanel() {
 
   const narrationEnabled = activeTab?.narrate ?? false;
 
+  // Initialize xterm
   useEffect(() => {
     if (!hostRef.current) return;
 
@@ -219,6 +256,7 @@ export default function TerminalPanel() {
     termRef.current = term;
     fitRef.current = fit;
 
+    // Write input to backend
     const writeDisposable = term.onData(data => {
       lastInputAtRef.current = Date.now();
       setActivity("active");
@@ -279,8 +317,10 @@ export default function TerminalPanel() {
           }
         }
         const message = String(err);
-        if (!disposed) setError(message);
-        term.writeln(`\r\n[Wenmei terminal failed: ${message}]`);
+        if (!disposed) {
+          setError(message);
+          term.writeln(`\r\n[Wenmei terminal failed: ${message}]`);
+        }
       }
     }
 
@@ -303,20 +343,22 @@ export default function TerminalPanel() {
     };
   }, []);
 
+  // Restart session when vault/sandbox changes
   useEffect(() => {
     if (!contextRef.current) return;
     startRef.current?.();
   }, [activeVaultId, activeSandboxId]);
 
-  // Playground: switching tabs writes a divider so the tab change is visible
-  // against the single shared xterm buffer.
+  // Tab switch: announce in terminal
   useEffect(() => {
     if (!termRef.current || !activeTab) return;
     termRef.current.writeln(
-      `\r\n\x1b[2m── ${activeTab.title} ${activeTab.narrate ? "· narrate on" : ""} ──\x1b[0m`
+      `\r\n\x1b[2m── ${activeTab.title} · ${activeTab.narrate ? "narration on" : "narration off"} ──\x1b[0m\r\n`
     );
-    // Fire only on tab switch; reading activeTab.narrate here is intentional.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Sync narration with backend when switching tabs
+    terminalSetNarrationEnabled(activeTab.narrate).catch(() => {
+      setNarrationOffline(true);
+    });
   }, [activeTerminalTabId]);
 
   const toggleNarration = async () => {
@@ -343,30 +385,30 @@ export default function TerminalPanel() {
       className="flex flex-col h-full overflow-hidden"
       style={{ background: "#0a0d10" }}
     >
+      {/* ── Tab strip ── */}
       <TerminalTabBar />
 
+      {/* ── Status bar ── */}
       <div
-        className="flex items-center justify-between gap-3 px-4 py-2 border-b text-xs"
+        className="flex items-center justify-between gap-3 px-4 py-2 shrink-0 text-xs"
         style={{
-          borderColor: "var(--surface-3)",
+          borderBottom: "1px solid #1b2127",
           color: "var(--text-tertiary)",
         }}
       >
-        <div className="truncate">
+        {/* Session info */}
+        <div className="truncate min-w-0">
           <span style={{ color: "var(--accent-teal)" }}>
             {activeTab?.title ?? "Terminal"}
           </span>
           {context ? (
-            <span className="ml-2">{context.cwd}</span>
+            <span className="ml-2 truncate">{context.cwd}</span>
           ) : (
             <span className="ml-2">starting…</span>
           )}
         </div>
-        {context && (
-          <div className="hidden lg:block truncate">
-            log: {context.log_file}
-          </div>
-        )}
+
+        {/* Activity */}
         <div
           className="flex items-center gap-1.5 shrink-0 text-[10px] uppercase tracking-wider"
           style={{ color: activityColor }}
@@ -382,16 +424,14 @@ export default function TerminalPanel() {
           />
           {activity}
         </div>
+
+        {/* Narration toggle */}
         <button
           onClick={toggleNarration}
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors shrink-0"
           style={{
-            borderColor: narrationEnabled
-              ? "var(--accent-teal)"
-              : "var(--surface-3)",
-            color: narrationEnabled
-              ? "var(--accent-teal)"
-              : "var(--text-tertiary)",
+            borderColor: narrationEnabled ? "var(--accent-teal)" : "#2a333d",
+            color: narrationEnabled ? "var(--accent-teal)" : "#7c8894",
             background: narrationEnabled
               ? "rgba(94, 234, 212, 0.08)"
               : "transparent",
@@ -400,24 +440,30 @@ export default function TerminalPanel() {
             narrationOffline
               ? "Sidecar offline"
               : narrationEnabled
-                ? "Narration on for this tab"
-                : "Narration off for this tab"
+                ? "Narration on for this tab — click to disable"
+                : "Narration off — click to enable"
           }
         >
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{
-              background: narrationOffline
-                ? "#f87171"
-                : narrationEnabled
-                  ? "var(--accent-teal)"
-                  : "var(--text-tertiary)",
-            }}
-          />
-          {narrationOffline ? "Sidecar offline" : "Narrate"}
+          <Volume2 size={10} />
+          {narrationOffline
+            ? "Sidecar offline"
+            : narrationEnabled
+              ? "Narrate on"
+              : "Narrate"}
         </button>
-        {error && <div style={{ color: "#f87171" }}>{error}</div>}
+
+        {/* Error */}
+        {error && (
+          <div
+            className="text-[10px] truncate max-w-[200px]"
+            style={{ color: "#f87171" }}
+          >
+            {error}
+          </div>
+        )}
       </div>
+
+      {/* ── Terminal host ── */}
       <div ref={hostRef} className="flex-1 min-h-0 p-2" />
     </div>
   );

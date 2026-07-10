@@ -17,11 +17,9 @@ import {
 import Header from "./components/Header";
 import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
-import PiPanel from "./components/PiPanel";
-import ReviewPanel from "./components/ReviewPanel";
+import SidecarFeed from "./components/SidecarFeed";
 import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
 import Lightbox from "./components/Lightbox";
-import ChildWindowLayer from "./components/ChildWindowLayer";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import "./App.css";
 
@@ -63,9 +61,7 @@ function AppContent() {
         const tree = await listFiles();
         if (mounted) setFileTree(tree);
 
-        // Load desktop harness state. Pinned/recent are backend-owned and
-        // surfaced via FileNode.is_pinned / is_recent on the file tree —
-        // no separate store mirror needed.
+        // Load desktop harness state
         const [vaults, sandboxes, actionLog] = await Promise.all([
           listVaults(),
           listSandboxes(),
@@ -88,8 +84,6 @@ function AppContent() {
             }
           } catch (err) {
             console.warn(`Could not open startup file "${fileToOpen}":`, err);
-            // If the file no longer exists, clear the active file so the user
-            // doesn't see a stale state.
             if (mounted) setActiveFile(null, "", "");
           }
         }
@@ -158,7 +152,7 @@ function AppContent() {
     }
   }, [mode]);
 
-  // Sandbox journal/file events refresh the file panel and @file index source.
+  // Sandbox journal/file events refresh the file panel
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
     listen("sandbox-files-changed", () => {
@@ -171,7 +165,7 @@ function AppContent() {
     return () => unlisten?.();
   }, [setFileTree]);
 
-  // Handle OS-level file open events (Finder double-click, open -a, etc.)
+  // Handle OS-level file open events (Finder double-click, etc.)
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
     listen<string>("os-file-opened", event => {
@@ -186,13 +180,11 @@ function AppContent() {
     return () => unlisten?.();
   }, [setActiveFile]);
 
-  // Handle single-instance file open (Windows/Linux double-click while running)
+  // Handle single-instance file open (Windows/Linux)
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
     listen<string[]>("single-instance", event => {
-      const args = event.payload;
-      // args[0] is the executable; file paths start at args[1]
-      const path = args.find(
+      const path = event.payload.find(
         arg =>
           arg.endsWith(".md") ||
           arg.endsWith(".markdown") ||
@@ -227,7 +219,7 @@ function AppContent() {
           <CenterPanel />
         </div>
 
-        {/* Right Panel — Desktop */}
+        {/* Right Panel — Desktop: unified sidecar feed */}
         <RightPanel />
       </div>
 
@@ -237,9 +229,6 @@ function AppContent() {
 
       {/* Lightbox (onboarding, settings, etc.) */}
       <Lightbox />
-
-      {/* Multi-window mock layer (playground visualization) */}
-      <ChildWindowLayer />
     </div>
   );
 }
@@ -290,56 +279,19 @@ function LeftPanel() {
 
 function RightPanel() {
   const { rightPanelOpen, rightPanelWidth } = useAppStore();
-  const [tab, setTab] = useState<"pi" | "review">("pi");
-  // Sidecar (Pi/Review) stays available in every mode, including terminal —
-  // it opens on demand via the header toggle or Ctrl+3.
+  // The unified feed (F5) replaces the Pi/Review tab split.
+  // SidecarFeed handles filtering internally and opens SidecarDetail
+  // (90% overlay) for full message inspection.
   return (
     <div
-      className="hidden md:flex flex-col shrink-0 transition-all duration-300 ease-out overflow-hidden"
+      className="hidden md:flex shrink-0 overflow-hidden"
       style={{
         width: rightPanelOpen ? rightPanelWidth : 0,
         opacity: rightPanelOpen ? 1 : 0,
+        borderLeft: rightPanelOpen ? "1px solid var(--surface-3)" : "none",
       }}
     >
-      {rightPanelOpen && (
-        <>
-          <div
-            className="flex shrink-0"
-            style={{ borderBottom: "1px solid var(--surface-3)" }}
-          >
-            <button
-              onClick={() => setTab("pi")}
-              className="flex-1 px-2 py-1 text-[10px] uppercase tracking-wider transition-colors"
-              style={{
-                color:
-                  tab === "pi"
-                    ? "var(--text-secondary)"
-                    : "var(--text-tertiary)",
-                background: tab === "pi" ? "var(--surface-1)" : "transparent",
-              }}
-            >
-              Pi
-            </button>
-            <button
-              onClick={() => setTab("review")}
-              className="flex-1 px-2 py-1 text-[10px] uppercase tracking-wider transition-colors"
-              style={{
-                color:
-                  tab === "review"
-                    ? "var(--text-secondary)"
-                    : "var(--text-tertiary)",
-                background:
-                  tab === "review" ? "var(--surface-1)" : "transparent",
-              }}
-            >
-              Review
-            </button>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            {tab === "pi" ? <PiPanel /> : <ReviewPanel />}
-          </div>
-        </>
-      )}
+      {rightPanelOpen && <SidecarFeed />}
     </div>
   );
 }
