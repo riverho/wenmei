@@ -246,6 +246,10 @@ pub fn terminal_start(
                             stored.drain(0..drain_to);
                         }
                     }
+                    // push_bytes maintains the always-on screen tail that the
+                    // approval relay reads for needs_input prompt detection
+                    // (approval.rs / docs/design/sentinel-ledger.md §3), even
+                    // when narration is off.
                     if let Ok(mut nb) = buf_for_read.lock() {
                         nb.push_bytes(&data);
                     }
