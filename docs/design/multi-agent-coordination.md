@@ -16,14 +16,23 @@ afterward, from a quiesced tree:
 - **The coordination layer held perfectly.** `.agents-playbook/` had zero
   concurrent `in_progress` claims and `journal.ndjson` was 113 lines, 0
   malformed. The atomic-claim + append-only discipline survived four agents.
-- **The filesystem layer did not.** `design-contract.yaml` was silently
-  **relocated** (root deleted, a diverged copy added under `app_design/`) —
-  a delete-plus-add git can't recognize as a move, with **no conflict flag
-  and no error**. Everything sat in one shared uncommitted pile; the next
-  `git add -A && commit` by any agent would have swept the other three's
-  half-finished work into its commit.
+- **The filesystem layer had no boundaries.** Every change — from agents and
+  from a human working in parallel — landed in **one shared uncommitted
+  pile** spanning `app_design/`, `docs/`, `landing/`, and infra scripts.
+  Nothing isolated whose change was whose. The next `git add -A && commit` by
+  any actor would have swept everyone else's half-finished work into its
+  commit.
 
-No corruption occurred only because the agents happened to work in mostly
+**Correction (recorded for honesty):** an earlier draft of this doc cited the
+relocation of `design-contract.yaml` (root → `app_design/`) as a *silent
+agent race*. That was a misattribution — the move was a **deliberate human
+action**, not an agent collision. The correct evidence is the *shared
+uncommitted pile with no per-actor isolation*, which is a hazard regardless
+of who authored each change. The lesson is unchanged; the example was wrong,
+and the meta-lesson is real too: **ambiguous working-tree state must be
+surfaced to the human, not assumed to be an agent collision.**
+
+No corruption occurred only because the actors happened to work in mostly
 disjoint areas and finished before colliding. That is luck, not design.
 
 **The lesson in one line:** what is central and atomic (the ledger) survives
@@ -33,11 +42,11 @@ concurrency; what is shared and uncoordinated (the filesystem) does not.
 
 Two coordination units exist and the gap is between them:
 
-- **The playbook** coordinates *intent* — `pb next --claim`, one task
+- **The playbook** coordinates _intent_ — `pb next --claim`, one task
   in-progress, append-only journal. It answers "who is doing which task."
 - **The filesystem** is the uncoordinated shared resource.
 
-Two agents can claim two *different* tasks that edit the *same* file. The
+Two agents can claim two _different_ tasks that edit the _same_ file. The
 claim never touched files, so it cannot prevent that. Every downstream
 symptom — write priority, stale reads, partial writes, last-writer-wins —
 is one root: **the unit of coordination (task) ≠ the unit of contention
@@ -54,7 +63,7 @@ nature.
 Two proven escape hatches, neither invented here:
 
 1. **Isolation (git worktree per agent).** N working directories over one
-   `.git`. Agents write in *different directories*, so "two agents write the
+   `.git`. Agents write in _different directories_, so "two agents write the
    same file" cannot happen. Contention moves to **merge**, which git has
    solved for two decades (deterministic 3-way merge, real tooling). Proven
    in this repo: the spawned UX agent ran in `.claude/worktrees/agent-…`.
@@ -79,7 +88,7 @@ append-only, atomic claim.**
 - The orchestrator creates one worktree + branch per agent
   (`git worktree add .wenmei/worktrees/<agent-id> -b agent/<task-id>`).
 - The agent's harness is spawned with that worktree as cwd. It works alone,
-  by construction — no shared-file race is *possible*.
+  by construction — no shared-file race is _possible_.
 - Merge is git's job; resolution runs through the checker (§4.4).
 
 ### 4.2 The ledger MUST NOT be worktree'd (the subtle trap)
@@ -93,10 +102,10 @@ Rule: **isolate the work; centralize the coordination.**
 
 - **Work files** → per-agent worktree.
 - **Coordination state** (`.agents-playbook/` + the control plane) → one
-  shared location, *above* the worktrees, single source of truth, atomic
+  shared location, _above_ the worktrees, single source of truth, atomic
   claims through `pb`/the control server. Never per-worktree.
 
-Concretely: agents claim/record against the *main* checkout's playbook via
+Concretely: agents claim/record against the _main_ checkout's playbook via
 the control plane (`orchestrator.status` / `pb` over the plane), not against
 a copy inside their worktree.
 
@@ -107,7 +116,7 @@ Extend the claim so it reserves files, not just a task id:
 - `pb next --claim` (and the orchestrator's dispatch) attaches a **path
   scope** to the task — the paths that task is allowed to touch.
 - Wenmei's sandbox already does path containment; extend it to a per-agent
-  **scope lease**: writes outside the lease are *rejected*, not
+  **scope lease**: writes outside the lease are _rejected_, not
   detected-after. This is the "clear mind" — non-overlapping assignment up
   front. Leases are advisory-but-enforced, short-lived, and released on
   record/close.
@@ -123,9 +132,9 @@ is often nastier than code (no semantic merge). So:
 
 - Integration to `main`/the vault runs through the **context-isolated
   checker** (sentinel-ledger §5): fresh session, no doer transcript, reads
-  the review ledger + cycle brief, scores the merge against *intent*.
+  the review ledger + cycle brief, scores the merge against _intent_.
 - A non-`pass` verdict holds the branch and escalates (`safety.checker_flag`).
-  Isolation removes the *race*; it does not remove the *review gate* — it
+  Isolation removes the _race_; it does not remove the _review gate_ — it
   feeds it cleaner input.
 
 ### 4.5 Non-git vaults (the knowledge-worker fallback)
@@ -138,21 +147,21 @@ are not repos. There:
   or a copy-on-write pseudo-worktree under `.wenmei/`.
 - **Honesty:** the baseline path is **polling-based** (B3) — after-the-fact
   and itself racy (two writes between polls can miss the baseline; the B6
-  pre-image race). It *detects* collisions but cannot *prevent* them and can
+  pre-image race). It _detects_ collisions but cannot _prevent_ them and can
   miss some. So worktree isolation is the strong primitive for git-backed
   parallelism; the review path is the fallback, not the foundation.
 
 ## 5. Failure policy (written before failures)
 
-| Event | Policy |
-| --- | --- |
-| worker session dies mid-task | keep the worktree, journal, reassign or block (never silently discard — the dead UX-agent worktree was salvaged this way) |
-| scope-lease conflict at claim | orchestrator isolates (worktree) instead of sharing, or serializes |
-| merge conflict at integration | checker resolves/escalates; never doer self-merge |
-| stale read (A reads, B edits, A writes) | worktree makes it a merge conflict → §4.4; shared path → baseline detects |
-| contended hot file (shared config, the ledger) | short orchestrator-held advisory lease; ledger only via CLI/plane |
-| checker flags risk | hold the branch unmerged, `safety.checker_flag`, await human |
-| abandoned/stale worktree | orchestrator prunes on task close; `git worktree prune` on startup (the 11-Jul run left a dead worktree behind — cleanup is policy, not optional) |
+| Event                                          | Policy                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| worker session dies mid-task                   | keep the worktree, journal, reassign or block (never silently discard — the dead UX-agent worktree was salvaged this way)                         |
+| scope-lease conflict at claim                  | orchestrator isolates (worktree) instead of sharing, or serializes                                                                                |
+| merge conflict at integration                  | checker resolves/escalates; never doer self-merge                                                                                                 |
+| stale read (A reads, B edits, A writes)        | worktree makes it a merge conflict → §4.4; shared path → baseline detects                                                                         |
+| contended hot file (shared config, the ledger) | short orchestrator-held advisory lease; ledger only via CLI/plane                                                                                 |
+| checker flags risk                             | hold the branch unmerged, `safety.checker_flag`, await human                                                                                      |
+| abandoned/stale worktree                       | orchestrator prunes on task close; `git worktree prune` on startup (the 11-Jul run left a dead worktree behind — cleanup is policy, not optional) |
 
 ## 6. Invariants (the rules that must hold)
 
@@ -172,6 +181,7 @@ orchestrator + isolated-checker surface (H11 scaffold), per-tab PTY
 isolation (H18 — N agents each in their own shell).
 
 **Needed:**
+
 - Orchestrator worktree lifecycle: create-per-agent, spawn-in-cwd,
   merge-through-checker, prune-on-close.
 - Scope-lease extension to the claim + sandbox enforcement.
@@ -183,7 +193,7 @@ isolation (H18 — N agents each in their own shell).
 ## 8. Sequencing
 
 This is the **front-half of H11**: assigning work so it doesn't collide, and
-integrating it safely, *is* the orchestrator's core job. Build order:
+integrating it safely, _is_ the orchestrator's core job. Build order:
 worktree lifecycle → ledger-central enforcement → scope leases → merge-
 through-checker. Runtime autonomous claiming stays behind the H10/H11 human-
 validation gate.

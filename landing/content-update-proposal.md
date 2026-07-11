@@ -9,8 +9,8 @@ Refresh `landing/index.html` so it speaks to the current Wenmei product: **a sid
 ## What is out of date today
 
 1. **Version badge** still says `v0.1.0`; the live product is `v0.2.1`.
-2. **Hero framing** leads with "terminal" and "manager" — accurate, but it still sounds like terminal tooling. It should land the stronger category: *a sidecar control room for AI agents*.
-3. **Value props are split between audiences without naming the overlap**: advanced users already have VS Code, Cursor, Ghostty, Warp, Claude Code, Codex, Aider, etc.; end users need a simpler promise. The overlap is not "editor" or "terminal" — it is *supervision for agent work*.
+2. **Hero framing** leads with "terminal" and "manager" — accurate, but it still sounds like terminal tooling. It should land the stronger category: _a sidecar control room for AI agents_.
+3. **Value props are split between audiences without naming the overlap**: advanced users already have VS Code, Cursor, Ghostty, Warp, Claude Code, Codex, Aider, etc.; end users need a simpler promise. The overlap is not "editor" or "terminal" — it is _supervision for agent work_.
 4. **"How it works"** describes three surfaces but misses the signal/action loop: Wenmei observes agent output and file changes, surfaces what matters, and gives actions like review, reject, steer, resume, or roll back.
 5. **No clear value proposition hierarchy**: local-first, visibility, and control are all present but scattered.
 6. **Social proof / use cases** are absent. The page does not help a visitor picture themselves using it.
@@ -119,7 +119,7 @@ Use calm signal/action icons rather than literal terminal chrome everywhere. The
 
 ### How it works
 
-Keep the three-step structure, but reframe around the *signal/action loop*, not just surfaces:
+Keep the three-step structure, but reframe around the _signal/action loop_, not just surfaces:
 
 1. **Keep working where you work.** Use your editor, terminal, and agent setup. Point Wenmei at the local folder that matters.
 2. **Let the sidecar watch.** Wenmei observes terminal output, file changes, review events, and journal entries. It filters the run into important signals.
@@ -178,12 +178,12 @@ Simplify:
 
 ## Specific copy to retire
 
-| Current | Why retire | Replace with |
-|---|---|---|
-| "Every powerful agent is a terminal. Wenmei gives it a manager." | Too terminal-centric; invites comparison with Warp/Ghostty/iTerm instead of defining the missing layer. | "Keep your tools. Add a sidecar for agent work." |
-| "Point an AI agent at a folder of your real files." | Good, but too end-user generic and not differentiated for advanced users. | "Wenmei watches agents working in your local folders and turns important signals into actions." |
-| "Run Claude Code, Codex, Aider — any CLI agent" | Useful for technical proof, but too narrow for the hero. | "Works beside the agents and tools you already use." |
-| "The safe desktop where agents do real work — visible, reviewable, reversible." | Still true, but less sharp than the sidecar category. | Use as supporting copy below the hero. |
+| Current                                                                         | Why retire                                                                                              | Replace with                                                                                    |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| "Every powerful agent is a terminal. Wenmei gives it a manager."                | Too terminal-centric; invites comparison with Warp/Ghostty/iTerm instead of defining the missing layer. | "Keep your tools. Add a sidecar for agent work."                                                |
+| "Point an AI agent at a folder of your real files."                             | Good, but too end-user generic and not differentiated for advanced users.                               | "Wenmei watches agents working in your local folders and turns important signals into actions." |
+| "Run Claude Code, Codex, Aider — any CLI agent"                                 | Useful for technical proof, but too narrow for the hero.                                                | "Works beside the agents and tools you already use."                                            |
+| "The safe desktop where agents do real work — visible, reviewable, reversible." | Still true, but less sharp than the sidecar category.                                                   | Use as supporting copy below the hero.                                                          |
 
 ---
 
