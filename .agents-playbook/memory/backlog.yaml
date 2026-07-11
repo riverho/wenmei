@@ -1465,3 +1465,26 @@ tasks:
       (TerminalInstance), output filtered by session_id, kept mounted on
       switch; terminal_set_active on focus. Each tab is a real isolated shell
       — the substrate for multiple agents on one playbook.
+
+  - id: H11a
+    title: Multi-agent coordination design — worktree isolation + central ledger
+    status: todo
+    priority: 89
+    skill: run-task
+    phase: H
+    tags: [docs, design, orchestration, coordination]
+    design_ref: docs/design/multi-agent-coordination.md
+    acceptance_checks:
+      - test -f ../docs/design/multi-agent-coordination.md
+      - grep -qi "worktree" ../docs/design/multi-agent-coordination.md
+      - grep -qi "centralize the coordination" ../docs/design/multi-agent-coordination.md
+      - grep -qi "scope lease" ../docs/design/multi-agent-coordination.md
+      - grep -qi "checker" ../docs/design/multi-agent-coordination.md
+    notes: >-
+      Coordination model: worktree-per-agent for git-backed projects (borrow
+      git, no lock manager); ledger + control plane stay central and atomic
+      (never worktree'd, or task-claim re-breaks); scope leases as the claim
+      extension; merge through the isolated checker; review/baseline as the
+      non-git fallback with its polling caveat. Grounded in the 11-Jul
+      four-agent live-fire (design-contract.yaml silent relocation). Front-half
+      of H11; build order in §8.
