@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
 
@@ -60,18 +61,86 @@ pub struct ReviewSession {
     pub entries: HashMap<String, ChangesetEntry>,
     pub known_paths: HashSet<String>,
     pub total_baseline_bytes: u64,
+    /// If true, the vault is a git repo and we use HEAD as the immutable
+    /// baseline instead of copying files into .wenmei/staging.
+    pub git_backed: bool,
 }
 
 impl ReviewSession {
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, git_backed: bool) -> Self {
         Self {
             id,
             started_at: chrono::Utc::now().to_rfc3339(),
             entries: HashMap::new(),
             known_paths: HashSet::new(),
             total_baseline_bytes: 0,
+            git_backed,
         }
     }
+}
+
+fn git_available() -> bool {
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn is_git_repo(vault_path: &Path) -> bool {
+    vault_path.join(".git").is_dir() && git_available()
+}
+
+/// Restore a file from git HEAD. The path must be vault-relative (leading `/`
+/// is stripped). Returns an error if git is unavailable or the path is not
+/// tracked in HEAD.
+fn git_restore_from_head(vault_path: &Path, rel: &str) -> Result<(), String> {
+    let rel = rel.trim_start_matches('/');
+    let output = Command::new("git")
+        .args(["checkout", "HEAD", "--", rel])
+        .current_dir(vault_path)
+        .output()
+        .map_err(|e| format!("git restore failed: {}", e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git checkout failed: {}", stderr));
+    }
+    Ok(())
+}
+
+/// Read the HEAD version of a file into memory. Returns None if the file is
+/// not tracked in HEAD (e.g., an added-but-not-committed file).
+fn git_read_head(vault_path: &Path, rel: &str) -> Result<Option<Vec<u8>>, String> {
+    let rel = rel.trim_start_matches('/');
+    let output = Command::new("git")
+        .args(["show", &format!("HEAD:{}", rel)])
+        .current_dir(vault_path)
+        .output()
+        .map_err(|e| format!("git show failed: {}", e))?;
+    if output.status.success() {
+        Ok(Some(output.stdout))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("Path '") && stderr.contains("' does not exist") {
+            Ok(None)
+        } else {
+            Err(format!("git show failed: {}", stderr))
+        }
+    }
+}
+
+fn git_file_hash(vault_path: &Path, rel: &str) -> Option<String> {
+    git_read_head(vault_path, rel)
+        .ok()
+        .flatten()
+        .map(|bytes| {
+            let mut hash: u64 = 0xcbf29ce484222325;
+            for byte in bytes {
+                hash ^= byte as u64;
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+            format!("fnv1a64:{:016x}", hash)
+        })
 }
 
 fn staging_root(vault_path: &Path) -> PathBuf {
@@ -119,10 +188,22 @@ fn file_hash(path: &Path) -> Option<String> {
     Some(format!("fnv1a64:{:016x}", hash))
 }
 
-fn restore_available(status: &ChangeStatus, baseline: &Path) -> bool {
+fn restore_available(
+    status: &ChangeStatus,
+    baseline: &Path,
+    git_backed: bool,
+    vault_path: &Path,
+    rel: &str,
+) -> bool {
     match status {
         ChangeStatus::Added => true,
-        ChangeStatus::Modified | ChangeStatus::Deleted => baseline.exists(),
+        ChangeStatus::Modified | ChangeStatus::Deleted => {
+            if git_backed {
+                git_read_head(vault_path, rel).map(|v| v.is_some()).unwrap_or(false)
+            } else {
+                baseline.exists()
+            }
+        }
         ChangeStatus::BaselineMissing => false,
     }
 }
@@ -156,8 +237,14 @@ fn append_file_review_ledger(
     final_decision: Option<String>,
     annotation: Option<String>,
 ) -> Result<(), String> {
+    let git_backed = is_git_repo(vault_path);
     let baseline = baseline_path(vault_path, session_id, path);
     let current = vault_path.join(path.trim_start_matches('/'));
+    let baseline_hash = if git_backed {
+        git_file_hash(vault_path, path)
+    } else {
+        file_hash(&baseline)
+    };
     append_review_ledger(
         vault_path,
         ReviewLedger {
@@ -166,10 +253,10 @@ fn append_file_review_ledger(
             event: event.to_string(),
             path: Some(path.to_string()),
             status: Some(status.clone()),
-            baseline_hash: file_hash(&baseline),
+            baseline_hash,
             current_hash: file_hash(&current),
             size,
-            restore_available: restore_available(&status, &baseline),
+            restore_available: restore_available(&status, &baseline, git_backed, vault_path, path),
             reviewer: reviewer.to_string(),
             risk_level,
             proposed_decision,
@@ -281,9 +368,40 @@ pub fn ensure_baseline(
     };
 
     if session.entries.contains_key(path) {
-        // Already tracked; don't duplicate baseline.
+        // Already tracked; don't duplicate baseline or ledger entries.
+        if session.git_backed {
+            return Ok(true);
+        }
         let baseline = baseline_path(Path::new(&vault.path), &session.id, path);
         return Ok(baseline.exists());
+    }
+
+    // For git-backed vaults, HEAD is the immutable baseline. No copy needed.
+    if session.git_backed {
+        let session_id = session.id.clone();
+        session.entries.insert(
+            path.to_string(),
+            ChangesetEntry {
+                path: path.to_string(),
+                status: status.clone(),
+                size,
+            },
+        );
+        session.known_paths.insert(path.to_string());
+        let _ = append_file_review_ledger(
+            Path::new(&vault.path),
+            &session_id,
+            "change_observed",
+            path,
+            status,
+            size,
+            "system",
+            None,
+            None,
+            None,
+            None,
+        );
+        return Ok(true);
     }
 
     let baseline = baseline_path(Path::new(&vault.path), &session.id, path);
@@ -411,6 +529,11 @@ fn record_change(
 ) -> Result<(), String> {
     let mut current = state.review_session.lock().unwrap();
     if let Some(session) = current.as_mut() {
+        // Idempotent: polling may observe the same missing/deleted file many
+        // times. Only the first observation becomes a ledger event.
+        if session.entries.contains_key(path) {
+            return Ok(());
+        }
         let vault = active_vault(state)?;
         let session_id = session.id.clone();
         session.entries.insert(
@@ -492,13 +615,14 @@ fn emit_changeset_updated(app: &AppHandle, entries: Vec<ChangesetEntry>) {
 pub fn review_session_start(state: State<'_, WenmeiState>, app: AppHandle) -> Result<String, String> {
     let vault = active_vault(&state)?;
     let id = format!("rs-{}", chrono::Utc::now().timestamp_millis());
+    let git_backed = is_git_repo(Path::new(&vault.path));
 
     let dir = session_dir(Path::new(&vault.path), &id);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
     {
         let mut current = state.review_session.lock().unwrap();
-        *current = Some(ReviewSession::new(id.clone()));
+        *current = Some(ReviewSession::new(id.clone(), git_backed));
     }
 
     append_journal_event(
@@ -507,33 +631,40 @@ pub fn review_session_start(state: State<'_, WenmeiState>, app: AppHandle) -> Re
         "review-panel",
         None,
         format!("Review session {} started", id),
-        serde_json::json!({"session_id": id}),
+        serde_json::json!({"session_id": id, "git_backed": git_backed}),
     )?;
     append_session_review_ledger(
         Path::new(&vault.path),
         &id,
         "session_started",
         "system",
-        Some("Review session started".to_string()),
+        Some(format!(
+            "Review session started (git-backed: {})",
+            git_backed
+        )),
     )?;
 
     emit_changeset_updated(&app, vec![]);
 
-    // Snapshot current visible files recursively so PTY-driven edits can be
-    // rejected back to their true pre-session content.
-    let workspace = PathBuf::from(&vault.path);
-    for entry in WalkDir::new(&workspace)
-        .into_iter()
-        .filter_entry(|entry| {
-            let name = entry.file_name().to_string_lossy();
-            entry.depth() == 0 || (!name.starts_with('.') && name != ".wenmei")
-        })
-        .filter_map(|entry| entry.ok())
-    {
-        if entry.file_type().is_file() {
-            let path = entry.path();
-            let rel = relative_path(path, &workspace);
-            let _ = snapshot_existing_file(&state, &workspace, &rel, path);
+    // For git-backed vaults, HEAD is the immutable baseline; copying the whole
+    // tree into .wenmei/staging is wasted space. For non-git vaults we still
+    // eagerly snapshot visible files so PTY-driven edits can be rejected back
+    // to their true pre-session content.
+    if !git_backed {
+        let workspace = PathBuf::from(&vault.path);
+        for entry in WalkDir::new(&workspace)
+            .into_iter()
+            .filter_entry(|entry| {
+                let name = entry.file_name().to_string_lossy();
+                entry.depth() == 0 || (!name.starts_with('.') && name != ".wenmei")
+            })
+            .filter_map(|entry| entry.ok())
+        {
+            if entry.file_type().is_file() {
+                let path = entry.path();
+                let rel = relative_path(path, &workspace);
+                let _ = snapshot_existing_file(&state, &workspace, &rel, path);
+            }
         }
     }
 
@@ -598,43 +729,65 @@ pub fn review_approve(
 
     if let Some(entry) = removed {
         let vault = active_vault(&state)?;
-        let baseline = baseline_path(Path::new(&vault.path), &session_id, &path);
-        if baseline.exists() {
-            let _ = fs::remove_file(&baseline);
-        }
-        let full_path = resolve_path(&vault, &path)?;
-        if full_path.is_file() {
-            let size = full_path.metadata().map(|m| m.len()).unwrap_or(0);
-            let mut current = state.review_session.lock().unwrap();
-            if let Some(session) = current.as_mut() {
-                let _ = copy_baseline(
-                    Path::new(&vault.path),
-                    session,
-                    &path,
-                    &full_path,
-                    size,
-                )?;
-                session.known_paths.insert(path.clone());
-            }
+        let git_backed = {
+            let current = state.review_session.lock().unwrap();
+            current.as_ref().map(|s| s.git_backed).unwrap_or(false)
+        };
+
+        if git_backed {
+            // HEAD is the immutable baseline; no staging copy to manage.
+            let _ = append_file_review_ledger(
+                Path::new(&vault.path),
+                &session_id,
+                "decision",
+                &path,
+                entry.status,
+                entry.size,
+                "human",
+                None,
+                None,
+                Some("approved".to_string()),
+                Some("Approved from ReviewPanel".to_string()),
+            );
         } else {
-            let mut current = state.review_session.lock().unwrap();
-            if let Some(session) = current.as_mut() {
-                session.known_paths.remove(&path);
+            let baseline = baseline_path(Path::new(&vault.path), &session_id, &path);
+            if baseline.exists() {
+                let _ = fs::remove_file(&baseline);
             }
+            let full_path = resolve_path(&vault, &path)?;
+            if full_path.is_file() {
+                let size = full_path.metadata().map(|m| m.len()).unwrap_or(0);
+                let mut current = state.review_session.lock().unwrap();
+                if let Some(session) = current.as_mut() {
+                    let _ = copy_baseline(
+                        Path::new(&vault.path),
+                        session,
+                        &path,
+                        &full_path,
+                        size,
+                    )?;
+                    session.known_paths.insert(path.clone());
+                }
+            } else {
+                let mut current = state.review_session.lock().unwrap();
+                if let Some(session) = current.as_mut() {
+                    session.known_paths.remove(&path);
+                }
+            }
+            let _ = append_file_review_ledger(
+                Path::new(&vault.path),
+                &session_id,
+                "decision",
+                &path,
+                entry.status,
+                entry.size,
+                "human",
+                None,
+                None,
+                Some("approved".to_string()),
+                Some("Approved from ReviewPanel".to_string()),
+            );
         }
-        let _ = append_file_review_ledger(
-            Path::new(&vault.path),
-            &session_id,
-            "decision",
-            &path,
-            entry.status,
-            entry.size,
-            "human",
-            None,
-            None,
-            Some("approved".to_string()),
-            Some("Approved from ReviewPanel".to_string()),
-        );
     }
 
     append_journal_event(
@@ -677,6 +830,10 @@ pub fn review_reject(
     };
 
     let vault = active_vault(&state)?;
+    let git_backed = {
+        let current = state.review_session.lock().unwrap();
+        current.as_ref().map(|s| s.git_backed).unwrap_or(false)
+    };
     let baseline = baseline_path(Path::new(&vault.path), &session_id, &path);
     let full_path = resolve_path(&vault, &path)?;
 
@@ -687,13 +844,17 @@ pub fn review_reject(
             }
         }
         ChangeStatus::Modified | ChangeStatus::Deleted => {
-            if !baseline.exists() {
-                return Err(format!("No baseline available for {}", path));
+            if git_backed {
+                git_restore_from_head(Path::new(&vault.path), &path)?;
+            } else {
+                if !baseline.exists() {
+                    return Err(format!("No baseline available for {}", path));
+                }
+                if let Some(parent) = full_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                fs::copy(&baseline, &full_path).map_err(|e| e.to_string())?;
             }
-            if let Some(parent) = full_path.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            fs::copy(&baseline, &full_path).map_err(|e| e.to_string())?;
         }
         ChangeStatus::BaselineMissing => {
             return Err(format!("No baseline available for {}", path));

@@ -10,21 +10,30 @@ Nothing is ever auto-committed.
 
 ## Baseline strategy
 
-Lazy copy-on-first-touch into `.wenmei/staging/<session-id>/baseline/<rel-path>`:
+The goal is to make every agent edit reviewable and reversible without
+duplicating the whole vault.
 
 - A **review session** (`ReviewSession`, `rs-<epoch-ms>`) owns a staging dir
   and a map of `ChangesetEntry { path, status, size }`.
-- `ensure_baseline()` (`src-tauri/src/review.rs`) copies the pre-image the
-  first time a file is touched. Wenmei's own writes call it from hooks in
-  `file_ops.rs` (before `write_file`/`rename_file`/`move_file`); external/PTY
-  edits reach it via polling (`observe_external_change`).
+- **Git-backed vaults** (the common case for developer projects): `HEAD` is the
+  immutable baseline. No files are copied into `.wenmei/staging`. Reject means
+  `git checkout HEAD -- <path>`. This removes the staging-growth problem
+  entirely for git repos.
+- **Non-git vaults**: lazy copy-on-first-touch into
+  `.wenmei/staging/<session-id>/baseline/<rel-path>`. `ensure_baseline()`
+  (`src-tauri/src/review.rs`) copies the pre-image the first time a file is
+  touched. Wenmei's own writes call it from hooks in `file_ops.rs` (before
+  `write_file`/`rename_file`/`move_file`); external/PTY edits reach it via
+  polling (`observe_external_change`).
 - **Caps:** total baseline storage 200 MB per session (`STAGING_CAP_MB`);
   files >5 MB (`LARGE_FILE_MB`) are tracked but not copied — both are marked
   `ChangeStatus::BaselineMissing` so the UI can say "can't restore this one".
 - **PTY pre-image race:** polling may only notice a file _after_ the agent
-  changed it. Mitigation: `review_session_start` eagerly snapshots existing
-  visible files recursively at session start, excluding dot-directories and
-  `.wenmei/`.
+  changed it. For git-backed vaults this is not a race: `HEAD` is the
+  pre-session state. For non-git vaults the eager full-tree snapshot was the
+  mitigation, but it copies too much; the current compromise is lazy
+  copy-on-first-touch with the documented caveat that very rapid external
+  changes may be missed.
 - Deleted files: existing delete flow already moves to `.wenmei/trash/`;
   entries with `ChangeStatus::Deleted` restore from trash, not baseline.
 
@@ -44,8 +53,9 @@ External edit (PTY agent)       ──▶ polling.rs detects ──▶ observe_e
 
 Tauri commands (`review.rs`, registered in `main.rs`):
 
-- `review_session_start` → creates staging dir, snapshots md pre-images,
-  journals `review.session_started`, returns session id.
+- `review_session_start` → creates staging dir, detects git-backed vaults,
+  skips copying for git repos (HEAD is the baseline), journals
+  `review.session_started`, returns session id.
 - `review_changeset` → current entries (poll/refresh).
 - `review_approve(path)` → drop entry + its baseline copy; journals
   `review.approved`.
