@@ -267,8 +267,8 @@ When running `npm run dev` (outside Tauri), all backend calls fall through to `s
 - **Terminal decoupled.** Per-tab narrate dots/toggles removed; the tab dot
   is a plain session indicator.
 - **VaultMenu** replaces the `<select>`: switch with active check, `+ Add
-  folder`, per-vault `−` soft-remove (disabled on active), per-vault `Open
-  in new window` (separate instance mock via ChildWindowLayer), and a
+folder`, per-vault `−` soft-remove (disabled on active), per-vault `Open
+in new window` (separate instance mock via ChildWindowLayer), and a
   `Manage vaults` link into Settings.
 - **Settings › Vaults**: multi-select list, select-all, add/remove many.
   Removal is a soft detach from state.json — files never touched, nothing

@@ -112,10 +112,7 @@ export default function VaultMenu({
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        spawnChildWindow(
-                          vault.path,
-                          `${vault.name} — Wenmei`
-                        );
+                        spawnChildWindow(vault.path, `${vault.name} — Wenmei`);
                         setOpen(false);
                       }}
                       className="flex items-center justify-center w-5 h-5 rounded hover:bg-black/10"

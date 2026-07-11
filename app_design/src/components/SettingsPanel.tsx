@@ -176,9 +176,7 @@ function SettingsNav({
             "
             style={{
               background: isActive ? "var(--surface-2)" : "transparent",
-              color: isActive
-                ? "var(--text-primary)"
-                : "var(--text-secondary)",
+              color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
               fontWeight: isActive ? 600 : 400,
             }}
           >
@@ -186,14 +184,14 @@ function SettingsNav({
               size={13}
               className="shrink-0"
               style={{
-                color: isActive
-                  ? "var(--accent-teal)"
-                  : "var(--text-tertiary)",
+                color: isActive ? "var(--accent-teal)" : "var(--text-tertiary)",
               }}
             />
             {/* Hide labels on the tightest phones — icon + active label only */}
             <span
-              className={isActive ? "inline" : "hidden min-[420px]:inline md:inline"}
+              className={
+                isActive ? "inline" : "hidden min-[420px]:inline md:inline"
+              }
             >
               {label}
             </span>
@@ -623,294 +621,278 @@ export default function SettingsPanel() {
         className="flex-1 min-h-0 overflow-y-auto wenmei-scroll"
       >
         <div className="max-w-2xl px-4 py-4 md:px-6 md:py-5 space-y-6">
-        {/* ── General ── */}
-        <Section icon={Settings} title="General" id="general">
-          <SettingRow
-            label="Theme"
-            description="Color scheme for the interface"
-          >
-            <ThemeSelector />
-          </SettingRow>
-
-          <SettingRow
-            label="Left sidebar"
-            description="File tree and navigation panel"
-          >
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="Visible"
-              description="Show or hide the left sidebar"
-            />
-          </SettingRow>
-        </Section>
-
-        <Divider />
-
-        {/* ── Vaults ── */}
-        <VaultsSection />
-
-        <Divider />
-
-        {/* ── Terminal ── */}
-        <Section icon={Terminal} title="Terminal" id="terminal">
-          <SettingRow
-            label="Narration by default"
-            description="New terminal tabs start with narration enabled"
-          >
-            <Toggle
-              checked={narrateByDefault}
-              onChange={v => setNarrateByDefault(v)}
-              label="Narrate by default"
-              description="When enabled, new tabs start with narration on"
-            />
-          </SettingRow>
-
-          <SettingRow
-            label="Tab memory limit"
-            description="Max terminal tabs before oldest are garbage-collected"
-          >
-            <div className="flex items-center gap-3">
-              <Toggle
-                checked={terminalTabsUnlimited}
-                onChange={v => setTerminalTabsUnlimited(v)}
-                label="Unlimited"
-              />
-              {!terminalTabsUnlimited && (
-                <Stepper
-                  value={terminalTabLimit}
-                  onChange={v => setTerminalTabLimit(v)}
-                  min={1}
-                  max={32}
-                />
-              )}
-            </div>
-          </SettingRow>
-
-          <SettingRow
-            label="Estimated memory per tab"
-            description="Based on PTY scrollback + xterm buffer allocation"
-          >
-            <span
-              className="text-xs font-mono"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              ~9 MB / tab
-            </span>
-          </SettingRow>
-
-          <SettingRow
-            label="Show terminal bell"
-            description="Visual flash when a background process writes to the terminal"
-          >
-            <Toggle checked={true} onChange={() => {}} label="Terminal bell" />
-          </SettingRow>
-        </Section>
-
-        <Divider />
-
-        {/* ── Windows ── */}
-        <Section icon={Square} title="Windows" id="windows">
-          <SettingRow
-            label="Open files in new window"
-            description="Double-clicking a file or opening from Finder spawns a new app window"
-          >
-            <Toggle
-              checked={sandboxNewWindows}
-              onChange={v => setSandboxNewWindows(v)}
-              label="Sandbox in new windows"
-              description="New windows share the same vault/sandbox context"
-            />
-          </SettingRow>
-
-          <SettingRow
-            label="Multiple app instances"
-            description="Run Wenmei windows for different folders side by side — each vault gets its own window, sandbox scope, and terminal sessions (single-instance lock removed)"
-          >
-            <MultiInstanceToggle />
-          </SettingRow>
-
-          <SettingRow
-            label="New window position"
-            description="Where new app windows appear on screen"
-          >
-            <select
-              className="text-xs px-2 py-1 rounded border"
-              style={{
-                background: "var(--surface-2)",
-                borderColor: "var(--surface-3)",
-                color: "var(--text-secondary)",
-              }}
-              defaultValue="cascade"
-            >
-              <option value="cascade">Cascade from top-left</option>
-              <option value="center">Centered</option>
-              <option value="offset">Offset from last window</option>
-            </select>
-          </SettingRow>
-        </Section>
-
-        <Divider />
-
-        {/* ── Keyboard ── */}
-        <Section icon={Keyboard} title="Keyboard Shortcuts" id="keyboard">
-          <div
-            className="rounded-lg border overflow-hidden"
-            style={{ borderColor: "var(--surface-3)" }}
-          >
-            {DEFAULT_SHORTCUTS.map((shortcut, i) => (
-              <div
-                key={shortcut.action}
-                className="flex items-center justify-between px-3 py-2"
-                style={{
-                  background: i % 2 === 0 ? "var(--surface-0)" : "transparent",
-                  borderBottom:
-                    i < DEFAULT_SHORTCUTS.length - 1
-                      ? "1px solid var(--surface-3)"
-                      : "none",
-                }}
-              >
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {shortcut.label}
-                </span>
-                <KeyHint chord={`Ctrl+${i + 1}`} />
-              </div>
-            ))}
-          </div>
-
-          <button
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
-            style={{
-              background: "var(--surface-0)",
-              borderColor: "var(--surface-3)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <Keyboard size={11} />
-            Customize shortcuts
-          </button>
-        </Section>
-
-        <Divider />
-
-        {/* ── Agent & Narration ── */}
-        <Section icon={Bot} title="Agent &amp; Narration" id="agent">
-          <SettingRow
-            label="Sidecar engine"
-            description="The AI engine used for narration, commentary, and chat"
-          >
-            <select
-              className="text-xs px-2 py-1 rounded border"
-              style={{
-                background: "var(--surface-2)",
-                borderColor: "var(--surface-3)",
-                color: "var(--text-secondary)",
-              }}
-              defaultValue="pi"
-            >
-              <option value="pi">Pi (default)</option>
-              <option value="claude">Claude via API</option>
-              <option value="openai">OpenAI</option>
-            </select>
-          </SettingRow>
-
-          <SettingRow
-            label="Thinking level"
-            description="How much reasoning effort the sidecar uses"
-          >
-            <select
-              className="text-xs px-2 py-1 rounded border"
-              style={{
-                background: "var(--surface-2)",
-                borderColor: "var(--surface-3)",
-                color: "var(--text-secondary)",
-              }}
-              defaultValue="medium"
-            >
-              <option value="off">Off</option>
-              <option value="minimal">Minimal</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="xhigh">Extra High</option>
-              <option value="global">Global (use Pi config)</option>
-            </select>
-          </SettingRow>
-
-          <SettingRow
-            label="Drift detection"
-            description="Alert when agent output seems off-task"
-          >
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="Drift detection"
-            />
-          </SettingRow>
-
-          <SettingRow
-            label="Auto-briefing"
-            description="Paste session summary into new terminal tabs on start"
-          >
-            <Toggle checked={false} onChange={() => {}} label="Auto-briefing" />
-          </SettingRow>
-
-          <SettingRow
-            label="Narration flush interval"
-            description="How often the terminal output is summarized"
-          >
-            <select
-              className="text-xs px-2 py-1 rounded border"
-              style={{
-                background: "var(--surface-2)",
-                borderColor: "var(--surface-3)",
-                color: "var(--text-secondary)",
-              }}
-              defaultValue="idle"
-            >
-              <option value="5s">Every 5 seconds</option>
-              <option value="10s">Every 10 seconds</option>
-              <option value="idle">On idle (2.5s after last output)</option>
-              <option value="manual">Manual only</option>
-            </select>
-          </SettingRow>
-        </Section>
-
-        <Divider />
-
-        {/* ── Integrations ── */}
-        <Section icon={Link2} title="Integrations" id="integrations">
-          <SettingRow
-            label="CLI integration"
-            description="The wenmei command in your terminal"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded"
-                style={{
-                  background: "rgba(0, 134, 115, 0.1)",
-                  color: "var(--accent-teal)",
-                }}
-              >
-                <Check size={10} />
-                Installed
-              </span>
-              <button
-                className="text-[10px] px-2 py-1 rounded"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                Reinstall
-              </button>
-            </div>
-          </SettingRow>
-
-          {platform === "macos" && (
+          {/* ── General ── */}
+          <Section icon={Settings} title="General" id="general">
             <SettingRow
-              label="Finder Service"
-              description="Right-click context menu for markdown files"
+              label="Theme"
+              description="Color scheme for the interface"
+            >
+              <ThemeSelector />
+            </SettingRow>
+
+            <SettingRow
+              label="Left sidebar"
+              description="File tree and navigation panel"
+            >
+              <Toggle
+                checked={true}
+                onChange={() => {}}
+                label="Visible"
+                description="Show or hide the left sidebar"
+              />
+            </SettingRow>
+          </Section>
+
+          <Divider />
+
+          {/* ── Vaults ── */}
+          <VaultsSection />
+
+          <Divider />
+
+          {/* ── Terminal ── */}
+          <Section icon={Terminal} title="Terminal" id="terminal">
+            <SettingRow
+              label="Narration by default"
+              description="New terminal tabs start with narration enabled"
+            >
+              <Toggle
+                checked={narrateByDefault}
+                onChange={v => setNarrateByDefault(v)}
+                label="Narrate by default"
+                description="When enabled, new tabs start with narration on"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Tab memory limit"
+              description="Max terminal tabs before oldest are garbage-collected"
+            >
+              <div className="flex items-center gap-3">
+                <Toggle
+                  checked={terminalTabsUnlimited}
+                  onChange={v => setTerminalTabsUnlimited(v)}
+                  label="Unlimited"
+                />
+                {!terminalTabsUnlimited && (
+                  <Stepper
+                    value={terminalTabLimit}
+                    onChange={v => setTerminalTabLimit(v)}
+                    min={1}
+                    max={32}
+                  />
+                )}
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="Estimated memory per tab"
+              description="Based on PTY scrollback + xterm buffer allocation"
+            >
+              <span
+                className="text-xs font-mono"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                ~9 MB / tab
+              </span>
+            </SettingRow>
+
+            <SettingRow
+              label="Show terminal bell"
+              description="Visual flash when a background process writes to the terminal"
+            >
+              <Toggle
+                checked={true}
+                onChange={() => {}}
+                label="Terminal bell"
+              />
+            </SettingRow>
+          </Section>
+
+          <Divider />
+
+          {/* ── Windows ── */}
+          <Section icon={Square} title="Windows" id="windows">
+            <SettingRow
+              label="Open files in new window"
+              description="Double-clicking a file or opening from Finder spawns a new app window"
+            >
+              <Toggle
+                checked={sandboxNewWindows}
+                onChange={v => setSandboxNewWindows(v)}
+                label="Sandbox in new windows"
+                description="New windows share the same vault/sandbox context"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Multiple app instances"
+              description="Run Wenmei windows for different folders side by side — each vault gets its own window, sandbox scope, and terminal sessions (single-instance lock removed)"
+            >
+              <MultiInstanceToggle />
+            </SettingRow>
+
+            <SettingRow
+              label="New window position"
+              description="Where new app windows appear on screen"
+            >
+              <select
+                className="text-xs px-2 py-1 rounded border"
+                style={{
+                  background: "var(--surface-2)",
+                  borderColor: "var(--surface-3)",
+                  color: "var(--text-secondary)",
+                }}
+                defaultValue="cascade"
+              >
+                <option value="cascade">Cascade from top-left</option>
+                <option value="center">Centered</option>
+                <option value="offset">Offset from last window</option>
+              </select>
+            </SettingRow>
+          </Section>
+
+          <Divider />
+
+          {/* ── Keyboard ── */}
+          <Section icon={Keyboard} title="Keyboard Shortcuts" id="keyboard">
+            <div
+              className="rounded-lg border overflow-hidden"
+              style={{ borderColor: "var(--surface-3)" }}
+            >
+              {DEFAULT_SHORTCUTS.map((shortcut, i) => (
+                <div
+                  key={shortcut.action}
+                  className="flex items-center justify-between px-3 py-2"
+                  style={{
+                    background:
+                      i % 2 === 0 ? "var(--surface-0)" : "transparent",
+                    borderBottom:
+                      i < DEFAULT_SHORTCUTS.length - 1
+                        ? "1px solid var(--surface-3)"
+                        : "none",
+                  }}
+                >
+                  <span
+                    className="text-xs"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {shortcut.label}
+                  </span>
+                  <KeyHint chord={`Ctrl+${i + 1}`} />
+                </div>
+              ))}
+            </div>
+
+            <button
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+              style={{
+                background: "var(--surface-0)",
+                borderColor: "var(--surface-3)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <Keyboard size={11} />
+              Customize shortcuts
+            </button>
+          </Section>
+
+          <Divider />
+
+          {/* ── Agent & Narration ── */}
+          <Section icon={Bot} title="Agent &amp; Narration" id="agent">
+            <SettingRow
+              label="Sidecar engine"
+              description="The AI engine used for narration, commentary, and chat"
+            >
+              <select
+                className="text-xs px-2 py-1 rounded border"
+                style={{
+                  background: "var(--surface-2)",
+                  borderColor: "var(--surface-3)",
+                  color: "var(--text-secondary)",
+                }}
+                defaultValue="pi"
+              >
+                <option value="pi">Pi (default)</option>
+                <option value="claude">Claude via API</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </SettingRow>
+
+            <SettingRow
+              label="Thinking level"
+              description="How much reasoning effort the sidecar uses"
+            >
+              <select
+                className="text-xs px-2 py-1 rounded border"
+                style={{
+                  background: "var(--surface-2)",
+                  borderColor: "var(--surface-3)",
+                  color: "var(--text-secondary)",
+                }}
+                defaultValue="medium"
+              >
+                <option value="off">Off</option>
+                <option value="minimal">Minimal</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="xhigh">Extra High</option>
+                <option value="global">Global (use Pi config)</option>
+              </select>
+            </SettingRow>
+
+            <SettingRow
+              label="Drift detection"
+              description="Alert when agent output seems off-task"
+            >
+              <Toggle
+                checked={true}
+                onChange={() => {}}
+                label="Drift detection"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Auto-briefing"
+              description="Paste session summary into new terminal tabs on start"
+            >
+              <Toggle
+                checked={false}
+                onChange={() => {}}
+                label="Auto-briefing"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Narration flush interval"
+              description="How often the terminal output is summarized"
+            >
+              <select
+                className="text-xs px-2 py-1 rounded border"
+                style={{
+                  background: "var(--surface-2)",
+                  borderColor: "var(--surface-3)",
+                  color: "var(--text-secondary)",
+                }}
+                defaultValue="idle"
+              >
+                <option value="5s">Every 5 seconds</option>
+                <option value="10s">Every 10 seconds</option>
+                <option value="idle">On idle (2.5s after last output)</option>
+                <option value="manual">Manual only</option>
+              </select>
+            </SettingRow>
+          </Section>
+
+          <Divider />
+
+          {/* ── Integrations ── */}
+          <Section icon={Link2} title="Integrations" id="integrations">
+            <SettingRow
+              label="CLI integration"
+              description="The wenmei command in your terminal"
             >
               <div className="flex items-center gap-2">
                 <span
@@ -923,14 +905,91 @@ export default function SettingsPanel() {
                   <Check size={10} />
                   Installed
                 </span>
+                <button
+                  className="text-[10px] px-2 py-1 rounded"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Reinstall
+                </button>
               </div>
             </SettingRow>
-          )}
 
-          {platform === "macos" && (
+            {platform === "macos" && (
+              <SettingRow
+                label="Finder Service"
+                description="Right-click context menu for markdown files"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+                    style={{
+                      background: "rgba(0, 134, 115, 0.1)",
+                      color: "var(--accent-teal)",
+                    }}
+                  >
+                    <Check size={10} />
+                    Installed
+                  </span>
+                </div>
+              </SettingRow>
+            )}
+
+            {platform === "macos" && (
+              <SettingRow
+                label="Quick Look extension"
+                description="Markdown preview in Finder's space bar"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs px-2 py-1 rounded"
+                    style={{
+                      background: "var(--surface-2)",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    Not installed
+                  </span>
+                  <button
+                    className="text-[10px] px-2 py-1 rounded font-medium"
+                    style={{
+                      background: "var(--accent-teal)",
+                      color: "#fff",
+                    }}
+                  >
+                    Install
+                  </button>
+                </div>
+              </SettingRow>
+            )}
+
             <SettingRow
-              label="Quick Look extension"
-              description="Markdown preview in Finder's space bar"
+              label="Control plane"
+              description="Local JSON-RPC server for external agents"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+                  style={{
+                    background: "rgba(0, 134, 115, 0.1)",
+                    color: "var(--accent-teal)",
+                  }}
+                >
+                  <Check size={10} />
+                  Running on 127.0.0.1
+                </span>
+                <button
+                  className="flex items-center gap-1 text-[10px] px-2 py-1 rounded"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  <Copy size={10} />
+                  Copy token
+                </button>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="MCP server"
+              description="Model Context Protocol adapter for Claude Code / Codex"
             >
               <div className="flex items-center gap-2">
                 <span
@@ -940,256 +999,210 @@ export default function SettingsPanel() {
                     color: "var(--text-tertiary)",
                   }}
                 >
-                  Not installed
+                  Not configured
                 </span>
                 <button
                   className="text-[10px] px-2 py-1 rounded font-medium"
                   style={{
-                    background: "var(--accent-teal)",
-                    color: "#fff",
+                    background: "var(--surface-2)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--surface-3)",
                   }}
                 >
-                  Install
+                  Configure
                 </button>
               </div>
             </SettingRow>
-          )}
+          </Section>
 
-          <SettingRow
-            label="Control plane"
-            description="Local JSON-RPC server for external agents"
-          >
-            <div className="flex items-center gap-2">
+          <Divider />
+
+          {/* ── License ── */}
+          <Section icon={Key} title="License" id="license">
+            <SettingRow
+              label="Current tier"
+              description="Features available in your current plan"
+            >
               <span
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+                className="text-xs px-2 py-1 rounded font-semibold uppercase tracking-wider"
                 style={{
-                  background: "rgba(0, 134, 115, 0.1)",
-                  color: "var(--accent-teal)",
+                  background:
+                    licenseTier === "pro"
+                      ? "rgba(251, 191, 36, 0.15)"
+                      : "var(--surface-2)",
+                  color:
+                    licenseTier === "pro" ? "#fbbf24" : "var(--text-tertiary)",
                 }}
               >
-                <Check size={10} />
-                Running on 127.0.0.1
+                {licenseTier}
               </span>
+            </SettingRow>
+
+            {licenseTier === "free" && (
+              <div
+                className="rounded-lg p-4 text-center space-y-2"
+                style={{
+                  background: "rgba(0, 134, 115, 0.06)",
+                  border: "1px solid rgba(0, 134, 115, 0.2)",
+                }}
+              >
+                <p
+                  className="text-xs font-medium"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Upgrade to Pro
+                </p>
+                <p
+                  className="text-[10px] leading-relaxed"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Unlocks narration, diff review, run history, multiple vaults,
+                  steering, and scheduled recipes.
+                </p>
+                <button
+                  className="text-xs px-4 py-1.5 rounded-lg font-medium transition-all hover:-translate-y-0.5"
+                  style={{ background: "var(--accent-teal)", color: "#fff" }}
+                >
+                  Get Pro — $79 one-time
+                </button>
+              </div>
+            )}
+
+            {licenseTier === "pro" && (
+              <SettingRow
+                label="License key"
+                description="Your one-time purchase key"
+              >
+                {licenseKey ? (
+                  <div className="flex items-center gap-2">
+                    <code
+                      className="text-[10px] font-mono px-2 py-1 rounded max-w-[200px] truncate block"
+                      style={{
+                        background: "var(--surface-2)",
+                        color: "var(--text-secondary)",
+                      }}
+                      title={licenseKey}
+                    >
+                      {licenseKey}
+                    </code>
+                    <button
+                      onClick={handleCopyLicenseKey}
+                      className="flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors"
+                      style={{
+                        color: copiedKey
+                          ? "var(--accent-teal)"
+                          : "var(--text-tertiary)",
+                      }}
+                    >
+                      {copiedKey ? <Check size={10} /> : <Copy size={10} />}
+                      {copiedKey ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                ) : (
+                  <span
+                    className="text-[10px]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    No key entered
+                  </span>
+                )}
+              </SettingRow>
+            )}
+
+            <SettingRow
+              label="Restore purchases"
+              description="Re-verify your license from our servers"
+            >
               <button
-                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded"
+                className="text-[10px] px-3 py-1 rounded border transition-colors"
+                style={{
+                  background: "var(--surface-0)",
+                  borderColor: "var(--surface-3)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Restore
+              </button>
+            </SettingRow>
+          </Section>
+
+          <Divider />
+
+          {/* ── About ── */}
+          <Section icon={Info} title="About" id="about">
+            <SettingRow
+              label="Version"
+              description="Wenmei desktop application"
+            >
+              <span
+                className="text-xs font-mono"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                0.2.1 · aarch64-apple-darwin
+              </span>
+            </SettingRow>
+
+            <SettingRow
+              label="Build date"
+              description="When this binary was compiled"
+            >
+              <span
+                className="text-xs"
                 style={{ color: "var(--text-tertiary)" }}
               >
-                <Copy size={10} />
-                Copy token
-              </button>
-            </div>
-          </SettingRow>
+                7 Jul 2026
+              </span>
+            </SettingRow>
 
-          <SettingRow
-            label="MCP server"
-            description="Model Context Protocol adapter for Claude Code / Codex"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className="text-xs px-2 py-1 rounded"
+            <SettingRow
+              label="Data directory"
+              description="Where Wenmei stores state and vaults"
+            >
+              <code
+                className="text-[9px] font-mono px-2 py-1 rounded block max-w-[240px] truncate"
                 style={{
                   background: "var(--surface-2)",
                   color: "var(--text-tertiary)",
                 }}
+                title="~/Library/Application Support/Wenmei"
               >
-                Not configured
-              </span>
-              <button
-                className="text-[10px] px-2 py-1 rounded font-medium"
-                style={{
-                  background: "var(--surface-2)",
-                  color: "var(--text-secondary)",
-                  border: "1px solid var(--surface-3)",
-                }}
-              >
-                Configure
-              </button>
-            </div>
-          </SettingRow>
-        </Section>
-
-        <Divider />
-
-        {/* ── License ── */}
-        <Section icon={Key} title="License" id="license">
-          <SettingRow
-            label="Current tier"
-            description="Features available in your current plan"
-          >
-            <span
-              className="text-xs px-2 py-1 rounded font-semibold uppercase tracking-wider"
-              style={{
-                background:
-                  licenseTier === "pro"
-                    ? "rgba(251, 191, 36, 0.15)"
-                    : "var(--surface-2)",
-                color:
-                  licenseTier === "pro" ? "#fbbf24" : "var(--text-tertiary)",
-              }}
-            >
-              {licenseTier}
-            </span>
-          </SettingRow>
-
-          {licenseTier === "free" && (
-            <div
-              className="rounded-lg p-4 text-center space-y-2"
-              style={{
-                background: "rgba(0, 134, 115, 0.06)",
-                border: "1px solid rgba(0, 134, 115, 0.2)",
-              }}
-            >
-              <p
-                className="text-xs font-medium"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Upgrade to Pro
-              </p>
-              <p
-                className="text-[10px] leading-relaxed"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                Unlocks narration, diff review, run history, multiple vaults,
-                steering, and scheduled recipes.
-              </p>
-              <button
-                className="text-xs px-4 py-1.5 rounded-lg font-medium transition-all hover:-translate-y-0.5"
-                style={{ background: "var(--accent-teal)", color: "#fff" }}
-              >
-                Get Pro — $79 one-time
-              </button>
-            </div>
-          )}
-
-          {licenseTier === "pro" && (
-            <SettingRow
-              label="License key"
-              description="Your one-time purchase key"
-            >
-              {licenseKey ? (
-                <div className="flex items-center gap-2">
-                  <code
-                    className="text-[10px] font-mono px-2 py-1 rounded max-w-[200px] truncate block"
-                    style={{
-                      background: "var(--surface-2)",
-                      color: "var(--text-secondary)",
-                    }}
-                    title={licenseKey}
-                  >
-                    {licenseKey}
-                  </code>
-                  <button
-                    onClick={handleCopyLicenseKey}
-                    className="flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors"
-                    style={{
-                      color: copiedKey
-                        ? "var(--accent-teal)"
-                        : "var(--text-tertiary)",
-                    }}
-                  >
-                    {copiedKey ? <Check size={10} /> : <Copy size={10} />}
-                    {copiedKey ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              ) : (
-                <span
-                  className="text-[10px]"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  No key entered
-                </span>
-              )}
+                ~/Library/Application Support/Wenmei
+              </code>
             </SettingRow>
-          )}
 
-          <SettingRow
-            label="Restore purchases"
-            description="Re-verify your license from our servers"
-          >
-            <button
-              className="text-[10px] px-3 py-1 rounded border transition-colors"
-              style={{
-                background: "var(--surface-0)",
-                borderColor: "var(--surface-3)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Restore
-            </button>
-          </SettingRow>
-        </Section>
-
-        <Divider />
-
-        {/* ── About ── */}
-        <Section icon={Info} title="About" id="about">
-          <SettingRow label="Version" description="Wenmei desktop application">
-            <span
-              className="text-xs font-mono"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              0.2.1 · aarch64-apple-darwin
-            </span>
-          </SettingRow>
-
-          <SettingRow
-            label="Build date"
-            description="When this binary was compiled"
-          >
-            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-              7 Jul 2026
-            </span>
-          </SettingRow>
-
-          <SettingRow
-            label="Data directory"
-            description="Where Wenmei stores state and vaults"
-          >
-            <code
-              className="text-[9px] font-mono px-2 py-1 rounded block max-w-[240px] truncate"
-              style={{
-                background: "var(--surface-2)",
-                color: "var(--text-tertiary)",
-              }}
-              title="~/Library/Application Support/Wenmei"
-            >
-              ~/Library/Application Support/Wenmei
-            </code>
-          </SettingRow>
-
-          <div className="flex items-center gap-3 pt-1">
-            <a
-              href="https://wenmei.dev/docs"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 text-[10px] transition-colors"
-              style={{ color: "var(--accent-teal)" }}
-            >
-              <ExternalLink size={10} />
-              Documentation
-            </a>
-            <a
-              href="https://wenmei.dev/changelog"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 text-[10px] transition-colors"
-              style={{ color: "var(--accent-teal)" }}
-            >
-              <ExternalLink size={10} />
-              Changelog
-            </a>
-            <a
-              href="https://wenmei.dev/support"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 text-[10px] transition-colors"
-              style={{ color: "var(--accent-teal)" }}
-            >
-              <ExternalLink size={10} />
-              Support
-            </a>
-          </div>
-        </Section>
+            <div className="flex items-center gap-3 pt-1">
+              <a
+                href="https://wenmei.dev/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-[10px] transition-colors"
+                style={{ color: "var(--accent-teal)" }}
+              >
+                <ExternalLink size={10} />
+                Documentation
+              </a>
+              <a
+                href="https://wenmei.dev/changelog"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-[10px] transition-colors"
+                style={{ color: "var(--accent-teal)" }}
+              >
+                <ExternalLink size={10} />
+                Changelog
+              </a>
+              <a
+                href="https://wenmei.dev/support"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-[10px] transition-colors"
+                style={{ color: "var(--accent-teal)" }}
+              >
+                <ExternalLink size={10} />
+                Support
+              </a>
+            </div>
+          </Section>
         </div>
       </div>
     </div>

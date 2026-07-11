@@ -174,7 +174,6 @@ export default function TerminalPanel() {
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<TerminalActivityStatus>("idle");
 
-
   // Initialize xterm
   useEffect(() => {
     if (!hostRef.current) return;
@@ -342,9 +341,7 @@ export default function TerminalPanel() {
   // controls it, and opening a terminal never starts the Pi sidecar.
   useEffect(() => {
     if (!termRef.current || !activeTab) return;
-    termRef.current.writeln(
-      `\r\n\x1b[2m── ${activeTab.title} ──\x1b[0m\r\n`
-    );
+    termRef.current.writeln(`\r\n\x1b[2m── ${activeTab.title} ──\x1b[0m\r\n`);
     // Fire only on tab switch; activeTab.title read is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTerminalTabId]);

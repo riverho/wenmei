@@ -1,0 +1,254 @@
+version: 2
+status: current
+notes:
+  - "Live source code is the source of truth. This contract was refreshed against src/, src-tauri/src/, and app_design/src/."
+  - "The old archival/mineral palette and IBM Plex/Newsreader direction have not been implemented; the live product uses a warm paper palette with Inter, Playfair Display, JetBrains Mono, and Geist Mono."
+  - "app_design/ remains the isolated UI/UX playground, but it now prototypes ahead of the production app in places (unified sidecar feed, terminal tabs, vault menu)."
+  - "Tablet, mobile, loading, empty, and error source frames remain incomplete."
+
+source:
+  kind: hybrid
+  primary: src
+  production_root: src/
+  backend_root: src-tauri/src/
+  playground_root: app_design/
+  historical_pencil_file: docs/webmei-layout.pen
+  historical_frame_id: bi8Au
+  historical_frame_name: Wenmei Desktop Edit Mode
+  revision_basis:
+    - "DESIGN.md refreshed on 2026-07-11"
+    - "Live source audit on 2026-07-11"
+    - "Production app in src/ at HEAD"
+    - "Playground state in app_design/src/ at HEAD"
+  design_direction:
+    subject: "Agentic thinking environment for local markdown vaults"
+    thesis: "A warm, journal-like desktop cockpit where agents do file work under visible sidecar supervision"
+    signature: "Tri-panel shell: archive index, writing surface, and instrument console; Pi chat as base layer with narration/alert/review overlays"
+  tokens:
+    colors:
+      surface_0: "#F6F4F2"
+      surface_1: "#FFFFFF"
+      surface_2: "#EAE7E3"
+      surface_3: "#D9D5CF"
+      surface_glass: "rgba(255, 255, 255, 0.65)"
+      text_primary: "#111111"
+      text_secondary: "#5C5C5C"
+      text_tertiary: "#9A9590"
+      accent_teal: "#008673"
+      accent_rose: "#C24A4A"
+      syntax_bg: "#F5F5F5"
+      syntax_keyword: "#AF00DB"
+      syntax_string: "#A31515"
+      syntax_comment: "#008000"
+    dark_colors:
+      surface_0: "#0F0F0F"
+      surface_1: "#141414"
+      surface_2: "#1A1A1A"
+      surface_3: "#2A2A2A"
+      surface_glass: "rgba(30, 30, 30, 0.75)"
+      text_primary: "#F0F0F0"
+      text_secondary: "#A0A0A0"
+      text_tertiary: "#6E6E6E"
+      accent_teal: "#00D9B5"
+      accent_rose: "#FF6B6B"
+      syntax_bg: "#1E1E1E"
+      syntax_keyword: "#C586C0"
+      syntax_string: "#CE9178"
+      syntax_comment: "#6A9955"
+    typography:
+      display: "Playfair Display"
+      body: "Inter"
+      editor: "JetBrains Mono"
+      terminal: "Geist Mono"
+    radius: "0.5rem"
+
+screen:
+  id: wenmei-desktop-current
+  purpose: "Desktop shell for local markdown authoring, terminal workhorse sessions, and sidecar supervision"
+  viewport:
+    width: 1440
+    height: 920
+    device_scale: 1
+  state: populated
+  implemented: true
+
+viewports:
+  - id: desktop
+    status: implemented
+    width: 1440
+    height: 920
+    states:
+      - populated
+  - id: tablet
+    status: missing-source
+    reason: "No approved source frame for the transitional layout"
+    states:
+      - populated
+      - loading
+      - empty
+      - error
+  - id: mobile
+    status: missing-source
+    reason: "No approved source frame for the sheet/stacked layout"
+    states:
+      - populated
+      - loading
+      - empty
+      - error
+
+regions:
+  - id: header
+    role: vault_coordinate_strip
+    component_map:
+      - src/components/Header.tsx
+      - src/components/Notifications.tsx
+    bounds:
+      height: 48
+      width: 1440
+    relationships:
+      - "Pinned to the top edge of the root frame"
+      - "Contains vault switcher, mode controls, agent scope state, panel toggles, theme cycle, settings gear, and notifications bell"
+      - "Notifications bell shows unread sidecar Alerts count and deep-links the Pi sidecar into the Alerts filter"
+      - "Settings gear opens the full SettingsPanel inside Lightbox"
+
+  - id: file_tree
+    role: archive_index
+    component_map:
+      - src/components/FileTree.tsx
+      - src/App.tsx
+    bounds:
+      width: 280
+    relationships:
+      - "Pinned below the header"
+      - "Stretches to the remaining frame height"
+      - "Resizable between 180px and 520px"
+      - "Pinned, recent, and folder sections with search and context menus"
+
+  - id: center_editor
+    role: dominant_region
+    component_map:
+      - src/components/CenterPanel.tsx
+    relationships:
+      - "Consumes the remaining width between left and right rails"
+      - "Hosts edit / preview / split / paper / terminal modes"
+      - "Line-number gutter remains fixed and uses utility mono text"
+      - "Paper mode uses Playfair Display headings and a scroll progress bar"
+
+  - id: pi_panel
+    role: instrument_console
+    component_map:
+      - src/components/PiPanel.tsx
+      - src/components/SidecarOverlay.tsx
+      - src/components/SidecarDetail.tsx
+      - src/App.tsx
+    bounds:
+      width: 360
+    relationships:
+      - "Pinned below the header in the right rail"
+      - "Stretches to the remaining frame height"
+      - "Production: tab split between PiPanel and ReviewPanel"
+      - "Playground: unified SidecarFeed collapses chat/narrate/alerts/review into one filterable stream"
+      - "Long overlay items open SidecarDetail for inspection without disrupting chat"
+      - "Composer remains the primary action zone at the bottom of the rail"
+
+  - id: review_panel
+    role: change_review_surface
+    component_map:
+      - src/components/ReviewPanel.tsx
+      - src/App.tsx
+    relationships:
+      - "Separate tab in the production right rail"
+      - "Session start/stop, changeset list, inline diff, approve/reject, annotations"
+      - "Review events also surface as sidecar overlay items"
+
+  - id: terminal_panel
+    role: workhorse_session_surface
+    component_map:
+      - src/components/TerminalPanel.tsx
+      - src-tauri/src/terminal.rs
+    relationships:
+      - "Replaces center editor when mode === terminal"
+      - "Embedded xterm.js PTY with narration toggle and session context"
+      - "Production: single session UI"
+      - "Playground: tab strip with add/close and memory readout"
+
+  - id: settings_panel
+    role: machine_and_ui_preferences
+    component_map:
+      - src/components/SettingsPanel.tsx
+      - src/components/Lightbox.tsx
+      - src/store/appStore.ts
+      - src/lib/tauri-bridge.ts
+      - src-tauri/src/state.rs
+    relationships:
+      - "Opened from the Header gear inside Lightbox"
+      - "General, Terminal, Windows, Keyboard, Agent & Narration, Integrations, License, and About sections are present in production"
+      - "Playground adds Vaults section and multiple-app-instances toggle"
+      - "Machine-level settings round-trip through state.json via WenmeiState"
+
+  - id: mobile_drawers
+    role: responsive_fallback
+    component_map:
+      - src/components/MobileDrawers.tsx
+      - src/hooks/use-mobile.ts
+    relationships:
+      - "File drawer slides in from the left below the md breakpoint"
+      - "Pi sheet slides up from the bottom below the md breakpoint"
+
+  - id: notifications
+    role: alert_hub
+    component_map:
+      - src/components/Notifications.tsx
+    relationships:
+      - "Header bell with unread badge"
+      - "Dropdown filters sidecar alerts"
+
+  - id: sidecar_detail
+    role: detail_inspection_overlay
+    component_map:
+      - src/components/SidecarDetail.tsx
+    relationships:
+      - "Opens over the right rail for long sidecar items"
+      - "Shows full body, artifacts, diff lines, file refs, and tool calls"
+
+tolerances:
+  geometry_px: 4
+  stroke_px: 1
+
+required_states:
+  desktop:
+    populated:
+      implemented: true
+    loading:
+      implemented: false
+    empty:
+      implemented: false
+    error:
+      implemented: false
+  paper_mode:
+    implemented: true
+  terminal_mode:
+    implemented: true
+  settings:
+    implemented: true
+  sidecar_detail:
+    implemented: true
+  tablet:
+    implemented: false
+  mobile:
+    implemented: false
+
+verification:
+  layout_snapshot:
+    command: "Visual verification now happens by running the production app (npm run tauri dev) or the playground (cd app_design && npm run dev)."
+    latest_result: "Tri-panel shell renders correctly in both production and playground."
+  screenshot:
+    latest_result: "Playground and production screenshots reflect the warm paper palette and tri-panel layout."
+  implementation_checks:
+    latest_result: "2026-07-11: prettier passed on changed docs; npm run lint passed; npm run check passed; npm run test passed (no test files); src-tauri cargo check passed with existing unused-import/dead-code warnings."
+  desktop_smoke:
+    latest_result: "Production app builds via Tauri; playground launches via Vite; docs validated against live source."
+
+contract_gate:
+  ready: true
+  reason: "Current desktop implementation is the accepted source of truth. Responsive and additional source frames remain future work."
