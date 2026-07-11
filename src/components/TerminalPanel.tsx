@@ -6,7 +6,6 @@ import { listen, type UnlistenFn } from "@/lib/tauri-events";
 import { useAppStore, TERMINAL_TAB_MB } from "@/store/appStore";
 import {
   terminalResize,
-  terminalSetNarrationEnabled,
   terminalStart,
   terminalWrite,
   type TerminalStarted,
@@ -124,7 +123,7 @@ function resetMessage(error: unknown) {
 }
 
 export default function TerminalPanel() {
-  const { activeVaultId, activeSandboxId, narrateByDefault } = useAppStore();
+  const { activeVaultId, activeSandboxId } = useAppStore();
   const terminalTabs = useAppStore(s => s.terminalTabs);
   const addTerminalTab = useAppStore(s => s.addTerminalTab);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -145,8 +144,6 @@ export default function TerminalPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Mirrors the backend: new sessions inherit narrate_by_default (state.json).
-  const [narrationEnabled, setNarrationEnabled] = useState(narrateByDefault);
-  const [narrationOffline, setNarrationOffline] = useState(false);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -305,17 +302,6 @@ export default function TerminalPanel() {
     startRef.current?.();
   }, [activeVaultId, activeSandboxId]);
 
-  const toggleNarration = async () => {
-    const next = !narrationEnabled;
-    try {
-      await terminalSetNarrationEnabled(next);
-      setNarrationEnabled(next);
-      setNarrationOffline(false);
-    } catch {
-      setNarrationOffline(true);
-    }
-  };
-
   const activityColor =
     activity === "active"
       ? "var(--accent-teal)"
@@ -366,40 +352,6 @@ export default function TerminalPanel() {
           />
           {activity}
         </div>
-        <button
-          onClick={toggleNarration}
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors"
-          style={{
-            borderColor: narrationEnabled
-              ? "var(--accent-teal)"
-              : "var(--surface-3)",
-            color: narrationEnabled
-              ? "var(--accent-teal)"
-              : "var(--text-tertiary)",
-            background: narrationEnabled
-              ? "rgba(94, 234, 212, 0.08)"
-              : "transparent",
-          }}
-          title={
-            narrationOffline
-              ? "Sidecar offline"
-              : narrationEnabled
-                ? "Narration on"
-                : "Narration off"
-          }
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{
-              background: narrationOffline
-                ? "#f87171"
-                : narrationEnabled
-                  ? "var(--accent-teal)"
-                  : "var(--text-tertiary)",
-            }}
-          />
-          {narrationOffline ? "Sidecar offline" : "Narrate"}
-        </button>
         {error && <div style={{ color: "#f87171" }}>{error}</div>}
       </div>
       <div ref={hostRef} className="flex-1 min-h-0 p-2" />

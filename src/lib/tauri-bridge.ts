@@ -83,6 +83,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       return mocks.listVaults();
     case "add_vault":
       return mocks.addVault((args as { path: string }).path);
+    case "remove_vault":
+      return mocks.removeVault((args as { id: string }).id);
     case "set_active_vault":
       return mocks.setActiveVault((args as { id: string }).id);
     case "list_sandboxes":
@@ -486,6 +488,12 @@ export async function listVaults(): Promise<Vault[]> {
 
 export async function addVault(path: string): Promise<Vault> {
   return invoke("add_vault", { path });
+}
+
+/** Soft-remove: detach a vault from the list (state.json). Files untouched.
+ *  Returns the remaining vaults. Rejects on the active vault. */
+export async function removeVault(id: string): Promise<Vault[]> {
+  return invoke("remove_vault", { id });
 }
 
 export async function setActiveVault(id: string): Promise<void> {

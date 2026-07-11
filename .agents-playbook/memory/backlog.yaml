@@ -1412,7 +1412,9 @@ tasks:
     design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
     acceptance_checks:
       - grep -q "VaultMenu" ../src/components/Header.tsx
-      - grep -q "removeVault" ../src/store/appStore.ts
+      - grep -q "removeVault" ../src/lib/tauri-bridge.ts
+      - grep -q "remove_vault" ../src-tauri/src/vault.rs
+      - grep -q "VaultsSection" ../src/components/SettingsPanel.tsx
       - cd .. && npm run check
     notes: >-
       Real app still lacks: H4 VaultMenu (+/- popup) in Header (uses old

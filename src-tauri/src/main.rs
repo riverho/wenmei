@@ -105,6 +105,7 @@ fn main() {
             cli::run_install_script,
             vault::list_vaults,
             vault::add_vault,
+            vault::remove_vault,
             vault::set_active_vault,
             vault::list_sandboxes,
             vault::create_sandbox,

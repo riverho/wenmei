@@ -270,6 +270,28 @@ pub fn set_active_vault(id: String, state: State<'_, WenmeiState>) -> Result<(),
     save_state(&state)
 }
 
+/// Soft-remove a vault: detach it from the list in state.json. Files on disk
+/// are never touched — this is a bookkeeping boundary, so there is nothing to
+/// archive; re-add the folder anytime. The active vault cannot be removed.
+#[tauri::command]
+pub fn remove_vault(id: String, state: State<'_, WenmeiState>) -> Result<Vec<Vault>, String> {
+    let vaults = {
+        let mut app_state = state.app_state.lock().unwrap();
+        if app_state.active_vault_id == id {
+            return Err("Cannot remove the active vault — switch first".to_string());
+        }
+        let before = app_state.vaults.len();
+        app_state.vaults.retain(|v| v.id != id);
+        if app_state.vaults.len() == before {
+            return Err("Vault not found".to_string());
+        }
+        app_state.vaults.clone()
+    };
+    log_action(&state, format!("removed vault {}", id));
+    save_state(&state)?;
+    Ok(vaults)
+}
+
 #[tauri::command]
 pub fn list_sandboxes(state: State<'_, WenmeiState>) -> Result<Vec<Sandbox>, String> {
     Ok(state.app_state.lock().unwrap().sandboxes.clone())

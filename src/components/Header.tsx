@@ -34,6 +34,7 @@ import {
   Settings,
 } from "lucide-react";
 import Notifications from "./Notifications";
+import VaultMenu from "./VaultMenu";
 
 function findFirstFile(nodes: FileNode[]): FileNode | null {
   for (const node of nodes) {
@@ -209,30 +210,10 @@ export default function Header() {
 
         {/* Breadcrumb / vault switcher */}
         <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0">
-          <select
-            value={activeVaultId}
-            onChange={event => handleVaultSwitch(event.target.value)}
-            className="bg-transparent outline-none max-w-[140px]"
-            style={{ color: "var(--text-tertiary)" }}
-            title={activeVault?.path}
-          >
-            {vaults.map(vault => (
-              <option key={vault.id} value={vault.id}>
-                {vault.name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={handleJoinVault}
-            className="px-1.5 py-0.5 rounded"
-            style={{
-              color: "var(--accent-teal)",
-              background: "var(--surface-2)",
-            }}
-            title="Join folder as vault"
-          >
-            +
-          </button>
+          <VaultMenu
+            onSwitch={id => handleVaultSwitch(id)}
+            onAddFolder={handleJoinVault}
+          />
           <span style={{ color: "var(--text-tertiary)" }}>/</span>
           <span
             className="truncate max-w-[240px]"
