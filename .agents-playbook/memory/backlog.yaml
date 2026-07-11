@@ -1319,3 +1319,43 @@ tasks:
       override in release.yml where the key exists); committed conf keeps the
       updater plugin+pubkey+endpoint so in-app check still works, but does not
       force signing locally.
+
+  - id: H12
+    title: main.rs cleanup — extract stragglers to window/updater/logging modules
+    status: todo
+    priority: 92
+    skill: run-task
+    phase: H
+    tags: [rust, refactor]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - test -f ../src-tauri/src/window.rs
+      - test -f ../src-tauri/src/updater.rs
+      - grep -q "install_panic_hook" ../src-tauri/src/logging.rs
+      - grep -q "spawn_digest_journaler" ../src-tauri/src/narration.rs
+      - bash -c 'test "$(wc -l < ../src-tauri/src/main.rs)" -lt 170'
+      - cd ../src-tauri && cargo check
+    notes: >-
+      main.rs was already modular (~277 lines, not the old monolith). Extracted
+      the remaining non-wiring code: window.rs (open_file_window + encode +
+      single-instance path mapper), updater.rs (check_for_update), panic hook to
+      logging.rs, narration-digest listener to narration.rs. main.rs now pure
+      wiring (~155 lines).
+
+  - id: H13
+    title: Settings two-column shell — nav rail + scroll-spy (playground mock)
+    status: todo
+    priority: 93
+    skill: run-task
+    phase: H
+    tags: [playground, ui, settings]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -q "SettingsNav" ../app_design/src/components/SettingsPanel.tsx
+      - grep -q "scroll-spy\|scrollToSection" ../app_design/src/components/SettingsPanel.tsx
+      - cd ../app_design && npx tsc -b
+    notes: >-
+      Two-column settings: left category rail (9 sections) + right scrollable
+      pane; nav click smooth-scrolls to the section, scroll-spy highlights the
+      one nearest the top. Sections carry settings-<id> anchors. Mock in
+      app_design first per UI-first workflow.
