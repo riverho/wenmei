@@ -6,6 +6,7 @@ import { listen, type UnlistenFn } from "@/lib/tauri-events";
 import { useAppStore, TERMINAL_TAB_MB } from "@/store/appStore";
 import {
   terminalResize,
+  terminalSetActive,
   terminalStart,
   terminalWrite,
   type TerminalStarted,
@@ -15,18 +16,13 @@ import "@xterm/xterm/css/xterm.css";
 interface TerminalOutputPayload {
   session_id?: string;
   data: number[];
-  activity?: TerminalActivityStatus;
+  activity?: "active" | "idle" | "stuck";
 }
 
 const CONTEXT_RESET_ERROR = "[ERR_CONTEXT_SWITCH_REQUIRES_RESET]";
-const ACTIVE_OUTPUT_MS = 2500;
-const STUCK_AFTER_INPUT_MS = 30000;
 
-type TerminalActivityStatus = "active" | "idle" | "stuck";
-
-// Store-backed tab strip. Each tab is a PTY session; the visible strip is
-// real (add/close/switch), and the shared xterm renders the active tab —
-// full per-tab PTY isolation is the multi-session backend depth (F3).
+// Store-backed tab strip. Each tab is its own isolated PTY session
+// (TerminalInstance renders one xterm per tab, kept mounted on switch).
 function TerminalTabBar() {
   const terminalTabs = useAppStore(s => s.terminalTabs);
   const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
@@ -122,56 +118,53 @@ function resetMessage(error: unknown) {
   return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
 }
 
-export default function TerminalPanel() {
-  const { activeVaultId, activeSandboxId } = useAppStore();
-  const terminalTabs = useAppStore(s => s.terminalTabs);
-  const addTerminalTab = useAppStore(s => s.addTerminalTab);
+const XTERM_THEME = {
+  background: "#0a0d10",
+  foreground: "#d7dde5",
+  cursor: "#5eead4",
+  selectionBackground: "#1f3a3a",
+  black: "#111827",
+  red: "#ef4444",
+  green: "#22c55e",
+  yellow: "#eab308",
+  blue: "#60a5fa",
+  magenta: "#c084fc",
+  cyan: "#2dd4bf",
+  white: "#e5e7eb",
+  brightBlack: "#6b7280",
+  brightRed: "#f87171",
+  brightGreen: "#4ade80",
+  brightYellow: "#facc15",
+  brightBlue: "#93c5fd",
+  brightMagenta: "#d8b4fe",
+  brightCyan: "#67e8f9",
+  brightWhite: "#f9fafb",
+};
+
+/**
+ * One isolated terminal session — its own xterm, its own PTY keyed by
+ * `sessionId`. Output is filtered by session_id so tabs don't cross-talk.
+ * Kept mounted while its tab is inactive (display:none) so the buffer and
+ * running agent survive tab switches.
+ */
+function TerminalInstance({
+  sessionId,
+  active,
+  onContext,
+}: {
+  sessionId: string;
+  active: boolean;
+  onContext: (ctx: TerminalStarted | null) => void;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const startRef = useRef<((forceRestart?: boolean) => Promise<void>) | null>(
-    null
-  );
-  const contextRef = useRef<TerminalStarted | null>(null);
-  const lastOutputAtRef = useRef(0);
-  const lastInputAtRef = useRef(0);
-  const [context, setContext] = useState<TerminalStarted | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [activity, setActivity] = useState<TerminalActivityStatus>("idle");
-  // Seed a tab when the terminal opens so the strip is never empty.
-  useEffect(() => {
-    if (terminalTabs.length === 0) addTerminalTab();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Mirrors the backend: new sessions inherit narrate_by_default (state.json).
 
   useEffect(() => {
     if (!hostRef.current) return;
-
     let disposed = false;
     let unlistenOutput: UnlistenFn | null = null;
-    let unlistenExit: UnlistenFn | null = null;
     let resizeObserver: ResizeObserver | null = null;
-    let activityTimer: number | null = null;
-
-    function computeActivity(now = Date.now()): TerminalActivityStatus {
-      const lastOutputAt = lastOutputAtRef.current;
-      const lastInputAt = lastInputAtRef.current;
-      if (
-        lastInputAt > lastOutputAt &&
-        now - lastInputAt > STUCK_AFTER_INPUT_MS
-      ) {
-        return "stuck";
-      }
-      if (lastOutputAt > 0 && now - lastOutputAt < ACTIVE_OUTPUT_MS) {
-        return "active";
-      }
-      return "idle";
-    }
-
-    function refreshActivity() {
-      if (!disposed) setActivity(computeActivity());
-    }
 
     const term = new Terminal({
       cursorBlink: true,
@@ -181,42 +174,17 @@ export default function TerminalPanel() {
       fontSize: 13,
       lineHeight: 1.35,
       scrollback: 5000,
-      theme: {
-        background: "#0a0d10",
-        foreground: "#d7dde5",
-        cursor: "#5eead4",
-        selectionBackground: "#1f3a3a",
-        black: "#111827",
-        red: "#ef4444",
-        green: "#22c55e",
-        yellow: "#eab308",
-        blue: "#60a5fa",
-        magenta: "#c084fc",
-        cyan: "#2dd4bf",
-        white: "#e5e7eb",
-        brightBlack: "#6b7280",
-        brightRed: "#f87171",
-        brightGreen: "#4ade80",
-        brightYellow: "#facc15",
-        brightBlue: "#93c5fd",
-        brightMagenta: "#d8b4fe",
-        brightCyan: "#67e8f9",
-        brightWhite: "#f9fafb",
-      },
+      theme: XTERM_THEME,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(hostRef.current);
     fit.fit();
-    term.focus();
-
     termRef.current = term;
     fitRef.current = fit;
 
     const writeDisposable = term.onData(data => {
-      lastInputAtRef.current = Date.now();
-      setActivity("active");
-      terminalWrite(data).catch(err => {
+      terminalWrite(sessionId, data).catch(err => {
         term.writeln(`\r\n[Wenmei terminal write failed: ${String(err)}]`);
       });
     });
@@ -224,40 +192,32 @@ export default function TerminalPanel() {
     function resize() {
       if (!termRef.current || !fitRef.current) return;
       fitRef.current.fit();
-      terminalResize(termRef.current.rows, termRef.current.cols).catch(
+      terminalResize(sessionId, termRef.current.rows, termRef.current.cols).catch(
         () => {}
       );
     }
 
     async function start(forceRestart = false) {
       try {
-        setError(null);
         if (!unlistenOutput) {
           unlistenOutput = await listen<TerminalOutputPayload>(
             "terminal-output",
             event => {
-              lastOutputAtRef.current = Date.now();
-              setActivity(event.payload.activity ?? "active");
+              if (event.payload.session_id !== sessionId) return; // isolation
               term.write(new Uint8Array(event.payload.data));
             }
           );
         }
-        if (!unlistenExit) {
-          unlistenExit = await listen("terminal-exit", () => {
-            term.writeln("\r\n[Wenmei terminal session ended]");
-          });
-        }
-
-        const started = await terminalStart(term.rows, term.cols, forceRestart);
+        const started = await terminalStart(
+          sessionId,
+          term.rows,
+          term.cols,
+          forceRestart
+        );
         if (started.reused && started.snapshot.length > 0) {
           term.write(new Uint8Array(started.snapshot));
         }
-        contextRef.current = started;
-        if (!disposed) {
-          setContext(started);
-          refreshActivity();
-        }
-
+        if (!disposed) onContext(started);
         resizeObserver?.disconnect();
         resizeObserver = new ResizeObserver(resize);
         if (hostRef.current) resizeObserver.observe(hostRef.current);
@@ -265,49 +225,75 @@ export default function TerminalPanel() {
       } catch (err) {
         if (!forceRestart && String(err).includes(CONTEXT_RESET_ERROR)) {
           const confirmed = window.confirm(
-            `${resetMessage(err)}\n\nReset the running terminal and start it in the focused sandbox?`
+            `${resetMessage(err)}\n\nReset this terminal and start it in the focused sandbox?`
           );
           if (confirmed && !disposed) {
             await start(true);
             return;
           }
         }
-        const message = String(err);
-        if (!disposed) setError(message);
-        term.writeln(`\r\n[Wenmei terminal failed: ${message}]`);
+        term.writeln(`\r\n[Wenmei terminal failed: ${String(err)}]`);
       }
     }
 
-    startRef.current = start;
-    activityTimer = window.setInterval(refreshActivity, 1000);
     start();
 
     return () => {
       disposed = true;
-      startRef.current = null;
-      contextRef.current = null;
       writeDisposable.dispose();
       resizeObserver?.disconnect();
-      if (activityTimer !== null) window.clearInterval(activityTimer);
       unlistenOutput?.();
-      unlistenExit?.();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  // Refit + focus when this tab becomes active (it was display:none).
+  useEffect(() => {
+    if (!active) return;
+    const t = window.setTimeout(() => {
+      fitRef.current?.fit();
+      termRef.current?.focus();
+      if (termRef.current) {
+        terminalResize(
+          sessionId,
+          termRef.current.rows,
+          termRef.current.cols
+        ).catch(() => {});
+      }
+    }, 40);
+    return () => window.clearTimeout(t);
+  }, [active, sessionId]);
+
+  return (
+    <div
+      ref={hostRef}
+      className="flex-1 min-h-0 p-2"
+      style={{ display: active ? "block" : "none" }}
+    />
+  );
+}
+
+export default function TerminalPanel() {
+  const terminalTabs = useAppStore(s => s.terminalTabs);
+  const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
+  const addTerminalTab = useAppStore(s => s.addTerminalTab);
+  const [context, setContext] = useState<TerminalStarted | null>(null);
+
+  // Seed a tab when the terminal opens so the strip is never empty.
+  useEffect(() => {
+    if (terminalTabs.length === 0) addTerminalTab();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tell the backend which session is focused (approval/inject target).
   useEffect(() => {
-    if (!contextRef.current) return;
-    startRef.current?.();
-  }, [activeVaultId, activeSandboxId]);
-
-  const activityColor =
-    activity === "active"
-      ? "var(--accent-teal)"
-      : activity === "stuck"
-        ? "#f87171"
-        : "var(--text-tertiary)";
+    if (activeTerminalTabId) {
+      terminalSetActive(activeTerminalTabId).catch(() => {});
+    }
+  }, [activeTerminalTabId]);
 
   return (
     <div
@@ -333,28 +319,19 @@ export default function TerminalPanel() {
           )}
         </div>
         {context && (
-          <div className="hidden lg:block truncate">
-            log: {context.log_file}
-          </div>
+          <div className="hidden lg:block truncate">log: {context.log_file}</div>
         )}
-        <div
-          className="flex items-center gap-1.5 shrink-0 text-[10px] uppercase tracking-wider"
-          style={{ color: activityColor }}
-          title={
-            activity === "stuck"
-              ? "No terminal output after recent input"
-              : `Terminal ${activity}`
-          }
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{ background: activityColor }}
-          />
-          {activity}
-        </div>
-        {error && <div style={{ color: "#f87171" }}>{error}</div>}
       </div>
-      <div ref={hostRef} className="flex-1 min-h-0 p-2" />
+      <div className="flex-1 min-h-0 flex flex-col">
+        {terminalTabs.map(tab => (
+          <TerminalInstance
+            key={tab.id}
+            sessionId={tab.id}
+            active={tab.id === activeTerminalTabId}
+            onContext={setContext}
+          />
+        ))}
+      </div>
     </div>
   );
 }

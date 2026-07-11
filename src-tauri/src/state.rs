@@ -328,8 +328,11 @@ pub struct WenmeiState {
     pub app_state: Mutex<AppState>,
     pub state_file: PathBuf,
     pub registry_file: PathBuf,
-    pub terminal: Mutex<Option<TerminalSession>>,
-    pub terminal_sessions: Mutex<HashMap<String, String>>,
+    /// Live PTY sessions keyed by tab session id — each tab is an isolated
+    /// shell. `active_terminal_id` names the focused tab for callers that
+    /// don't pass one (approval detection, narration annotate, pi inject).
+    pub terminals: Mutex<HashMap<String, TerminalSession>>,
+    pub active_terminal_id: Mutex<Option<String>>,
     pub pi_rpc: Mutex<Option<PiRpcSession>>,
     pub initial_file: Mutex<Option<String>>,
     pub review_session: Mutex<Option<ReviewSession>>,
@@ -828,8 +831,8 @@ impl WenmeiState {
             app_state: Mutex::new(loaded),
             state_file,
             registry_file,
-            terminal: Mutex::new(None),
-            terminal_sessions: Mutex::new(HashMap::new()),
+            terminals: Mutex::new(HashMap::new()),
+            active_terminal_id: Mutex::new(None),
             pi_rpc: Mutex::new(None),
             initial_file: Mutex::new(initial_file_rel),
             review_session: Mutex::new(None),

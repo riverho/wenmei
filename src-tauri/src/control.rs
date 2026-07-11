@@ -244,9 +244,15 @@ fn orchestrator_checker_report(
 
 fn terminal_snapshot(app: &tauri::AppHandle) -> Result<serde_json::Value, String> {
     let state = app.state::<WenmeiState>();
-    let current = state.terminal.lock().unwrap();
-    let session = current
-        .as_ref()
+    let key = state
+        .active_terminal_id
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "Terminal is not running".to_string())?;
+    let terminals = state.terminals.lock().unwrap();
+    let session = terminals
+        .get(&key)
         .ok_or_else(|| "Terminal is not running".to_string())?;
     let snapshot = session.backlog.lock().unwrap().clone();
     Ok(json!({
@@ -256,6 +262,7 @@ fn terminal_snapshot(app: &tauri::AppHandle) -> Result<serde_json::Value, String
         "narration_enabled": session.narration_enabled,
         "bytes": snapshot.len(),
         "text": String::from_utf8_lossy(&snapshot).to_string(),
+        "open_sessions": terminals.keys().cloned().collect::<Vec<_>>(),
     }))
 }
 
@@ -369,12 +376,20 @@ fn handle_rpc(app: &tauri::AppHandle, request: RpcRequest) -> serde_json::Value 
             nightshift::night_shift_status(state).map(|run| json!(run))
         }
         "terminal.start" => {
+            let session_id = param_optional_string(&request.params, "session_id");
             let rows = param_u16(&request.params, "rows", 24);
             let cols = param_u16(&request.params, "cols", 80);
             let force_restart = param_bool(&request.params, "force_restart", false);
             let state = app.state::<WenmeiState>();
-            terminal::terminal_start(app.clone(), state, rows, cols, Some(force_restart))
-                .map(|started| json!(started))
+            terminal::terminal_start(
+                app.clone(),
+                state,
+                session_id,
+                rows,
+                cols,
+                Some(force_restart),
+            )
+            .map(|started| json!(started))
         }
         "terminal.type" => {
             let text = param_string(&request.params, "text");
@@ -390,15 +405,17 @@ fn handle_rpc(app: &tauri::AppHandle, request: RpcRequest) -> serde_json::Value 
             }
         }
         "terminal.narrate" => {
+            let session_id = param_optional_string(&request.params, "session_id");
             let enabled = param_bool(&request.params, "enabled", true);
             let state = app.state::<WenmeiState>();
-            terminal::terminal_set_narration_enabled(state, enabled)
+            terminal::terminal_set_narration_enabled(state, session_id, enabled)
                 .map(|enabled| json!({"enabled": enabled}))
         }
         "terminal.snapshot" => terminal_snapshot(app),
         "terminal.stop" => {
+            let session_id = param_optional_string(&request.params, "session_id");
             let state = app.state::<WenmeiState>();
-            terminal::terminal_stop(state).map(|_| json!({"ok": true}))
+            terminal::terminal_stop(state, session_id).map(|_| json!({"ok": true}))
         }
         "sandbox.run" => {
             let command = param_string(&request.params, "command");

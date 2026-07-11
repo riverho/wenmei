@@ -103,13 +103,17 @@ fn detect_in(text: &str) -> Option<(&'static PromptPattern, DetectedPrompt)> {
 /// any. Side-effect-free — the caller dedups on `screen_hash` before
 /// alerting so one prompt fires once.
 pub fn detect_active_prompt(state: &State<'_, WenmeiState>) -> Option<DetectedPrompt> {
-    let tail = {
-        let guard = state.terminal.lock().ok()?;
-        let session = guard.as_ref()?;
-        let nb = session.narration_buffer.lock().ok()?;
-        nb.recent_text(12)
-    };
+    let tail = active_session_tail(state, 12)?;
     detect_in(&tail).map(|(_p, d)| d)
+}
+
+/// Recent stripped-output tail of the focused terminal tab.
+fn active_session_tail(state: &State<'_, WenmeiState>, lines: usize) -> Option<String> {
+    let key = state.active_terminal_id.lock().ok()?.clone()?;
+    let terminals = state.terminals.lock().ok()?;
+    let session = terminals.get(&key)?;
+    let nb = session.narration_buffer.lock().ok()?;
+    Some(nb.recent_text(lines))
 }
 
 /// Alert on a freshly detected prompt (input.needs_response).
@@ -163,12 +167,8 @@ pub fn approve_prompt(
         .ok_or_else(|| format!("Unknown prompt pattern {pattern_id}"))?
         .clone();
 
-    let current_tail = {
-        let guard = state.terminal.lock().unwrap();
-        let session = guard.as_ref().ok_or("No active terminal")?;
-        let nb = session.narration_buffer.lock().unwrap();
-        nb.recent_text(12)
-    };
+    let current_tail =
+        active_session_tail(&state, 12).ok_or("No active terminal")?;
     if hash_screen(&current_tail) != expected_hash {
         emit_notification(
             &app,
@@ -186,12 +186,16 @@ pub fn approve_prompt(
         &pattern.deny_keys
     };
     {
-        let guard = state.terminal.lock().unwrap();
-        let session = guard.as_ref().ok_or("No active terminal")?;
+        let key = state
+            .active_terminal_id
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or("No active terminal")?;
+        let terminals = state.terminals.lock().unwrap();
+        let session = terminals.get(&key).ok_or("No active terminal")?;
         let mut writer = session.writer.lock().unwrap();
-        writer
-            .write_all(keys.as_bytes())
-            .map_err(|e| e.to_string())?;
+        writer.write_all(keys.as_bytes()).map_err(|e| e.to_string())?;
         writer.flush().map_err(|e| e.to_string())?;
     }
 

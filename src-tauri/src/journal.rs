@@ -170,11 +170,15 @@ pub fn emit_files_changed(app: &AppHandle, reason: &str) {
             reason: reason.to_string(),
         },
     );
+    // Annotate the focused terminal's narration buffer with the change.
     if let Some(state) = app.try_state::<WenmeiState>() {
-        if let Ok(current) = state.terminal.lock() {
-            if let Some(session) = current.as_ref() {
-                if let Ok(mut nb) = session.narration_buffer.lock() {
-                    nb.annotate_file_changes(vec![reason.to_string()]);
+        let active = state.active_terminal_id.lock().ok().and_then(|g| g.clone());
+        if let Some(id) = active {
+            if let Ok(terminals) = state.terminals.lock() {
+                if let Some(session) = terminals.get(&id) {
+                    if let Ok(mut nb) = session.narration_buffer.lock() {
+                        nb.annotate_file_changes(vec![reason.to_string()]);
+                    }
                 }
             }
         }

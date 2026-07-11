@@ -1439,3 +1439,29 @@ tasks:
       shows a seeded tab, + adds tabs, close works), open Settings (two-column
       nav on desktop, tab strip on mobile, scroll-spy tracks). Confirms the
       reconciliation actually surfaces in the built app.
+
+  - id: H18
+    title: Per-tab PTY isolation — N live shells keyed by session id
+    status: todo
+    priority: 98
+    skill: run-task
+    phase: H
+    tags: [rust, tsx, terminal, isolation]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - bash -c 'grep -q "pub terminals" ../src-tauri/src/state.rs'
+      - grep -q active_terminal_id ../src-tauri/src/state.rs
+      - grep -q terminal_set_active ../src-tauri/src/main.rs
+      - grep -q TerminalInstance ../src/components/TerminalPanel.tsx
+      - bash -c 'grep -q "isolation" ../src/components/TerminalPanel.tsx'
+      - cd ../src-tauri && cargo check
+      - cd .. && npm run check
+      - cd .. && npm run lint
+    notes: >-
+      Single PTY -> HashMap<session_id, TerminalSession> + active_terminal_id.
+      Commands (start/write/resize/stop/set_narration) route by session_id;
+      pi_type/approval/narration-annotate/snapshot use the active session.
+      Read loop drops dead sessions. Frontend: one xterm per tab
+      (TerminalInstance), output filtered by session_id, kept mounted on
+      switch; terminal_set_active on focus. Each tab is a real isolated shell
+      — the substrate for multiple agents on one playbook.

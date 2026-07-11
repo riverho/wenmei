@@ -1,11 +1,10 @@
 use portable_pty::{native_pty_system, MasterPty, PtySize};
 use serde::Serialize;
-use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::journal::{
     append_journal_event, emit_files_changed, emit_notification, NOTIFY_TERMINAL_DONE,
@@ -17,7 +16,28 @@ use crate::state::{
     TerminalSession, WenmeiState,
 };
 
-type TerminalSessionMap = HashMap<String, String>;
+/// The focused tab id, for callers that don't pass one.
+fn active_terminal_id(state: &State<'_, WenmeiState>) -> Option<String> {
+    state.active_terminal_id.lock().unwrap().clone()
+}
+
+/// Run `f` against the session with `id`, or the active session if `id` is
+/// None. Errors if no such live session exists.
+fn with_session<R>(
+    state: &State<'_, WenmeiState>,
+    id: Option<&str>,
+    f: impl FnOnce(&TerminalSession) -> Result<R, String>,
+) -> Result<R, String> {
+    let key = id
+        .map(|s| s.to_string())
+        .or_else(|| active_terminal_id(state))
+        .ok_or_else(|| "Terminal is not running".to_string())?;
+    let terminals = state.terminals.lock().unwrap();
+    let session = terminals
+        .get(&key)
+        .ok_or_else(|| "Terminal is not running".to_string())?;
+    f(session)
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -111,17 +131,17 @@ pub async fn pty_run_commands(
 pub fn terminal_start(
     app: AppHandle,
     state: State<'_, WenmeiState>,
+    session_id: Option<String>,
     rows: u16,
     cols: u16,
     force_restart: Option<bool>,
 ) -> Result<TerminalStarted, String> {
     let ctx = active_terminal_context(&state)?;
-    let session_id = state
-        .app_state
-        .lock()
-        .unwrap()
-        .active_sandbox_id
-        .clone()
+    // The tab id is the session key. Fall back to a sandbox-derived id for
+    // legacy single-terminal callers.
+    let session_id = session_id
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| state.app_state.lock().unwrap().active_sandbox_id.clone())
         .unwrap_or_else(|| "default-terminal".to_string());
     let cwd = ctx.cwd.clone();
     let terminal_cwd = crate::platform::Current::terminal_cwd(&cwd);
@@ -131,8 +151,8 @@ pub fn terminal_start(
     let pi_session_dir = terminal_pi_session_dir(&ctx);
 
     {
-        let mut current = state.terminal.lock().unwrap();
-        if let Some(session) = current.as_ref() {
+        let mut terminals = state.terminals.lock().unwrap();
+        if let Some(session) = terminals.get(&session_id) {
             if session.cwd == desired_cwd && session.log_file == desired_log_file {
                 let _ = session.master.lock().unwrap().resize(PtySize {
                     rows: rows.max(8),
@@ -140,14 +160,17 @@ pub fn terminal_start(
                     pixel_width: 0,
                     pixel_height: 0,
                 });
-                return Ok(TerminalStarted {
+                let started = TerminalStarted {
                     session_id: session.session_id.clone(),
                     cwd: session.cwd.clone(),
                     log_file: session.log_file.clone(),
                     reused: true,
                     snapshot: session.backlog.lock().unwrap().clone(),
                     activity: TerminalActivity::Idle,
-                });
+                };
+                drop(terminals);
+                *state.active_terminal_id.lock().unwrap() = Some(session_id.clone());
+                return Ok(started);
             }
             if !force_restart.unwrap_or(false) {
                 return Err(crate::state::context_switch_requires_reset(
@@ -157,7 +180,7 @@ pub fn terminal_start(
                 ));
             }
         }
-        if let Some(session) = current.take() {
+        if let Some(session) = terminals.remove(&session_id) {
             let _ = session.child.lock().unwrap().kill();
         }
     }
@@ -208,23 +231,23 @@ pub fn terminal_start(
     }
 
     {
-        let mut current = state.terminal.lock().unwrap();
-        *current = Some(TerminalSession {
-            session_id: session_id.clone(),
-            writer: Arc::new(Mutex::new(writer)),
-            child,
-            master: master.clone(),
-            cwd: desired_cwd.clone(),
-            log_file: desired_log_file.clone(),
-            backlog: backlog.clone(),
-            narration_buffer: narration_buffer.clone(),
-            narration_enabled: narrate_default,
-        });
+        let mut terminals = state.terminals.lock().unwrap();
+        terminals.insert(
+            session_id.clone(),
+            TerminalSession {
+                session_id: session_id.clone(),
+                writer: Arc::new(Mutex::new(writer)),
+                child,
+                master: master.clone(),
+                cwd: desired_cwd.clone(),
+                log_file: desired_log_file.clone(),
+                backlog: backlog.clone(),
+                narration_buffer: narration_buffer.clone(),
+                narration_enabled: narrate_default,
+            },
+        );
     }
-    if let Ok(mut sessions) = state.terminal_sessions.lock() {
-        let sessions: &mut TerminalSessionMap = &mut sessions;
-        sessions.insert(session_id.clone(), desired_cwd.clone());
-    }
+    *state.active_terminal_id.lock().unwrap() = Some(session_id.clone());
 
     spawn_narration_flush_thread(app.clone(), narration_buffer.clone(), session_id.clone());
 
@@ -276,12 +299,21 @@ pub fn terminal_start(
                 }
             }
         }
+        // The PTY closed — drop the dead session from the map so a new tab
+        // with the same id can start clean.
+        if let Some(state) = app_for_read.try_state::<WenmeiState>() {
+            state.terminals.lock().unwrap().remove(&session_id_for_read);
+            let mut active = state.active_terminal_id.lock().unwrap();
+            if active.as_deref() == Some(session_id_for_read.as_str()) {
+                *active = None;
+            }
+        }
         emit_notification(
             &app_for_read,
             NOTIFY_TERMINAL_DONE,
             "Terminal session ended",
             "The embedded terminal PTY closed.",
-            None,
+            Some(session_id_for_read.clone()),
         );
     });
 
@@ -315,16 +347,16 @@ pub fn terminal_start(
 }
 
 #[tauri::command]
-pub fn terminal_write(state: State<'_, WenmeiState>, data: String) -> Result<(), String> {
-    let current = state.terminal.lock().unwrap();
-    let session = current
-        .as_ref()
-        .ok_or_else(|| "Terminal is not running".to_string())?;
-    let mut writer = session.writer.lock().unwrap();
-    writer
-        .write_all(data.as_bytes())
-        .map_err(|e| e.to_string())?;
-    writer.flush().map_err(|e| e.to_string())
+pub fn terminal_write(
+    state: State<'_, WenmeiState>,
+    session_id: Option<String>,
+    data: String,
+) -> Result<(), String> {
+    with_session(&state, session_id.as_deref(), |session| {
+        let mut writer = session.writer.lock().unwrap();
+        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        writer.flush().map_err(|e| e.to_string())
+    })
 }
 
 #[tauri::command]
@@ -333,17 +365,12 @@ pub fn pi_type_into_terminal(
     text: String,
     origin: String,
 ) -> Result<(), String> {
-    {
-        let current = state.terminal.lock().unwrap();
-        let session = current
-            .as_ref()
-            .ok_or_else(|| "Terminal is not running".to_string())?;
+    // Injects into the active tab (the sidecar steers what you're watching).
+    with_session(&state, None, |session| {
         let mut writer = session.writer.lock().unwrap();
-        writer
-            .write_all(text.as_bytes())
-            .map_err(|e| e.to_string())?;
-        writer.flush().map_err(|e| e.to_string())?;
-    }
+        writer.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+        writer.flush().map_err(|e| e.to_string())
+    })?;
 
     let _ = append_journal_event(
         &state,
@@ -357,39 +384,66 @@ pub fn pi_type_into_terminal(
 }
 
 #[tauri::command]
-pub fn terminal_resize(state: State<'_, WenmeiState>, rows: u16, cols: u16) -> Result<(), String> {
-    let current = state.terminal.lock().unwrap();
-    let session = current
-        .as_ref()
-        .ok_or_else(|| "Terminal is not running".to_string())?;
-    let master = session.master.lock().unwrap();
-    master
-        .resize(PtySize {
-            rows: rows.max(8),
-            cols: cols.max(20),
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| e.to_string())
+pub fn terminal_resize(
+    state: State<'_, WenmeiState>,
+    session_id: Option<String>,
+    rows: u16,
+    cols: u16,
+) -> Result<(), String> {
+    with_session(&state, session_id.as_deref(), |session| {
+        session
+            .master
+            .lock()
+            .unwrap()
+            .resize(PtySize {
+                rows: rows.max(8),
+                cols: cols.max(20),
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| e.to_string())
+    })
 }
 
 #[tauri::command]
-pub fn terminal_stop(state: State<'_, WenmeiState>) -> Result<(), String> {
-    let mut current = state.terminal.lock().unwrap();
-    if let Some(session) = current.take() {
-        let _ = session.child.lock().unwrap().kill();
+pub fn terminal_stop(
+    state: State<'_, WenmeiState>,
+    session_id: Option<String>,
+) -> Result<(), String> {
+    let key = session_id.or_else(|| active_terminal_id(&state));
+    if let Some(key) = key {
+        if let Some(session) = state.terminals.lock().unwrap().remove(&key) {
+            let _ = session.child.lock().unwrap().kill();
+        }
+        let mut active = state.active_terminal_id.lock().unwrap();
+        if active.as_deref() == Some(key.as_str()) {
+            *active = state.terminals.lock().unwrap().keys().next().cloned();
+        }
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn terminal_set_active(
+    state: State<'_, WenmeiState>,
+    session_id: String,
+) -> Result<(), String> {
+    *state.active_terminal_id.lock().unwrap() = Some(session_id);
     Ok(())
 }
 
 #[tauri::command]
 pub fn terminal_set_narration_enabled(
     state: State<'_, WenmeiState>,
+    session_id: Option<String>,
     enabled: bool,
 ) -> Result<bool, String> {
-    let mut current = state.terminal.lock().unwrap();
-    let session = current
-        .as_mut()
+    let key = session_id
+        .or_else(|| active_terminal_id(&state))
+        .ok_or_else(|| "Terminal is not running".to_string())?;
+    let mut terminals = state.terminals.lock().unwrap();
+    let session = terminals
+        .get_mut(&key)
         .ok_or_else(|| "Terminal is not running".to_string())?;
     session.narration_enabled = enabled;
     if let Ok(mut nb) = session.narration_buffer.lock() {

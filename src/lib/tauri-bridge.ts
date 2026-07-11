@@ -179,6 +179,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
         (args as { rows: number }).rows,
         (args as { cols: number }).cols
       );
+    case "terminal_set_active":
+      return undefined;
     case "terminal_stop":
       return mocks.terminalStop();
     case "terminal_set_narration_enabled":
@@ -746,15 +748,23 @@ export interface TerminalStarted {
 }
 
 export async function terminalStart(
+  sessionId: string | null,
   rows: number,
   cols: number,
   forceRestart = false
 ): Promise<TerminalStarted> {
-  return invoke("terminal_start", { rows, cols, forceRestart });
+  return invoke("terminal_start", { sessionId, rows, cols, forceRestart });
 }
 
-export async function terminalWrite(data: string): Promise<void> {
-  return invoke("terminal_write", { data });
+export async function terminalSetActive(sessionId: string): Promise<void> {
+  return invoke("terminal_set_active", { sessionId });
+}
+
+export async function terminalWrite(
+  sessionId: string | null,
+  data: string
+): Promise<void> {
+  return invoke("terminal_write", { sessionId, data });
 }
 
 export async function piTypeIntoTerminal(
@@ -765,20 +775,22 @@ export async function piTypeIntoTerminal(
 }
 
 export async function terminalResize(
+  sessionId: string | null,
   rows: number,
   cols: number
 ): Promise<void> {
-  return invoke("terminal_resize", { rows, cols });
+  return invoke("terminal_resize", { sessionId, rows, cols });
 }
 
-export async function terminalStop(): Promise<void> {
-  return invoke("terminal_stop");
+export async function terminalStop(sessionId: string | null): Promise<void> {
+  return invoke("terminal_stop", { sessionId });
 }
 
 export async function terminalSetNarrationEnabled(
+  sessionId: string | null,
   enabled: boolean
 ): Promise<boolean> {
-  return invoke("terminal_set_narration_enabled", { enabled });
+  return invoke("terminal_set_narration_enabled", { sessionId, enabled });
 }
 
 // ─── Utilities ───
