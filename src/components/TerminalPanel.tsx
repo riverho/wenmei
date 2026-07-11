@@ -192,9 +192,11 @@ function TerminalInstance({
     function resize() {
       if (!termRef.current || !fitRef.current) return;
       fitRef.current.fit();
-      terminalResize(sessionId, termRef.current.rows, termRef.current.cols).catch(
-        () => {}
-      );
+      terminalResize(
+        sessionId,
+        termRef.current.rows,
+        termRef.current.cols
+      ).catch(() => {});
     }
 
     async function start(forceRestart = false) {
@@ -319,7 +321,9 @@ export default function TerminalPanel() {
           )}
         </div>
         {context && (
-          <div className="hidden lg:block truncate">log: {context.log_file}</div>
+          <div className="hidden lg:block truncate">
+            log: {context.log_file}
+          </div>
         )}
       </div>
       <div className="flex-1 min-h-0 flex flex-col">

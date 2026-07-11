@@ -95,7 +95,10 @@ export default function VaultMenu({
                 >
                   <span className="w-3.5 shrink-0">
                     {isActive && (
-                      <Check size={12} style={{ color: "var(--accent-teal)" }} />
+                      <Check
+                        size={12}
+                        style={{ color: "var(--accent-teal)" }}
+                      />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">

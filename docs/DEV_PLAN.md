@@ -4,6 +4,7 @@
 
 Wenmei is an agentic thinking environment for local folders.
 
+
 - Local folder = world
 - Sandbox = thinking room
 - Markdown = durable thinking surface
