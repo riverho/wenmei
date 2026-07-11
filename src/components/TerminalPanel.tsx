@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Plus, X } from "lucide-react";
 import { listen, type UnlistenFn } from "@/lib/tauri-events";
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, TERMINAL_TAB_MB } from "@/store/appStore";
 import {
   terminalResize,
   terminalSetNarrationEnabled,
@@ -24,36 +25,96 @@ const STUCK_AFTER_INPUT_MS = 30000;
 
 type TerminalActivityStatus = "active" | "idle" | "stuck";
 
-interface TerminalTab {
-  sessionId: string;
-  title: string;
-}
+// Store-backed tab strip. Each tab is a PTY session; the visible strip is
+// real (add/close/switch), and the shared xterm renders the active tab —
+// full per-tab PTY isolation is the multi-session backend depth (F3).
+function TerminalTabBar() {
+  const terminalTabs = useAppStore(s => s.terminalTabs);
+  const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
+  const addTerminalTab = useAppStore(s => s.addTerminalTab);
+  const closeTerminalTab = useAppStore(s => s.closeTerminalTab);
+  const setActiveTerminalTab = useAppStore(s => s.setActiveTerminalTab);
+  const terminalTabLimit = useAppStore(s => s.terminalTabLimit);
+  const terminalTabsUnlimited = useAppStore(s => s.terminalTabsUnlimited);
 
-function TerminalTabBar({ tabs }: { tabs: TerminalTab[] }) {
+  const atLimit =
+    !terminalTabsUnlimited && terminalTabs.length >= terminalTabLimit;
+  const usedMb = terminalTabs.length * TERMINAL_TAB_MB;
+
   return (
     <div
-      className="flex items-center gap-1 px-3 py-1 border-b text-[11px]"
-      style={{
-        borderColor: "var(--surface-3)",
-        background: "#080b0e",
-        color: "var(--text-tertiary)",
-      }}
+      className="flex items-stretch overflow-x-auto shrink-0"
+      style={{ background: "#070a0d", borderBottom: "1px solid #1b2127" }}
     >
-      {tabs.map(tab => (
-        <button
-          key={tab.sessionId}
-          className="px-2 py-1 rounded border"
-          style={{
-            borderColor: "var(--accent-teal)",
-            color: "var(--accent-teal)",
-            background: "rgba(94, 234, 212, 0.08)",
-          }}
-          title={tab.sessionId}
-        >
-          {tab.title}
-        </button>
-      ))}
-      {tabs.length === 0 && <span>Terminal</span>}
+      {terminalTabs.map(tab => {
+        const active = tab.id === activeTerminalTabId;
+        return (
+          <div
+            key={tab.id}
+            onClick={() => setActiveTerminalTab(tab.id)}
+            className="group flex items-center gap-2 pl-3 pr-2 py-1.5 cursor-pointer shrink-0 transition-colors border-t-2"
+            style={{
+              background: active ? "#0a0d10" : "transparent",
+              borderTopColor: active ? "var(--accent-teal)" : "transparent",
+              color: active ? "#d7dde5" : "#7c8894",
+            }}
+          >
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: active ? "#5eead4" : "#2a333d" }}
+            />
+            <span className="text-[11px] font-mono whitespace-nowrap truncate max-w-[120px]">
+              {tab.title}
+            </span>
+            {terminalTabs.length > 1 && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  closeTerminalTab(tab.id);
+                }}
+                className="flex items-center justify-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 shrink-0"
+                style={{ color: "#7c8894" }}
+                title="Close tab"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      <button
+        onClick={() => addTerminalTab()}
+        disabled={atLimit}
+        className="flex items-center justify-center w-8 shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
+        style={{ color: "#7c8894" }}
+        title={
+          atLimit
+            ? `Tab limit reached (${terminalTabLimit}) — raise it in Settings`
+            : "New terminal tab"
+        }
+      >
+        <Plus size={14} />
+      </button>
+
+      <div className="flex-1" />
+
+      <div
+        className="flex items-center gap-1.5 px-3 shrink-0 text-[10px]"
+        style={{ color: "#5a6570" }}
+        title={
+          terminalTabsUnlimited
+            ? "Unlimited tabs"
+            : `${usedMb} MB used by ${terminalTabs.length} tabs · limit ${terminalTabLimit}`
+        }
+      >
+        <span>~{usedMb} MB</span>
+        {!terminalTabsUnlimited && (
+          <span>
+            {terminalTabs.length}/{terminalTabLimit}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -64,6 +125,8 @@ function resetMessage(error: unknown) {
 
 export default function TerminalPanel() {
   const { activeVaultId, activeSandboxId, narrateByDefault } = useAppStore();
+  const terminalTabs = useAppStore(s => s.terminalTabs);
+  const addTerminalTab = useAppStore(s => s.addTerminalTab);
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -76,7 +139,11 @@ export default function TerminalPanel() {
   const [context, setContext] = useState<TerminalStarted | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<TerminalActivityStatus>("idle");
-  const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>([]);
+  // Seed a tab when the terminal opens so the strip is never empty.
+  useEffect(() => {
+    if (terminalTabs.length === 0) addTerminalTab();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Mirrors the backend: new sessions inherit narrate_by_default (state.json).
   const [narrationEnabled, setNarrationEnabled] = useState(narrateByDefault);
   const [narrationOffline, setNarrationOffline] = useState(false);
@@ -191,12 +258,6 @@ export default function TerminalPanel() {
         contextRef.current = started;
         if (!disposed) {
           setContext(started);
-          setTerminalTabs([
-            {
-              sessionId: started.session_id,
-              title: started.cwd.split("/").filter(Boolean).pop() ?? "Terminal",
-            },
-          ]);
           refreshActivity();
         }
 
@@ -267,7 +328,7 @@ export default function TerminalPanel() {
       className="flex flex-col h-full overflow-hidden"
       style={{ background: "#0a0d10" }}
     >
-      <TerminalTabBar tabs={terminalTabs} />
+      <TerminalTabBar />
       <div
         className="flex items-center justify-between gap-3 px-4 py-2 border-b text-xs"
         style={{

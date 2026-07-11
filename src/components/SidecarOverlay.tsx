@@ -128,9 +128,7 @@ export function OverlayCard({
       </div>
 
       {/* Approval relay (H10): input.needs_response carries hands. */}
-      {item.alertLabel === "input.needs_response" && (
-        <ApprovalActions />
-      )}
+      {item.alertLabel === "input.needs_response" && <ApprovalActions />}
     </div>
   );
 }
@@ -159,7 +157,10 @@ function ApprovalActions() {
 
   if (state === "done") {
     return (
-      <div className="mt-1.5 text-[10px]" style={{ color: "var(--accent-teal)" }}>
+      <div
+        className="mt-1.5 text-[10px]"
+        style={{ color: "var(--accent-teal)" }}
+      >
         Sent — journaled as steering.injected
       </div>
     );
@@ -173,7 +174,10 @@ function ApprovalActions() {
   }
 
   return (
-    <div className="mt-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+    <div
+      className="mt-1.5 flex items-center gap-1.5"
+      onClick={e => e.stopPropagation()}
+    >
       <button
         onClick={() => answer(true)}
         disabled={state === "sending"}

@@ -575,17 +575,15 @@ export async function nightShiftStatus(): Promise<NightShiftRun | null> {
 // ─── Heartbeat run cards (docs/design/sentinel-ledger.md §4) ───
 
 export type RunStatus =
-  | "idle"
-  | "running"
-  | "waiting_input"
-  | "stuck"
-  | "done"
-  | "blocked";
+  "idle" | "running" | "waiting_input" | "stuck" | "done" | "blocked";
 
 export interface RunCard {
   id: string;
   goal: string;
-  wake: { kind: "interval"; secs: number } | { kind: "on_event"; event: string } | { kind: "manual" };
+  wake:
+    | { kind: "interval"; secs: number }
+    | { kind: "on_event"; event: string }
+    | { kind: "manual" };
   stop:
     | { kind: "checks_pass"; command: string }
     | { kind: "human_gate" }

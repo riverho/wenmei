@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import {
   checkForUpdate,
   cliIntegrationStatus,
   installCliIntegration,
   runInstallScript,
+  readFile,
 } from "@/lib/tauri-bridge";
 import {
   Loader2,
@@ -89,19 +90,117 @@ function Toggle({
   );
 }
 
+function ControlPlaneRow() {
+  const [token, setToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    readFile(".wenmei/wenmei-control.json")
+      .then(file => {
+        if (cancelled) return;
+        try {
+          const data = JSON.parse(file.content) as { token?: string };
+          setToken(data.token ?? null);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setError(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleCopy() {
+    if (!token) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  const status = token
+    ? "Running on 127.0.0.1"
+    : error
+      ? "Not running"
+      : "Checking…";
+
+  const statusColor = token
+    ? "var(--accent-teal)"
+    : error
+      ? "var(--accent-rose)"
+      : "var(--text-tertiary)";
+
+  return (
+    <SettingRow
+      label="Control plane"
+      description={
+        error && !token
+          ? "Start the app to enable the local JSON-RPC server"
+          : token
+            ? `Token: ${token.slice(0, 12)}… — Local JSON-RPC for external agents`
+            : status
+      }
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded"
+          style={{
+            background: token ? "rgba(0, 134, 115, 0.1)" : "var(--surface-2)",
+            color: statusColor,
+          }}
+        >
+          {token ? (
+            <Check size={10} />
+          ) : (
+            <Loader2 size={10} className={error ? "" : "animate-spin"} />
+          )}
+          {token ? "Running" : status}
+        </span>
+        {token && (
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors"
+            style={{
+              color: copied ? "var(--accent-teal)" : "var(--text-tertiary)",
+            }}
+          >
+            {copied ? <Check size={10} /> : <Copy size={10} />}
+            {copied ? "Copied" : "Copy token"}
+          </button>
+        )}
+      </div>
+    </SettingRow>
+  );
+}
+
 // ─── Section heading ────────────────────────────────────────────────────────
 
 function Section({
   icon: Icon,
   title,
+  id,
   children,
 }: {
   icon: React.ElementType;
   title: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3">
+    <section
+      id={id ? `settings-${id}` : undefined}
+      data-settings-section={id}
+      className="space-y-3 scroll-mt-4"
+    >
       <div className="flex items-center gap-2">
         <Icon size={13} style={{ color: "var(--accent-teal)" }} />
         <h2
@@ -113,6 +212,72 @@ function Section({
       </div>
       <div className="space-y-3">{children}</div>
     </section>
+  );
+}
+
+// ─── Two-column shell: section nav rail + scroll-spy (responsive) ─────────────
+
+const SETTINGS_NAV: { id: string; label: string; icon: React.ElementType }[] = [
+  { id: "general", label: "General", icon: Settings },
+  { id: "terminal", label: "Terminal", icon: Terminal },
+  { id: "windows", label: "Windows", icon: Square },
+  { id: "keyboard", label: "Keyboard", icon: Keyboard },
+  { id: "agent", label: "Agent & Narration", icon: Bot },
+  { id: "integrations", label: "Integrations", icon: Link2 },
+  { id: "license", label: "License", icon: Key },
+  { id: "about", label: "About", icon: Info },
+];
+
+function SettingsNav({
+  active,
+  onSelect,
+}: {
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navRef.current
+      ?.querySelector<HTMLElement>(`[data-nav-id="${active}"]`)
+      ?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [active]);
+  return (
+    <nav
+      ref={navRef}
+      className="flex shrink-0 gap-1 overflow-x-auto md:overflow-x-visible md:overflow-y-auto flex-row md:flex-col w-full md:w-44 px-2 py-2 md:py-3 border-b md:border-b-0 md:border-r border-[var(--surface-3)]"
+    >
+      {SETTINGS_NAV.map(({ id, label, icon: Icon }) => {
+        const isActive = active === id;
+        return (
+          <button
+            key={id}
+            data-nav-id={id}
+            onClick={() => onSelect(id)}
+            className="flex items-center gap-2 shrink-0 md:w-full px-2.5 py-1.5 rounded-lg text-xs mb-0 md:mb-0.5 whitespace-nowrap transition-colors text-left"
+            style={{
+              background: isActive ? "var(--surface-2)" : "transparent",
+              color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+              fontWeight: isActive ? 600 : 400,
+            }}
+          >
+            <Icon
+              size={13}
+              className="shrink-0"
+              style={{
+                color: isActive ? "var(--accent-teal)" : "var(--text-tertiary)",
+              }}
+            />
+            <span
+              className={
+                isActive ? "inline" : "hidden min-[420px]:inline md:inline"
+              }
+            >
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -507,8 +672,7 @@ function CheckUpdateRow() {
         style={{
           background:
             state === "available" ? "var(--accent-teal)" : "var(--surface-2)",
-          color:
-            state === "available" ? "#fff" : "var(--text-secondary)",
+          color: state === "available" ? "#fff" : "var(--text-secondary)",
         }}
       >
         {state === "checking" ? (
@@ -536,6 +700,8 @@ export default function SettingsPanel() {
     setTerminalTabsUnlimited,
     sandboxNewWindows,
     setSandboxNewWindows,
+    leftPanelOpen,
+    setLeftPanelOpen,
     licenseTier,
     licenseKey,
     setLicenseKey,
@@ -543,6 +709,9 @@ export default function SettingsPanel() {
   } = useAppStore();
 
   const [copiedKey, setCopiedKey] = useState(false);
+  const [activeSection, setActiveSection] = useState("general");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const clickScrollRef = useRef(false);
 
   const handleCopyLicenseKey = () => {
     if (licenseKey) {
@@ -552,14 +721,46 @@ export default function SettingsPanel() {
     }
   };
 
+  const scrollToSection = (id: string) => {
+    setActiveSection(id);
+    clickScrollRef.current = true;
+    scrollRef.current
+      ?.querySelector(`#settings-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      clickScrollRef.current = false;
+    }, 600);
+  };
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const onScroll = () => {
+      if (clickScrollRef.current) return;
+      let current = activeSection;
+      root
+        .querySelectorAll<HTMLElement>("[data-settings-section]")
+        .forEach(sec => {
+          if (sec.offsetTop - root.scrollTop <= 48) {
+            current = sec.dataset.settingsSection ?? current;
+          }
+        });
+      setActiveSection(current);
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    return () => root.removeEventListener("scroll", onScroll);
+  }, [activeSection]);
+
   return (
     <div
-      className="h-full overflow-y-auto wenmei-scroll"
+      className="flex flex-col md:flex-row h-full overflow-hidden"
       style={{ background: "var(--surface-1)" }}
     >
-      <div className="max-w-xl mx-auto px-6 py-5 space-y-6">
+      <SettingsNav active={activeSection} onSelect={scrollToSection} />
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto wenmei-scroll">
+        <div className="max-w-2xl px-4 py-4 md:px-6 md:py-5 space-y-6">
         {/* ── General ── */}
-        <Section icon={Settings} title="General">
+        <Section icon={Settings} title="General" id="general">
           <SettingRow
             label="Theme"
             description="Color scheme for the interface"
@@ -572,8 +773,8 @@ export default function SettingsPanel() {
             description="File tree and navigation panel"
           >
             <Toggle
-              checked={true}
-              onChange={() => {}}
+              checked={leftPanelOpen}
+              onChange={v => setLeftPanelOpen(v)}
               label="Visible"
               description="Show or hide the left sidebar"
             />
@@ -583,7 +784,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Terminal ── */}
-        <Section icon={Terminal} title="Terminal">
+        <Section icon={Terminal} title="Terminal" id="terminal">
           <SettingRow
             label="Narration by default"
             description="New terminal tabs start with narration enabled"
@@ -618,14 +819,16 @@ export default function SettingsPanel() {
           </SettingRow>
 
           <SettingRow
-            label="Estimated memory per tab"
+            label="Estimated terminal memory"
             description="Based on PTY scrollback + xterm buffer allocation"
           >
             <span
               className="text-xs font-mono"
               style={{ color: "var(--text-secondary)" }}
             >
-              ~9 MB / tab
+              {terminalTabsUnlimited
+                ? "Unlimited"
+                : `~${terminalTabLimit * 9} MB total`}
             </span>
           </SettingRow>
 
@@ -640,7 +843,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Windows ── */}
-        <Section icon={Square} title="Windows">
+        <Section icon={Square} title="Windows" id="windows">
           <SettingRow
             label="Open files in new window"
             description="Double-clicking a file or opening from Finder spawns a new app window"
@@ -676,7 +879,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Keyboard ── */}
-        <Section icon={Keyboard} title="Keyboard Shortcuts">
+        <Section icon={Keyboard} title="Keyboard Shortcuts" id="keyboard">
           <div
             className="rounded-lg border overflow-hidden"
             style={{ borderColor: "var(--surface-3)" }}
@@ -720,7 +923,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Agent & Narration ── */}
-        <Section icon={Bot} title="Agent &amp; Narration">
+        <Section icon={Bot} title="Agent &amp; Narration" id="agent">
           <SettingRow
             label="Sidecar engine"
             description="The AI engine used for narration, commentary, and chat"
@@ -805,7 +1008,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Integrations ── */}
-        <Section icon={Link2} title="Integrations">
+        <Section icon={Link2} title="Integrations" id="integrations">
           <CliIntegrationRow />
 
           {platform === "macos" && (
@@ -824,30 +1027,7 @@ export default function SettingsPanel() {
             />
           )}
 
-          <SettingRow
-            label="Control plane"
-            description="Local JSON-RPC server for external agents"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded"
-                style={{
-                  background: "rgba(0, 134, 115, 0.1)",
-                  color: "var(--accent-teal)",
-                }}
-              >
-                <Check size={10} />
-                Running on 127.0.0.1
-              </span>
-              <button
-                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                <Copy size={10} />
-                Copy token
-              </button>
-            </div>
-          </SettingRow>
+          <ControlPlaneRow />
 
           <SettingRow
             label="MCP server"
@@ -880,7 +1060,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── License ── */}
-        <Section icon={Key} title="License">
+        <Section icon={Key} title="License" id="license">
           <SettingRow
             label="Current tier"
             description="Features available in your current plan"
@@ -930,69 +1110,83 @@ export default function SettingsPanel() {
             </div>
           )}
 
-          {licenseTier === "pro" && (
+          {licenseTier === "pro" && licenseKey && (
             <SettingRow
-              label="License key"
-              description="Your one-time purchase key"
+              label="Key on file"
+              description="Your one-time purchase key — verified offline"
             >
-              {licenseKey ? (
-                <div className="flex items-center gap-2">
-                  <code
-                    className="text-[10px] font-mono px-2 py-1 rounded max-w-[200px] truncate block"
-                    style={{
-                      background: "var(--surface-2)",
-                      color: "var(--text-secondary)",
-                    }}
-                    title={licenseKey}
-                  >
-                    {licenseKey}
-                  </code>
-                  <button
-                    onClick={handleCopyLicenseKey}
-                    className="flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors"
-                    style={{
-                      color: copiedKey
-                        ? "var(--accent-teal)"
-                        : "var(--text-tertiary)",
-                    }}
-                  >
-                    {copiedKey ? <Check size={10} /> : <Copy size={10} />}
-                    {copiedKey ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              ) : (
-                <span
-                  className="text-[10px]"
-                  style={{ color: "var(--text-tertiary)" }}
+              <div className="flex items-center gap-2">
+                <code
+                  className="text-[10px] font-mono px-2 py-1 rounded max-w-[200px] truncate block"
+                  style={{
+                    background: "var(--surface-2)",
+                    color: "var(--text-secondary)",
+                  }}
+                  title={licenseKey}
                 >
-                  No key entered
-                </span>
-              )}
+                  {licenseKey}
+                </code>
+                <button
+                  onClick={handleCopyLicenseKey}
+                  className="flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors"
+                  style={{
+                    color: copiedKey
+                      ? "var(--accent-teal)"
+                      : "var(--text-tertiary)",
+                  }}
+                >
+                  {copiedKey ? <Check size={10} /> : <Copy size={10} />}
+                  {copiedKey ? "Copied" : "Copy"}
+                </button>
+              </div>
             </SettingRow>
           )}
 
           <SettingRow
-            label="License key"
-            description="Paste a key to unlock Pro — verified offline, never leaves your machine"
+            label={licenseKey ? "Replace license key" : "License key"}
+            description={
+              licenseKey
+                ? "Enter a new key to swap, or clear to revert to Free"
+                : "Paste a key to unlock Pro — verified offline, never leaves your machine"
+            }
           >
-            <input
-              defaultValue={licenseKey ?? ""}
-              placeholder="WENMEI-XXXX-XXXX"
-              onBlur={e => setLicenseKey(e.target.value.trim() || null)}
-              className="text-[10px] font-mono px-2 py-1 rounded outline-none w-44"
-              style={{
-                background: "var(--surface-0)",
-                border: "1px solid var(--surface-3)",
-                color: "var(--text-primary)",
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                defaultValue=""
+                placeholder={
+                  licenseKey ? "Enter new key to replace" : "WENMEI-XXXX-XXXX"
+                }
+                onBlur={e => {
+                  const value = e.target.value.trim();
+                  if (value && value !== licenseKey) {
+                    setLicenseKey(value);
+                    e.target.value = "";
+                  }
+                }}
+                className="text-[10px] font-mono px-2 py-1 rounded outline-none w-44"
+                style={{
+                  background: "var(--surface-0)",
+                  border: "1px solid var(--surface-3)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              {licenseKey && (
+                <button
+                  onClick={() => setLicenseKey(null)}
+                  className="text-[10px] px-2 py-1 rounded transition-colors"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </SettingRow>
         </Section>
 
         <Divider />
 
         {/* ── About ── */}
-        <Section icon={Info} title="About">
+        <Section icon={Info} title="About" id="about">
           <SettingRow label="Version" description="Wenmei desktop application">
             <span
               className="text-xs font-mono"
@@ -1062,6 +1256,7 @@ export default function SettingsPanel() {
             </a>
           </div>
         </Section>
+        </div>
       </div>
     </div>
   );

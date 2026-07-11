@@ -1377,3 +1377,63 @@ tasks:
       scrollable tab strip on mobile; inactive labels hide <420px, active tab
       auto-scrolls into view; content padding tightens. Pure Tailwind, no JS
       branch.
+
+  - id: H15
+    title: Reconcile playground UI into real app — terminal tabs + two-column settings
+    status: todo
+    priority: 95
+    skill: run-task
+    phase: H
+    tags: [tsx, reconcile, terminal, settings]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -q "TerminalTab" ../src/store/appStore.ts
+      - grep -q "addTerminalTab" ../src/store/appStore.ts
+      - bash -c '! grep -q "setTerminalTabs" ../src/components/TerminalPanel.tsx'
+      - grep -q "SettingsNav" ../src/components/SettingsPanel.tsx
+      - grep -q "md:flex-row" ../src/components/SettingsPanel.tsx
+      - cd .. && npm run check
+      - cd .. && npm run lint
+    notes: >-
+      Playground ran ahead of the real app; several Phase F-H surfaces stayed
+      mocks. Ported: terminal tab strip (store-backed terminalTabs slice +
+      add/close/switch/memory, seeds a tab on open — was dead local
+      useState([])); two-column responsive settings shell (nav rail + scroll-
+      spy + mobile tab strip). Verified: tsc, lint, vite build green. Remaining
+      reconciliation gaps tracked in H16.
+
+  - id: H16
+    title: Reconciliation follow-ups — VaultMenu, Vaults settings, terminal narrate removal
+    status: todo
+    priority: 96
+    skill: run-task
+    phase: H
+    tags: [tsx, reconcile, vaults, terminal]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -q "VaultMenu" ../src/components/Header.tsx
+      - grep -q "removeVault" ../src/store/appStore.ts
+      - cd .. && npm run check
+    notes: >-
+      Real app still lacks: H4 VaultMenu (+/- popup) in Header (uses old
+      select); Settings Vaults section (needs removeVault/removeVaults/
+      addLocalVault store actions + bridge); H3 terminal narrate-toggle removal
+      (Narrate is a project property now). Also full per-tab PTY isolation
+      (each tab a live session) is F3 backend depth beyond the visible strip.
+
+  - id: H17
+    title: Reconciliation exit validation — build and boot-verify tabs+settings
+    status: todo
+    priority: 97
+    skill: run-task
+    phase: H
+    tags: [validation]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - test -f ../src-tauri/target/release/bundle/macos/Wenmei.app/Contents/MacOS/wenmei
+      - cd .. && npm run build
+    notes: >-
+      Human validation: build the desktop app, open a terminal (tab strip
+      shows a seeded tab, + adds tabs, close works), open Settings (two-column
+      nav on desktop, tab strip on mobile, scroll-spy tracks). Confirms the
+      reconciliation actually surfaces in the built app.

@@ -14,6 +14,15 @@ import type { SidecarItem, SidecarItemKind } from "@/lib/sidecar-types";
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
 export type LightboxVariant =
   "onboarding" | "settings" | "pi-chat" | "alert" | "custom" | null;
+
+export interface TerminalTab {
+  id: string;
+  title: string;
+  createdAt: number;
+}
+
+/** Rough per-tab memory estimate (xterm buffer + PTY scrollback). */
+export const TERMINAL_TAB_MB = 9;
 export type Keymap = Record<string, string>;
 
 export const DEFAULT_KEYMAP: Keymap = {
@@ -81,6 +90,10 @@ interface AppState {
   sandboxNewWindows: boolean;
   narrationDepth: "off" | "brief" | "detailed";
   keymap: Keymap;
+
+  // Terminal tabs (session-local; each tab is a PTY session)
+  terminalTabs: TerminalTab[];
+  activeTerminalTabId: string | null;
 
   // Pi Terminal
   piMessages: PiMessage[];
@@ -159,6 +172,12 @@ interface AppState {
   setLicenseKey: (key: string | null) => void;
   clearCommentary: () => void;
 
+  // Terminal tabs
+  openTerminal: () => void;
+  addTerminalTab: () => void;
+  closeTerminalTab: (id: string) => void;
+  setActiveTerminalTab: (id: string) => void;
+
   // Review session
   setActiveReviewSession: (id: string | null) => void;
   setChangeset: (entries: ChangesetEntry[]) => void;
@@ -227,6 +246,8 @@ export const useAppStore = create<AppState>()(
       sandboxNewWindows: true,
       narrationDepth: "brief",
       keymap: DEFAULT_KEYMAP,
+      terminalTabs: [],
+      activeTerminalTabId: null,
       isDirty: false,
       piMessages: [],
       piInput: "",
@@ -348,6 +369,37 @@ export const useAppStore = create<AppState>()(
       setSandboxNewWindows: on => set({ sandboxNewWindows: on }),
       setNarrationDepth: depth => set({ narrationDepth: depth }),
       setLicenseKey: key => set({ licenseKey: key }),
+
+      openTerminal: () => {
+        if (get().terminalTabs.length === 0) get().addTerminalTab();
+        get().setMode("terminal");
+      },
+      addTerminalTab: () => {
+        const { terminalTabs, terminalTabLimit, terminalTabsUnlimited } = get();
+        if (!terminalTabsUnlimited && terminalTabs.length >= terminalTabLimit) {
+          return;
+        }
+        const id = `term-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const tab: TerminalTab = {
+          id,
+          title: `zsh ${terminalTabs.length + 1}`,
+          createdAt: Date.now(),
+        };
+        set({ terminalTabs: [...terminalTabs, tab], activeTerminalTabId: id });
+      },
+      closeTerminalTab: id => {
+        const tabs = get().terminalTabs.filter(t => t.id !== id);
+        const active = get().activeTerminalTabId;
+        set({
+          terminalTabs: tabs,
+          activeTerminalTabId:
+            active === id ? (tabs[tabs.length - 1]?.id ?? null) : active,
+        });
+        if (tabs.length === 0 && get().mode === "terminal") {
+          set({ mode: "edit", rightPanelOpen: true });
+        }
+      },
+      setActiveTerminalTab: id => set({ activeTerminalTabId: id }),
 
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),
