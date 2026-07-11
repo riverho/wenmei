@@ -3,12 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>
-      Wenmei — Every powerful agent is a terminal. Wenmei gives it a manager.
-    </title>
+    <title>Wenmei — A sidecar control room for AI agents.</title>
     <meta
       name="description"
-      content="The safe desktop where AI agents do real work on your files — visible, reviewable, reversible. Point any CLI agent at a folder, watch what it does, approve or roll back every change. Zero cloud."
+      content="Wenmei is a local sidecar control room for AI agents working on your files. Keep your existing editor, terminal, and agents while Wenmei surfaces important signals, stages reviewable changes, and gives you actions to approve, reject, steer, resume, or roll back."
     />
     <link rel="icon" type="image/png" href="logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -147,12 +145,21 @@
             >Wenmei</span
           >
         </div>
-        <a
-          href="#download"
-          class="text-sm font-medium px-5 py-2 rounded-full bg-black hover:bg-[#333] text-white transition-all duration-200"
-        >
-          Download
-        </a>
+        <div class="flex items-center gap-4">
+          <a
+            href="https://github.com/riverho/wenmei"
+            target="_blank"
+            class="hidden sm:inline-flex text-sm font-medium text-zen-500 hover:text-zen-700 transition-colors"
+          >
+            GitHub
+          </a>
+          <a
+            href="#download"
+            class="text-sm font-medium px-5 py-2 rounded-full bg-black hover:bg-[#333] text-white transition-all duration-200"
+          >
+            Download
+          </a>
+        </div>
       </div>
     </nav>
 
@@ -168,7 +175,7 @@
           <span
             class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/5 border border-black/5 text-zen-600 text-xs font-medium tracking-wide uppercase"
           >
-            v0.1.0 &middot; Open Source
+            v0.2.1 &middot; Open Source
           </span>
         </div>
 
@@ -183,23 +190,17 @@
           <h1
             class="font-serif text-4xl sm:text-5xl md:text-6xl leading-[1.15] mb-6 text-[#1c1916] fade-in visible delay-2 font-medium tracking-tight"
           >
-            Every powerful agent<br />
-            is a terminal.
-            <span class="italic text-zen-500"
-              ><br />
-              Wenmei gives it a manager.</span
-            >
+            Keep your tools.<br />
+            Add a sidecar<br />
+            <span class="italic text-zen-500">for agent work.</span>
           </h1>
           <p
             class="text-base sm:text-lg text-zen-500 max-w-xl mx-auto leading-relaxed mb-10 fade-in visible delay-3"
           >
-            Point an AI agent at a folder of your real files. Watch what<br
-              class="hidden sm:block"
-            />
-            it does. Approve or roll back every change. The safe desktop<br
-              class="hidden sm:block"
-            />
-            where agents do real work — visible, reviewable, reversible.
+            Wenmei sits beside your editor, terminal, and AI agents. It watches
+            local file work, surfaces the important signals, and gives you
+            actions: review, approve, reject, steer, summarize, resume, or roll
+            back.
           </p>
         </div>
 
@@ -227,17 +228,26 @@
             Download for macOS
           </a>
           <a
-            href="https://github.com/riverho/wenmei"
-            target="_blank"
+            href="#how-it-works"
             class="inline-flex items-center gap-2 px-8 py-3.5 rounded-full border border-black/10 hover:border-black/20 text-[#4a4640] font-medium text-base transition-all duration-200 hover:bg-black/5"
           >
-            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path
-                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
-              />
-            </svg>
-            View on GitHub
+            See the sidecar loop
           </a>
+        </div>
+
+        <!-- Trust bar -->
+        <div
+          class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-16 text-xs text-zen-400 font-medium tracking-wide uppercase fade-in visible delay-4"
+        >
+          <span>Works beside your tools</span>
+          <span class="w-1 h-1 rounded-full bg-zen-300"></span>
+          <span>Local-first</span>
+          <span class="w-1 h-1 rounded-full bg-zen-300"></span>
+          <span>Plain markdown</span>
+          <span class="w-1 h-1 rounded-full bg-zen-300"></span>
+          <span>Reviewable changes</span>
+          <span class="w-1 h-1 rounded-full bg-zen-300 hidden sm:inline"></span>
+          <span class="hidden sm:inline">MIT open source</span>
         </div>
 
         <!-- App Screenshot Mock -->
@@ -417,12 +427,12 @@
             <div
               class="border-t border-black/5 px-5 py-2.5 bg-zen-50/80 flex items-center gap-3"
             >
-              <span class="text-xs text-zen-400 font-mono">$</span>
+              <span class="text-xs text-zen-400 font-mono">●</span>
               <span class="text-xs text-zen-500 font-mono"
-                >pi --mode rpc --session-dir .wenmei/pi-sessions</span
+                >sidecar watching ~/Documents/research</span
               >
               <span class="ml-auto text-xs text-zen-400"
-                >sandbox: ~/Documents/research</span
+                >agent sandbox active</span
               >
             </div>
 
@@ -447,21 +457,21 @@
                   <span
                     class="overlay-label text-white/90 text-sm font-medium tracking-wide text-center"
                     style="transition-delay: 0.6s"
-                    >Your&nbsp;File,<br />Your&nbsp;Sandbox</span
+                    >Local<br />Vault</span
                   >
                 </div>
                 <div class="flex items-center justify-center">
                   <span
                     class="overlay-label text-white/90 text-sm font-medium tracking-wide text-center"
                     style="transition-delay: 0.8s"
-                    >Markdown<br />Editor</span
+                    >Writing<br />Surface</span
                   >
                 </div>
                 <div class="flex items-center justify-center">
                   <span
                     class="overlay-label text-white/90 text-sm font-medium tracking-wide text-center"
                     style="transition-delay: 1s"
-                    >Agent<br />Chat</span
+                    >Sidecar<br />Console</span
                   >
                 </div>
               </div>
@@ -493,10 +503,10 @@
           <h2
             class="font-serif text-3xl sm:text-4xl text-[#1c1916] font-medium mb-3 fade-in"
           >
-            See it in action.
+            Signals from your agent run, in one place.
           </h2>
           <p class="text-zen-500 text-base max-w-md mx-auto fade-in delay-1">
-            Editor · Agent · Terminal — one window, your folder.
+            Terminal, files, review, and journal — side by side.
           </p>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3 fade-in delay-2">
@@ -556,14 +566,132 @@
           <h2
             class="font-serif text-3xl sm:text-4xl text-[#1c1916] font-medium mb-3 fade-in"
           >
-            Your files are already the app.
+            A sidecar for agent work.
           </h2>
           <p class="text-zen-500 text-base max-w-lg mx-auto fade-in delay-1">
-            No import. No database. No proprietary format. Point Wenmei at a
-            folder — it works.
+            Wenmei does not replace your tools. It watches what your agents do
+            and turns important moments into actions.
           </p>
         </div>
         <div class="grid md:grid-cols-3 gap-8 fade-in delay-2">
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center mb-5"
+            >
+              <svg
+                class="w-5 h-5 text-teal-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              Keep your workflow
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Wenmei works beside VS Code, Cursor, Ghostty, Warp, Claude Code,
+              Codex, Aider, and the other tools you already use. No migration,
+              no replacement.
+            </p>
+          </div>
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center mb-5"
+            >
+              <svg
+                class="w-5 h-5 text-teal-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              Turn agent noise into signals
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Terminal output, file changes, review comments, and risky moments
+              are filtered into the sidecar feed. Stop reconstructing a run from
+              scrollback.
+            </p>
+          </div>
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center mb-5"
+            >
+              <svg
+                class="w-5 h-5 text-teal-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              Turn signals into actions
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Review a diff, reject a risky edit, steer the run, summarize what
+              happened, resume later, or roll back. The sidecar is an action
+              surface, not just a log.
+            </p>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-8 mt-8 fade-in delay-2">
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center mb-5"
+            >
+              <svg
+                class="w-5 h-5 text-teal-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              Reviewable local work
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Every edit lands as a reviewable changeset. Approve what helps,
+              reject what does not, roll back the rest. Agent output is treated
+              like a draft, not a deployment.
+            </p>
+          </div>
           <div
             class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
           >
@@ -585,68 +713,12 @@
               </svg>
             </div>
             <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
-              Local-first, always
+              Local files, scoped rules
             </h3>
             <p class="text-zen-500 text-sm leading-relaxed">
-              Plain markdown files on your filesystem. Readable by any editor,
-              grep, git, or sync tool. No vendor lock-in.
-            </p>
-          </div>
-          <div
-            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
-          >
-            <div
-              class="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center mb-5"
-            >
-              <svg
-                class="w-5 h-5 text-teal-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
-              A manager for any agent
-            </h3>
-            <p class="text-zen-500 text-sm leading-relaxed">
-              Run Claude Code, Codex, Aider — any CLI agent — in the built-in
-              terminal while the sidecar narrates what it's doing in plain
-              language and every edit lands as a reviewable changeset.
-            </p>
-          </div>
-          <div
-            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
-          >
-            <div
-              class="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center mb-5"
-            >
-              <svg
-                class="w-5 h-5 text-teal-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
-              Sandbox security
-            </h3>
-            <p class="text-zen-500 text-sm leading-relaxed">
-              Enforced relative paths. Delete moves to trash. All mutations
-              logged. Pi can't escape the vault.
+              Works directly on local markdown folders. Paths stay inside the
+              vault, deleted files move to trash, and meaningful actions are
+              journaled. No import, no proprietary workspace, no cloud account.
             </p>
           </div>
         </div>
@@ -654,16 +726,16 @@
     </section>
 
     <!-- How it Works -->
-    <section class="px-6 py-24 bg-white">
+    <section id="how-it-works" class="px-6 py-24 bg-white">
       <div class="max-w-6xl mx-auto">
         <div class="text-center mb-16">
           <h2
             class="font-serif text-3xl sm:text-4xl text-[#1c1916] font-medium mb-3 fade-in"
           >
-            Three surfaces, one window.
+            The sidecar loop.
           </h2>
           <p class="text-zen-500 text-base max-w-md mx-auto fade-in delay-1">
-            No tab-switching between editor, AI chat, and command line.
+            Watch agent work, surface important signals, act on what matters.
           </p>
         </div>
         <div class="grid md:grid-cols-3 gap-12 fade-in delay-2">
@@ -686,11 +758,11 @@
               </svg>
             </div>
             <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
-              Write in markdown
+              Keep working where you work
             </h3>
             <p class="text-zen-500 text-sm leading-relaxed max-w-xs mx-auto">
-              A clean, focused editor with live preview and file tree
-              navigation. Nothing distracting.
+              Use your editor, terminal, and agent setup. Point Wenmei at the
+              local folder that matters. No upload, no sync, no conversion.
             </p>
           </div>
           <div class="text-center">
@@ -707,16 +779,23 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                 />
               </svg>
             </div>
             <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
-              Talk to your workspace
+              Let the sidecar watch
             </h3>
             <p class="text-zen-500 text-sm leading-relaxed max-w-xs mx-auto">
-              Pi panel shows agent activity. Ask questions, give tasks, get
-              results — working on your actual files.
+              Wenmei observes terminal output, file changes, review events, and
+              journal entries. It filters the run into the signals you need to
+              see.
             </p>
           </div>
           <div class="text-center">
@@ -733,16 +812,104 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
             </div>
             <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
-              See the agent work
+              Act on what matters
             </h3>
             <p class="text-zen-500 text-sm leading-relaxed max-w-xs mx-auto">
-              Terminal pane shows every command Pi executes. You can intervene,
-              inspect output, or take over entirely.
+              Review a changeset, reject a risky edit, steer the agent,
+              summarize the run, resume later, or roll back. Decisions, not
+              scrollback.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Use cases -->
+    <section class="px-6 py-24">
+      <div class="max-w-6xl mx-auto">
+        <div class="text-center mb-16">
+          <h2
+            class="font-serif text-3xl sm:text-4xl text-[#1c1916] font-medium mb-3 fade-in"
+          >
+            Who is it for?
+          </h2>
+          <p class="text-zen-500 text-base max-w-md mx-auto fade-in delay-1">
+            Anyone who lets an agent touch their local files and wants to stay
+            in control.
+          </p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-8 mb-8 fade-in delay-2">
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              For agent power users
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Run Claude Code, Codex, Aider, or your own terminal agent. Wenmei
+              turns messy runs into reviewable signals and actions.
+            </p>
+          </div>
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              For developers
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Keep VS Code, Cursor, Ghostty, Warp, or your terminal stack.
+              Wenmei adds run supervision, changeset review, and local memory.
+            </p>
+          </div>
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              For technical operators
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Let agents update project folders, docs, specs, and scripts while
+              Wenmei records what changed and what needs a decision.
+            </p>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-3 gap-8 fade-in delay-2">
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              For researchers
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Collect papers, notes, and drafts in one folder. Ask the agent to
+              synthesize, compare, or restructure. You keep the sources.
+            </p>
+          </div>
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              For writers
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Draft in markdown, let the agent suggest edits or rewrites, and
+              accept only the changes that match your voice.
+            </p>
+          </div>
+          <div
+            class="p-8 rounded-2xl bg-white border border-black/5 shadow-sm card-hover"
+          >
+            <h3 class="text-lg font-semibold text-[#2c2c2c] mb-2">
+              For teams later
+            </h3>
+            <p class="text-zen-500 text-sm leading-relaxed">
+              Use the journal and review trail to answer what AI touched, what
+              was accepted, and what was rolled back.
             </p>
           </div>
         </div>
@@ -772,11 +939,15 @@
         <h2
           class="font-serif text-3xl sm:text-4xl text-[#1c1916] font-medium mb-4 fade-in delay-1"
         >
-          Built on things you can trust.
+          Built as a sidecar, not a black box.
         </h2>
         <p class="text-zen-500 text-base max-w-md mx-auto mb-8 fade-in delay-2">
-          Tauri v2 · Rust backend · React + TypeScript · MIT License.<br />
-          No telemetry, no accounts, no cloud dependency. Every byte on GitHub.
+          Local files stay local. Agent work is scoped, journaled, and
+          reviewable. Wenmei is open source under MIT, so you can inspect the
+          control plane instead of trusting a cloud workspace.
+        </p>
+        <p class="text-zen-400 text-sm max-w-md mx-auto mb-8 fade-in delay-2">
+          Tauri v2 · Rust backend · React + TypeScript · MIT License
         </p>
         <a
           href="https://github.com/riverho/wenmei"
@@ -800,11 +971,11 @@
           <h2
             class="font-serif text-3xl sm:text-4xl text-[#1c1916] font-medium mb-3 fade-in"
           >
-            Try it.
+            Try it on your files.
           </h2>
           <p class="text-zen-500 text-base max-w-sm mx-auto fade-in delay-1">
-            Point it at a folder of markdown files. It works immediately. No
-            setup, no sign-up.
+            Point Wenmei at a folder of markdown files. No setup, no sign-up, no
+            cloud.
           </p>
         </div>
         <div class="max-w-md mx-auto fade-in delay-2">
@@ -850,7 +1021,7 @@
         <div class="flex items-center gap-3">
           <img src="icon_transparent.png" alt="Wenmei" class="w-6 h-6" />
           <span class="text-sm text-zen-400"
-            >Wenmei — the safe desktop for AI agents</span
+            >Wenmei — a sidecar control room for AI agents on local files</span
           >
         </div>
         <div class="flex items-center gap-6 text-sm text-zen-400">
