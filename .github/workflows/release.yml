@@ -95,11 +95,15 @@ jobs:
       # tauri.conf.json plugins.updater.pubkey). The latest.json manifest for
       # the update endpoint is assembled at release time from these
       # signatures — see docs/PACKAGING.md.
+      # createUpdaterArtifacts is enabled here (not in the committed
+      # tauri.conf.json) so keyless local `npm run desktop:build` still
+      # produces a runnable .app — only CI, which has the signing key,
+      # generates the signed updater tarballs for the feed.
       - name: Tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run desktop:build ${{ matrix.os != 'windows-latest' && format('-- --target {0}', matrix.target) || '' }}
+        run: npm run desktop:build -- --config '{"bundle":{"createUpdaterArtifacts":true}}' ${{ matrix.os != 'windows-latest' && format('--target {0}', matrix.target) || '' }}
 
       - name: Upload installers
         uses: actions/upload-artifact@v4

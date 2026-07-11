@@ -1298,3 +1298,24 @@ tasks:
       record); checker role context-isolated from doer, writes to review
       ledger; mechanical failure policy (salvage/block/pause). Supervised
       autonomy, human at phase gates.
+
+  - id: H8b
+    title: Fix local desktop build broken by updater artifact signing
+    status: todo
+    priority: 91
+    skill: run-task
+    phase: H
+    tags: [rust, ci, updater, hardening]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - bash -c 'grep -q createUpdaterArtifacts ../.github/workflows/release.yml'
+      - bash -c 'grep -c createUpdaterArtifacts ../src-tauri/tauri.conf.json | grep -qx 0'
+      - test -f ../src-tauri/target/release/bundle/macos/Wenmei.app/Contents/MacOS/wenmei
+      - cd ../src-tauri && cargo check
+    notes: >-
+      H8 set createUpdaterArtifacts:true in committed conf, which forces
+      updater-tarball signing and breaks `npm run desktop:build` for any dev
+      without TAURI_SIGNING_PRIVATE_KEY. Move artifact generation to CI (config
+      override in release.yml where the key exists); committed conf keeps the
+      updater plugin+pubkey+endpoint so in-app check still works, but does not
+      force signing locally.
