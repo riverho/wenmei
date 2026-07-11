@@ -9,11 +9,11 @@ the orchestration model with its failure policy.
 
 ## 1. Three layers
 
-| Layer | Runtime | Cost | Sees | Writes |
-| --- | --- | --- | --- | --- |
-| **Observer** | Rust, always on | zero tokens | PTY bytes, file changes, process state | facts → `.wenmei/journal.jsonl` |
-| **Ledger** | `.agents-playbook/` per project | zero | intent: backlog, cycle brief, north star | task records (by agents, via `pb`) |
-| **Analyst (Narrate)** | Pi, invoked — never streaming | metered | ledger events + redacted excerpts | reports, briefings, `memory/lessons` |
+| Layer                 | Runtime                         | Cost        | Sees                                     | Writes                               |
+| --------------------- | ------------------------------- | ----------- | ---------------------------------------- | ------------------------------------ |
+| **Observer**          | Rust, always on                 | zero tokens | PTY bytes, file changes, process state   | facts → `.wenmei/journal.jsonl`      |
+| **Ledger**            | `.agents-playbook/` per project | zero        | intent: backlog, cycle brief, north star | task records (by agents, via `pb`)   |
+| **Analyst (Narrate)** | Pi, invoked — never streaming   | metered     | ledger events + redacted excerpts        | reports, briefings, `memory/lessons` |
 
 **Managed vs unmanaged gradient:** a bare folder gets observer facts only
 (alerts, changesets, timeline). "Manage this project" scaffolds
@@ -45,15 +45,15 @@ fires; at 100% Narrate degrades to observer-facts-only until reset or raise.
 An alert = actionable + time-sensitive, and carries its action when one
 exists. Everything else is feed-unread, not a ping.
 
-| Class | Kind prefix | Examples | Action attached |
-| --- | --- | --- | --- |
-| **Needs input** | `input.` | permission prompt, y/n confirm, OAuth URL printed, idle-at-prompt ≥ N min | Allow/Deny/Focus (H10) |
-| **Quota/auth** | `quota.` | rate limit, session-limit-resets-at, expired key | Focus, docs link |
-| **Safety/scope** | `safety.` | sandbox-path violation, deletion burst, `.env`/key touch, `git push`/force-push seen | Focus, review changeset |
-| **Money/resources** | `resource.` | token budget 80/100%, staging cap, runaway child CPU/mem, disk low | open Settings/kill |
-| **Completion** | `done.` | tests green, build finished, PR URL printed, long-silence-after-activity | open link/review |
-| **Meta/system** | `system.` | control-plane client attached, sidecar crash, panic, update available | varies |
-| **Ledger** | `task.` | task done/blocked, phase reflect, run card overdue | open Runs view |
+| Class               | Kind prefix | Examples                                                                             | Action attached         |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------ | ----------------------- |
+| **Needs input**     | `input.`    | permission prompt, y/n confirm, OAuth URL printed, idle-at-prompt ≥ N min            | Allow/Deny/Focus (H10)  |
+| **Quota/auth**      | `quota.`    | rate limit, session-limit-resets-at, expired key                                     | Focus, docs link        |
+| **Safety/scope**    | `safety.`   | sandbox-path violation, deletion burst, `.env`/key touch, `git push`/force-push seen | Focus, review changeset |
+| **Money/resources** | `resource.` | token budget 80/100%, staging cap, runaway child CPU/mem, disk low                   | open Settings/kill      |
+| **Completion**      | `done.`     | tests green, build finished, PR URL printed, long-silence-after-activity             | open link/review        |
+| **Meta/system**     | `system.`   | control-plane client attached, sidecar crash, panic, update available                | varies                  |
+| **Ledger**          | `task.`     | task done/blocked, phase reflect, run card overdue                                   | open Runs view          |
 
 Existing `notification.*` kinds (review.changes, narration.risky,
 terminal.stuck/done, nightshift.*) map into these classes; `emit_notification`
@@ -73,7 +73,7 @@ sidecar-sent bytes from keystrokes. The hard part is eyes, not hands.
    screens (Claude Code tool-permission prompt, Codex approvals, aider y/n,
    git pager). Detection emits `input.needs_response` with the prompt text
    and the profile's answer map.
-3. **Alert with hands:** the card shows the *actual command/prompt* and
+3. **Alert with hands:** the card shows the _actual command/prompt_ and
    buttons from the answer map (Allow → `y\r` or `\r` on selection; Deny →
    `n\r` or `\x1b`). The user's click **is** the confirmation — journaled as
    `steering.injected` with origin `approval-relay`.
@@ -128,7 +128,7 @@ launch workhorse in a tab) → observe (events) → verify (pb validate --task)
 - **Doer/checker separation:** the checker is a second, context-isolated
   agent (fresh session, no doer transcript). It reads the review ledger
   (`review.jsonl`) and the cycle brief, scores each changeset against
-  *intent*, writes `review_annotate` entries, and escalates risky/ambiguous
+  _intent_, writes `review_annotate` entries, and escalates risky/ambiguous
   items to the human. Checks catch structure; the checker hunts truth.
 - **Mechanical guardrails** (Rust/pb, never prompt-goodwill): record-done
   reruns checks and refuses on failure; sandbox path containment; gate tasks
@@ -136,13 +136,13 @@ launch workhorse in a tab) → observe (events) → verify (pb validate --task)
   requires confirmation or a standing approval.
 - **Failure policy (written before failures):**
 
-| Event | Policy |
-| --- | --- |
-| worker session dies | salvage worktree/output, journal, reassign or block |
-| task checks fail ×3 | block task + `task.blocked` alert; never silent retry-forever |
-| drift score ≥ threshold | pause run, `safety.drift` alert, await human |
-| budget exhausted | pause run, `resource.budget` alert |
-| checker flags risk | hold changeset unapproved, escalate |
+| Event                   | Policy                                                        |
+| ----------------------- | ------------------------------------------------------------- |
+| worker session dies     | salvage worktree/output, journal, reassign or block           |
+| task checks fail ×3     | block task + `task.blocked` alert; never silent retry-forever |
+| drift score ≥ threshold | pause run, `safety.drift` alert, await human                  |
+| budget exhausted        | pause run, `resource.budget` alert                            |
+| checker flags risk      | hold changeset unapproved, escalate                           |
 
 - **Claim honestly:** the product promise is **supervised autonomy** —
   hours unattended, human at phase gates — not fire-and-forget weeks.

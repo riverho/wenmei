@@ -22,20 +22,20 @@ only so the license schema doesn't need breaking later.
 
 ## 2. Tiers and gating (alpha)
 
-| Capability | Free | Pro |
-| --- | --- | --- |
-| Editor, one vault, manual terminal sessions | ✓ | ✓ |
-| Observer facts: alerts, changesets, timeline (one project) | ✓ | ✓ |
-| Managed projects (`.agents-playbook` + Narrate) | 1 project | unlimited |
-| Multiple vaults / windows / terminal tabs | 1 vault, 2 tabs | unlimited |
-| Review surface (approve/reject/restore) | ✓ (trust is the funnel, never paywalled) | ✓ |
-| Heartbeat run cards, night shift | — | ✓ |
-| Approval relay (alerts with hands) | — | ✓ |
-| Reports/briefings ("write my standup") | — | ✓ |
-| Audit export | — | ✓ |
+| Capability                                                 | Free                                     | Pro       |
+| ---------------------------------------------------------- | ---------------------------------------- | --------- |
+| Editor, one vault, manual terminal sessions                | ✓                                        | ✓         |
+| Observer facts: alerts, changesets, timeline (one project) | ✓                                        | ✓         |
+| Managed projects (`.agents-playbook` + Narrate)            | 1 project                                | unlimited |
+| Multiple vaults / windows / terminal tabs                  | 1 vault, 2 tabs                          | unlimited |
+| Review surface (approve/reject/restore)                    | ✓ (trust is the funnel, never paywalled) | ✓         |
+| Heartbeat run cards, night shift                           | —                                        | ✓         |
+| Approval relay (alerts with hands)                         | —                                        | ✓         |
+| Reports/briefings ("write my standup")                     | —                                        | ✓         |
+| Audit export                                               | —                                        | ✓         |
 
 Rule: **safety features are never paywalled** (review/restore, secret
-redaction, sandbox). Paywall the *leverage* features: scale, autonomy,
+redaction, sandbox). Paywall the _leverage_ features: scale, autonomy,
 reporting.
 
 ## 3. Trial mechanics
@@ -61,7 +61,7 @@ reporting.
 - **Key format:** `WENMEI-<base32 payload>-<sig>` — payload carries tier,
   issue date, seat count; signature is Ed25519 against our offline public
   key embedded in the app. **Verification is fully offline** (same trust
-  model as the updater pubkey). Activation pings are *not* required; the
+  model as the updater pubkey). Activation pings are _not_ required; the
   provider's key API is used only for issuing and (optional, best-effort)
   revocation checks when online.
 - One-time **$79 Pro** (working hypothesis from the monetization sketch),

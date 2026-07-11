@@ -519,15 +519,15 @@ to the ledger, not the wire.**
 **The model.** Three layers, one loop:
 
 1. **Local observer** (Rust, zero tokens, zero leakage) — activity
-   heuristics, changeset watcher, journal writer. Watches *any* agent in any
+   heuristics, changeset watcher, journal writer. Watches _any_ agent in any
    terminal and records **facts**. Always on, free.
 2. **The playbook ledger** (`.agents-playbook/` per project) — memory,
    backlog, journal, cycle brief, north star. The structured record of
    intent and progress. This is the integration surface for "managing many
    AI tools": any agent that speaks playbook gets supervision for free.
 3. **Narrate** (Pi, invoked — never streaming) — reports playbook activity,
-   runs secondary research/analysis, and monitors drift *grounded in the
-   brief and north star it holds*. **Not optional and not a button**: it is
+   runs secondary research/analysis, and monitors drift _grounded in the
+   brief and north star it holds_. **Not optional and not a button**: it is
    the reporting layer of every managed project. Cost scales with task
    events, not terminal output; secrets never transit because the input is
    the ledger, not PTY bytes.
@@ -554,8 +554,7 @@ app, productized.
 **UI-first workflow:** every Phase H surface is designed in `app_design/`
 first, accepted, then ported (the F11–F14 pattern).
 
-- [ ] H1 sentinel/ledger design doc: event-taxonomy union (playbook journal
-      + wenmei journal), drift grounding on brief/north-star, write-back
+- [ ] H1 sentinel/ledger design doc: event-taxonomy union (playbook journal + wenmei journal), drift grounding on brief/north-star, write-back
       rules, managed/unmanaged gradient, per-project token budget.
 - [ ] H2 playground UI: managed-project state in the sidecar (Managed ·
       `.agents-playbook` chip vs Watching-only), Narrate as reporting policy
