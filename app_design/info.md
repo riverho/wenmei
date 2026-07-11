@@ -275,3 +275,13 @@ When running `npm run dev` (outside Tauri), all backend calls fall through to `s
   to archive.
 - **Settings › Windows** gains `Multiple app instances` (one window per
   vault; single-instance lock removed).
+
+### Settings mobile view (11 Jul 2026)
+
+The two-column settings shell is responsive (Tailwind breakpoints, no JS
+branch): on desktop (`md+`) the category rail is a vertical left column with a
+right border; below `md` (<768px) it collapses to a **horizontal scrollable
+tab strip** on top with a bottom border, and the content pane stacks beneath
+it. Inactive tab labels hide below 420px (icon-only chips; the active tab
+always shows its label), and the active tab auto-scrolls into view as
+scroll-spy moves it. Content padding tightens on mobile (`px-4 py-4`).

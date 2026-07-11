@@ -1359,3 +1359,21 @@ tasks:
       pane; nav click smooth-scrolls to the section, scroll-spy highlights the
       one nearest the top. Sections carry settings-<id> anchors. Mock in
       app_design first per UI-first workflow.
+
+  - id: H14
+    title: Settings mobile view — responsive tab strip (playground)
+    status: todo
+    priority: 94
+    skill: run-task
+    phase: H
+    tags: [playground, ui, settings, mobile]
+    design_ref: docs/revamp-phase-improvement-plan-04Jul2026.md#phase-h--master-control-ledger-bound-narrate--heartbeat-opened-11-jul-2026
+    acceptance_checks:
+      - grep -q "md:flex-row" ../app_design/src/components/SettingsPanel.tsx
+      - grep -q "md:flex-col" ../app_design/src/components/SettingsPanel.tsx
+      - cd ../app_design && npx tsc -b
+    notes: >-
+      Two-column settings goes responsive: vertical rail on md+, horizontal
+      scrollable tab strip on mobile; inactive labels hide <420px, active tab
+      auto-scrolls into view; content padding tightens. Pure Tailwind, no JS
+      branch.

@@ -138,18 +138,42 @@ function SettingsNav({
   active: string;
   onSelect: (id: string) => void;
 }) {
+  const navRef = useRef<HTMLElement>(null);
+
+  // On mobile the rail is a horizontal tab strip; keep the active tab in view
+  // as scroll-spy moves it.
+  useEffect(() => {
+    const el = navRef.current?.querySelector<HTMLElement>(
+      `[data-nav-id="${active}"]`
+    );
+    el?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [active]);
+
   return (
     <nav
-      className="w-44 shrink-0 overflow-y-auto py-3 px-2"
-      style={{ borderRight: "1px solid var(--surface-3)" }}
+      ref={navRef}
+      className="
+        flex shrink-0 gap-1
+        overflow-x-auto md:overflow-x-visible md:overflow-y-auto
+        flex-row md:flex-col
+        w-full md:w-44
+        px-2 py-2 md:py-3
+        border-b md:border-b-0 md:border-r
+        border-[var(--surface-3)]
+      "
     >
       {SETTINGS_NAV.map(({ id, label, icon: Icon }) => {
         const isActive = active === id;
         return (
           <button
             key={id}
+            data-nav-id={id}
             onClick={() => onSelect(id)}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs mb-0.5 transition-colors text-left"
+            className="
+              flex items-center gap-2 shrink-0 md:w-full
+              px-2.5 py-1.5 rounded-lg text-xs mb-0 md:mb-0.5
+              whitespace-nowrap transition-colors text-left
+            "
             style={{
               background: isActive ? "var(--surface-2)" : "transparent",
               color: isActive
@@ -160,13 +184,19 @@ function SettingsNav({
           >
             <Icon
               size={13}
+              className="shrink-0"
               style={{
                 color: isActive
                   ? "var(--accent-teal)"
                   : "var(--text-tertiary)",
               }}
             />
-            <span className="truncate">{label}</span>
+            {/* Hide labels on the tightest phones — icon + active label only */}
+            <span
+              className={isActive ? "inline" : "hidden min-[420px]:inline md:inline"}
+            >
+              {label}
+            </span>
           </button>
         );
       })}
@@ -584,15 +614,15 @@ export default function SettingsPanel() {
 
   return (
     <div
-      className="flex h-full overflow-hidden"
+      className="flex flex-col md:flex-row h-full overflow-hidden"
       style={{ background: "var(--surface-1)" }}
     >
       <SettingsNav active={activeSection} onSelect={scrollToSection} />
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto wenmei-scroll"
+        className="flex-1 min-h-0 overflow-y-auto wenmei-scroll"
       >
-        <div className="max-w-2xl px-6 py-5 space-y-6">
+        <div className="max-w-2xl px-4 py-4 md:px-6 md:py-5 space-y-6">
         {/* ── General ── */}
         <Section icon={Settings} title="General" id="general">
           <SettingRow
