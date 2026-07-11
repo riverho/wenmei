@@ -224,3 +224,37 @@ pub fn spawn_narration_flush_thread(
         }
     });
 }
+
+/// Journal narration-digest events emitted by the flush thread. Registered
+/// once at setup; keeps main.rs free of the listener body.
+pub fn spawn_digest_journaler(app: &tauri::AppHandle) {
+    use tauri::{Listener, Manager};
+    let app_handle = app.clone();
+    app.listen("narration-digest", move |event| {
+        let payload: serde_json::Value =
+            serde_json::from_str(event.payload()).unwrap_or_default();
+        let id = payload
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("narrate-0");
+        let digest = payload.get("digest").and_then(|v| v.as_str()).unwrap_or("");
+        let file_changes: Vec<String> = payload
+            .get("file_changes")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let state = app_handle.state::<crate::state::WenmeiState>();
+        let _ = crate::journal::append_journal_event(
+            &state,
+            "narration.digest",
+            "sidecar",
+            None,
+            digest.chars().take(200).collect(),
+            serde_json::json!({"id": id, "file_changes": file_changes}),
+        );
+    });
+}

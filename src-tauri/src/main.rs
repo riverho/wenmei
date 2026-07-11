@@ -22,12 +22,13 @@ mod state;
 mod terminal;
 mod approval;
 mod heartbeat;
+mod updater;
 mod vault;
+mod window;
 
 use crate::platform::Platform;
 use crate::state::WenmeiState;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager};
 
 fn is_wsl() -> bool {
     // WSL1/2 detection: /proc/version contains "microsoft" or "WSL",
@@ -36,54 +37,6 @@ fn is_wsl() -> bool {
         .map(|s| s.to_lowercase().contains("microsoft") || s.to_lowercase().contains("wsl"))
         .unwrap_or(false)
         || std::path::Path::new("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
-}
-
-fn encode_query_value(value: &str) -> String {
-    let mut out = String::new();
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(byte as char);
-            }
-            _ => out.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    out
-}
-
-#[tauri::command]
-fn open_file_window(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    if path.trim().is_empty() {
-        return Err("path is required".into());
-    }
-    let started_at = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let label = format!("file-window-{started_at}");
-    let name = path.rsplit('/').next().unwrap_or(&path);
-    let url = format!("index.html?openFile={}", encode_query_value(&path));
-
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
-        .title(format!("Wenmei - {name}"))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-/// Check the release feed for a newer version. Returns the new version
-/// string, or None when up to date. Errors mean "updates not configured"
-/// (placeholder pubkey / no network) — the UI treats that as informational.
-#[tauri::command]
-async fn check_for_update(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    match updater.check().await {
-        Ok(Some(update)) => Ok(Some(update.version.clone())),
-        Ok(None) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
 }
 
 fn main() {
@@ -103,24 +56,7 @@ fn main() {
             // paths inside a known vault convert to "/rel" here (the macOS
             // Opened handler does the same in platform/macos.rs).
             if argv.len() > 1 {
-                let paths: Vec<String> = argv[1..]
-                    .iter()
-                    .map(|arg| {
-                        let path = std::path::Path::new(arg);
-                        if let Some(state) = app.try_state::<WenmeiState>() {
-                            if let Ok(app_state) = state.app_state.lock() {
-                                for vault in &app_state.vaults {
-                                    if let Ok(rel) = path.strip_prefix(&vault.path) {
-                                        let rel =
-                                            rel.to_string_lossy().replace('\\', "/");
-                                        return format!("/{}", rel);
-                                    }
-                                }
-                            }
-                        }
-                        arg.clone()
-                    })
-                    .collect();
+                let paths = window::resolve_open_paths(app, &argv[1..]);
                 let _ = app.emit("single-instance", paths);
             }
         }))
@@ -131,69 +67,11 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             logging::init(&state::config_dir());
-
-            // Production panic hook: any thread panic lands in crash.log and,
-            // best-effort, in the sidecar feed as a system alert. State may be
-            // poisoned mid-panic, so the file write is the reliable half.
-            let panic_app = app.handle().clone();
-            std::panic::set_hook(Box::new(move |info| {
-                let msg = format!(
-                    "[{}] panic: {}\n",
-                    chrono::Utc::now().to_rfc3339(),
-                    info
-                );
-                let crash_file = state::config_dir().join("crash.log");
-                let _ = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&crash_file)
-                    .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
-                eprintln!("{msg}");
-                journal::emit_notification(
-                    &panic_app,
-                    "system.panic",
-                    "Wenmei hit an internal error",
-                    "Details were written to crash.log — please report this.",
-                    None,
-                );
-            }));
-
+            logging::install_panic_hook(app.handle().clone());
             polling::start_file_polling(app.handle().clone());
             control::start_control_server(app.handle().clone());
             heartbeat::start_heartbeat(app.handle().clone());
-
-            let app_handle = app.handle().clone();
-            app.listen("narration-digest", move |event| {
-                let payload: serde_json::Value =
-                    serde_json::from_str(event.payload()).unwrap_or_default();
-                let id = payload
-                    .get("id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("narrate-0");
-                let digest = payload
-                    .get("digest")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let file_changes: Vec<String> = payload
-                    .get("file_changes")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let state = app_handle.state::<WenmeiState>();
-                let _ = journal::append_journal_event(
-                    &state,
-                    "narration.digest",
-                    "sidecar",
-                    None,
-                    digest.chars().take(200).collect(),
-                    serde_json::json!({"id": id, "file_changes": file_changes}),
-                );
-            });
-
+            narration::spawn_digest_journaler(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -242,7 +120,7 @@ fn main() {
             journal::list_journal_events,
             journal::build_briefing,
             journal::export_audit,
-            check_for_update,
+            updater::check_for_update,
             approval::list_prompt_patterns,
             approval::current_prompt,
             approval::approve_prompt,
@@ -266,7 +144,7 @@ fn main() {
             terminal::terminal_set_narration_enabled,
             terminal::pty_run_commands,
             platform::get_platform,
-            open_file_window,
+            window::open_file_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

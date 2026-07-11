@@ -13,3 +13,27 @@ pub fn init(config_dir: &Path) {
         .with_ansi(false)
         .init();
 }
+
+/// Install a global panic hook: any thread panic lands in crash.log and,
+/// best-effort, in the sidecar feed as a system.panic alert. State may be
+/// poisoned mid-panic, so the file write is the reliable half.
+pub fn install_panic_hook(app: tauri::AppHandle) {
+    let config_dir = crate::state::config_dir();
+    std::panic::set_hook(Box::new(move |info| {
+        let msg = format!("[{}] panic: {}\n", chrono::Utc::now().to_rfc3339(), info);
+        let crash_file = config_dir.join("crash.log");
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&crash_file)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
+        eprintln!("{msg}");
+        crate::journal::emit_notification(
+            &app,
+            "system.panic",
+            "Wenmei hit an internal error",
+            "Details were written to crash.log — please report this.",
+            None,
+        );
+    }));
+}
