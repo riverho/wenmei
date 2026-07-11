@@ -18,13 +18,13 @@ pub const KIND_REVIEW_REJECTED: &str = "review.rejected";
 
 // Notification kinds surfaced as alerts in the unified sidecar feed
 // (docs/design/unified-sidecar.md). Journaled as `notification.<kind>`.
+// Active emitters: review.rs, polling.rs (NOTIFY_REVIEW_CHANGES),
+// narration.rs (NOTIFY_NARRATION_RISKY), terminal.rs (NOTIFY_TERMINAL_DONE),
+// nightshift.rs (NOTIFY_NIGHTSHIFT_DONE).
 pub const NOTIFY_REVIEW_CHANGES: &str = "review.changes";
 pub const NOTIFY_NARRATION_RISKY: &str = "narration.risky";
-pub const NOTIFY_TERMINAL_STUCK: &str = "terminal.stuck";
 pub const NOTIFY_TERMINAL_DONE: &str = "terminal.done";
 pub const NOTIFY_NIGHTSHIFT_DONE: &str = "nightshift.done";
-pub const NOTIFY_NIGHTSHIFT_BLOCKED: &str = "nightshift.blocked";
-pub const NOTIFY_SYSTEM: &str = "system";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEvent {

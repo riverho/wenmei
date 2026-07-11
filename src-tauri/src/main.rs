@@ -28,7 +28,7 @@ mod window;
 
 use crate::platform::Platform;
 use crate::state::WenmeiState;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
 fn is_wsl() -> bool {
     // WSL1/2 detection: /proc/version contains "microsoft" or "WSL",
