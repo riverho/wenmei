@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import {
   Settings,
@@ -89,14 +89,20 @@ function Toggle({
 function Section({
   icon: Icon,
   title,
+  id,
   children,
 }: {
   icon: React.ElementType;
   title: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3">
+    <section
+      id={id ? `settings-${id}` : undefined}
+      data-settings-section={id}
+      className="space-y-3 scroll-mt-4"
+    >
       <div className="flex items-center gap-2">
         <Icon size={13} style={{ color: "var(--accent-teal)" }} />
         <h2
@@ -108,6 +114,63 @@ function Section({
       </div>
       <div className="space-y-3">{children}</div>
     </section>
+  );
+}
+
+// ─── Two-column shell: section nav rail + scroll-spy ──────────────────────────
+
+const SETTINGS_NAV: { id: string; label: string; icon: React.ElementType }[] = [
+  { id: "general", label: "General", icon: Settings },
+  { id: "vaults", label: "Vaults", icon: FolderOpen },
+  { id: "terminal", label: "Terminal", icon: Terminal },
+  { id: "windows", label: "Windows", icon: Square },
+  { id: "keyboard", label: "Keyboard", icon: Keyboard },
+  { id: "agent", label: "Agent & Narration", icon: Bot },
+  { id: "integrations", label: "Integrations", icon: Link2 },
+  { id: "license", label: "License", icon: Key },
+  { id: "about", label: "About", icon: Info },
+];
+
+function SettingsNav({
+  active,
+  onSelect,
+}: {
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <nav
+      className="w-44 shrink-0 overflow-y-auto py-3 px-2"
+      style={{ borderRight: "1px solid var(--surface-3)" }}
+    >
+      {SETTINGS_NAV.map(({ id, label, icon: Icon }) => {
+        const isActive = active === id;
+        return (
+          <button
+            key={id}
+            onClick={() => onSelect(id)}
+            className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs mb-0.5 transition-colors text-left"
+            style={{
+              background: isActive ? "var(--surface-2)" : "transparent",
+              color: isActive
+                ? "var(--text-primary)"
+                : "var(--text-secondary)",
+              fontWeight: isActive ? 600 : 400,
+            }}
+          >
+            <Icon
+              size={13}
+              style={{
+                color: isActive
+                  ? "var(--accent-teal)"
+                  : "var(--text-tertiary)",
+              }}
+            />
+            <span className="truncate">{label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -353,7 +416,7 @@ function VaultsSection() {
   }
 
   return (
-    <Section icon={FolderOpen} title="Vaults">
+    <Section icon={FolderOpen} title="Vaults" id="vaults">
       <div className="flex items-center justify-between gap-2">
         <label
           className="flex items-center gap-2 text-[11px] cursor-pointer select-none"
@@ -474,6 +537,9 @@ export default function SettingsPanel() {
   } = useAppStore();
 
   const [copiedKey, setCopiedKey] = useState(false);
+  const [activeSection, setActiveSection] = useState("general");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const clickScrollRef = useRef(false);
 
   const handleCopyLicenseKey = () => {
     if (licenseKey) {
@@ -483,14 +549,52 @@ export default function SettingsPanel() {
     }
   };
 
+  // Nav click → scroll the pane to the section (suppress scroll-spy briefly
+  // so the click target wins over intermediate sections passing the top).
+  const scrollToSection = (id: string) => {
+    setActiveSection(id);
+    clickScrollRef.current = true;
+    const el = scrollRef.current?.querySelector(`#settings-${id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      clickScrollRef.current = false;
+    }, 600);
+  };
+
+  // Scroll-spy: highlight the section nearest the top of the scroll pane.
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const onScroll = () => {
+      if (clickScrollRef.current) return;
+      const sections = root.querySelectorAll<HTMLElement>(
+        "[data-settings-section]"
+      );
+      let current = activeSection;
+      for (const sec of sections) {
+        if (sec.offsetTop - root.scrollTop <= 48) {
+          current = sec.dataset.settingsSection ?? current;
+        }
+      }
+      setActiveSection(current);
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    return () => root.removeEventListener("scroll", onScroll);
+  }, [activeSection]);
+
   return (
     <div
-      className="h-full overflow-y-auto wenmei-scroll"
+      className="flex h-full overflow-hidden"
       style={{ background: "var(--surface-1)" }}
     >
-      <div className="max-w-xl mx-auto px-6 py-5 space-y-6">
+      <SettingsNav active={activeSection} onSelect={scrollToSection} />
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto wenmei-scroll"
+      >
+        <div className="max-w-2xl px-6 py-5 space-y-6">
         {/* ── General ── */}
-        <Section icon={Settings} title="General">
+        <Section icon={Settings} title="General" id="general">
           <SettingRow
             label="Theme"
             description="Color scheme for the interface"
@@ -519,7 +623,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Terminal ── */}
-        <Section icon={Terminal} title="Terminal">
+        <Section icon={Terminal} title="Terminal" id="terminal">
           <SettingRow
             label="Narration by default"
             description="New terminal tabs start with narration enabled"
@@ -576,7 +680,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Windows ── */}
-        <Section icon={Square} title="Windows">
+        <Section icon={Square} title="Windows" id="windows">
           <SettingRow
             label="Open files in new window"
             description="Double-clicking a file or opening from Finder spawns a new app window"
@@ -619,7 +723,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Keyboard ── */}
-        <Section icon={Keyboard} title="Keyboard Shortcuts">
+        <Section icon={Keyboard} title="Keyboard Shortcuts" id="keyboard">
           <div
             className="rounded-lg border overflow-hidden"
             style={{ borderColor: "var(--surface-3)" }}
@@ -663,7 +767,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Agent & Narration ── */}
-        <Section icon={Bot} title="Agent &amp; Narration">
+        <Section icon={Bot} title="Agent &amp; Narration" id="agent">
           <SettingRow
             label="Sidecar engine"
             description="The AI engine used for narration, commentary, and chat"
@@ -748,7 +852,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── Integrations ── */}
-        <Section icon={Link2} title="Integrations">
+        <Section icon={Link2} title="Integrations" id="integrations">
           <SettingRow
             label="CLI integration"
             description="The wenmei command in your terminal"
@@ -877,7 +981,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── License ── */}
-        <Section icon={Key} title="License">
+        <Section icon={Key} title="License" id="license">
           <SettingRow
             label="Current tier"
             description="Features available in your current plan"
@@ -988,7 +1092,7 @@ export default function SettingsPanel() {
         <Divider />
 
         {/* ── About ── */}
-        <Section icon={Info} title="About">
+        <Section icon={Info} title="About" id="about">
           <SettingRow label="Version" description="Wenmei desktop application">
             <span
               className="text-xs font-mono"
@@ -1056,6 +1160,7 @@ export default function SettingsPanel() {
             </a>
           </div>
         </Section>
+        </div>
       </div>
     </div>
   );
