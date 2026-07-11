@@ -82,7 +82,11 @@ async function probe(discovery) {
         "content-type": "application/json",
         authorization: `Bearer ${discovery.token}`,
       },
-      body: JSON.stringify({ id: "wenmeictl-probe", command: "app.status", params: {} }),
+      body: JSON.stringify({
+        id: "wenmeictl-probe",
+        command: "app.status",
+        params: {},
+      }),
       signal: AbortSignal.timeout(1500),
     });
     return response.ok;
@@ -190,7 +194,10 @@ function commandFromArgs(args) {
     }
     if (sub === "report") {
       const verdict = args[2];
-      if (!verdict) throw new Error("orchestrator report requires a verdict (pass|risk|block)");
+      if (!verdict)
+        throw new Error(
+          "orchestrator report requires a verdict (pass|risk|block)"
+        );
       return {
         command: "orchestrator.checker_report",
         params: { verdict, notes: args.slice(3).join(" ") },
