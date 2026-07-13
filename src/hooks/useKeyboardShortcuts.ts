@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { DEFAULT_KEYMAP, useAppStore } from "@/store/appStore";
+import { readFile } from "@/lib/tauri-bridge";
 
 function matchesShortcut(e: KeyboardEvent, chord: string | undefined): boolean {
   if (!chord) return false;
@@ -74,6 +75,20 @@ export function useKeyboardShortcuts() {
             return;
           }
         }
+      }
+
+      // Cmd/Ctrl + R — Refresh the open document from disk. Always intercept
+      // so it never triggers a full webview reload (which would drop app
+      // state); pulls in external edits (agent/terminal writes, a revert).
+      if (meta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "r") {
+        prevent();
+        const { activeFilePath, setActiveFile } = useAppStore.getState();
+        if (activeFilePath) {
+          readFile(activeFilePath)
+            .then(f => setActiveFile(f.path, f.content, f.name))
+            .catch(() => {});
+        }
+        return;
       }
 
       // Cmd/Ctrl + 1 — Focus/Toggle left panel
