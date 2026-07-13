@@ -37,6 +37,13 @@ pub struct ChangesetEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewFileVersions {
+    pub path: String,
+    pub baseline: String,
+    pub current: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewLedger {
     pub ts: String,
     pub session_id: String,
@@ -61,9 +68,14 @@ pub struct ReviewSession {
     pub entries: HashMap<String, ChangesetEntry>,
     pub known_paths: HashSet<String>,
     pub total_baseline_bytes: u64,
-    /// If true, the vault is a git repo and we use HEAD as the immutable
-    /// baseline instead of copying files into .wenmei/staging.
+    /// If true, the vault is a git repo and we restore from `baseline_ref`
+    /// instead of copying files into .wenmei/staging.
     pub git_backed: bool,
+    /// Git-backed only: a commit SHA snapshotting the working tree at review
+    /// start (via `git stash create`), so Reject restores the state *when the
+    /// review began* — including pre-existing uncommitted work — rather than
+    /// HEAD. `None` for non-git sessions or a repo with no commits.
+    pub baseline_ref: Option<String>,
 }
 
 impl ReviewSession {
@@ -75,6 +87,7 @@ impl ReviewSession {
             known_paths: HashSet::new(),
             total_baseline_bytes: 0,
             git_backed,
+            baseline_ref: None,
         }
     }
 }
@@ -91,13 +104,49 @@ fn is_git_repo(vault_path: &Path) -> bool {
     vault_path.join(".git").is_dir() && git_available()
 }
 
-/// Restore a file from git HEAD. The path must be vault-relative (leading `/`
-/// is stripped). Returns an error if git is unavailable or the path is not
-/// tracked in HEAD.
-fn git_restore_from_head(vault_path: &Path, rel: &str) -> Result<(), String> {
+/// Snapshot the current working tree as a throwaway commit and return its SHA,
+/// without touching the working tree or index (`git stash create`). This
+/// captures pre-existing uncommitted work so a later Reject restores the state
+/// at review start, not HEAD. Returns HEAD's SHA when the tree is clean (stash
+/// create prints nothing), or None if the repo has no commits.
+///
+/// Caveat: `git stash create` snapshots tracked files (modifications + staged)
+/// but not untracked files. An untracked-at-start file therefore won't be in
+/// the ref; callers fall back accordingly.
+fn git_snapshot_worktree(vault_path: &Path) -> Option<String> {
+    let created = Command::new("git")
+        .args(["stash", "create", "wenmei-review-baseline"])
+        .current_dir(vault_path)
+        .output()
+        .ok()?;
+    if created.status.success() {
+        let sha = String::from_utf8_lossy(&created.stdout).trim().to_string();
+        if !sha.is_empty() {
+            return Some(sha);
+        }
+    }
+    // Clean tree — HEAD is the baseline.
+    let head = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(vault_path)
+        .output()
+        .ok()?;
+    if head.status.success() {
+        let sha = String::from_utf8_lossy(&head.stdout).trim().to_string();
+        if !sha.is_empty() {
+            return Some(sha);
+        }
+    }
+    None
+}
+
+/// Restore a file from a git ref (a commit SHA — typically the session's
+/// `baseline_ref`, else HEAD). The path must be vault-relative (leading `/` is
+/// stripped). Errors if git is unavailable or the path is not in that ref.
+fn git_restore_from_ref(vault_path: &Path, git_ref: &str, rel: &str) -> Result<(), String> {
     let rel = rel.trim_start_matches('/');
     let output = Command::new("git")
-        .args(["checkout", "HEAD", "--", rel])
+        .args(["checkout", git_ref, "--", rel])
         .current_dir(vault_path)
         .output()
         .map_err(|e| format!("git restore failed: {}", e))?;
@@ -127,6 +176,34 @@ fn git_read_head(vault_path: &Path, rel: &str) -> Result<Option<Vec<u8>>, String
             Err(format!("git show failed: {}", stderr))
         }
     }
+}
+
+fn git_read_ref(vault_path: &Path, git_ref: &str, rel: &str) -> Result<Option<Vec<u8>>, String> {
+    let rel = rel.trim_start_matches('/');
+    let output = Command::new("git")
+        .args(["show", &format!("{}:{}", git_ref, rel)])
+        .current_dir(vault_path)
+        .output()
+        .map_err(|e| format!("git show failed: {}", e))?;
+    if output.status.success() {
+        return Ok(Some(output.stdout));
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("does not exist")
+        || stderr.contains("exists on disk, but not in")
+        || stderr.contains("Path '")
+    {
+        Ok(None)
+    } else {
+        Err(format!("git show failed: {}", stderr))
+    }
+}
+
+fn decode_review_text(bytes: Vec<u8>, label: &str) -> Result<String, String> {
+    String::from_utf8(bytes)
+        .map(|text| text.replace("\r\n", "\n"))
+        .map_err(|_| format!("{} is not a UTF-8 text file", label))
 }
 
 fn git_file_hash(vault_path: &Path, rel: &str) -> Option<String> {
@@ -335,6 +412,58 @@ fn copy_baseline(
     fs::copy(full_path, &baseline).map_err(|e| e.to_string())?;
     session.total_baseline_bytes += size;
     Ok(true)
+}
+
+/// Non-git only: copy pre-images of every known file into staging *at review
+/// start*. Lazy capture is wrong for external/PTY edits (polling only ever sees
+/// the post-image) and for deletions (no pre-image at all), so we snapshot up
+/// front. Bounded by `STAGING_CAP_MB` (large/over-cap files are simply skipped
+/// and later reported `BaselineMissing` when changed). Scope (Phase 2) will
+/// shrink this from whole-vault to the selected set; git vaults use
+/// `baseline_ref` instead and never reach here.
+fn eager_capture_baselines(vault_path: &Path, session: &mut ReviewSession) {
+    let paths: Vec<String> = session.known_paths.iter().cloned().collect();
+    for rel in paths {
+        let full = vault_path.join(rel.trim_start_matches('/'));
+        let Ok(meta) = fs::metadata(&full) else {
+            continue;
+        };
+        if meta.is_file() {
+            let _ = copy_baseline(vault_path, session, &rel, &full, meta.len());
+        }
+    }
+}
+
+/// Git only: eager-copy pre-images of untracked-but-existing files, which the
+/// `git stash create` snapshot does not capture. Without this, an agent editing
+/// an untracked file couldn't be reverted. Restored via the staging-first path
+/// in `review_reject`.
+fn eager_capture_untracked(vault_path: &Path, session: &mut ReviewSession) {
+    let out = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard", "-z"])
+        .current_dir(vault_path)
+        .output();
+    let Ok(out) = out else {
+        return;
+    };
+    if !out.status.success() {
+        return;
+    }
+    for rel in out.stdout.split(|b| *b == 0) {
+        if rel.is_empty() {
+            continue;
+        }
+        let rel = String::from_utf8_lossy(rel).to_string();
+        if rel.starts_with(".wenmei") {
+            continue; // never snapshot our own metadata
+        }
+        let full = vault_path.join(&rel);
+        if let Ok(meta) = fs::metadata(&full) {
+            if meta.is_file() {
+                let _ = copy_baseline(vault_path, session, &rel, &full, meta.len());
+            }
+        }
+    }
 }
 
 /// Ensure a baseline copy exists before a file is mutated by Wenmei or an agent.
@@ -618,10 +747,26 @@ pub fn review_session_start(state: State<'_, WenmeiState>, app: AppHandle) -> Re
     let dir = session_dir(Path::new(&vault.path), &id);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
+    // Git-backed: snapshot the working tree *now* so Reject restores the state
+    // at review start (including pre-existing uncommitted work), not HEAD.
+    let baseline_ref = if git_backed {
+        git_snapshot_worktree(Path::new(&vault.path))
+    } else {
+        None
+    };
+
     {
         let mut current = state.review_session.lock().unwrap();
         let mut session = ReviewSession::new(id.clone(), git_backed);
+        session.baseline_ref = baseline_ref;
         initialize_known_paths(Path::new(&vault.path), &mut session);
+        if git_backed {
+            // Tracked files come from baseline_ref; untracked-existing files
+            // aren't in that snapshot, so copy their pre-images eagerly.
+            eager_capture_untracked(Path::new(&vault.path), &mut session);
+        } else {
+            eager_capture_baselines(Path::new(&vault.path), &mut session);
+        }
         *current = Some(session);
     }
 
@@ -646,9 +791,8 @@ pub fn review_session_start(state: State<'_, WenmeiState>, app: AppHandle) -> Re
 
     emit_changeset_updated(&app, vec![]);
 
-    // Baselines are captured lazily when a file is actually mutated, not at
-    // session start. known_paths was populated above so existing files that
-    // change are reported as Modified rather than Added.
+    // Tracked paths and their pre-images now reflect review-start state before
+    // any Wenmei, agent, or PTY mutation can be observed.
     let _ = emit_files_changed(&app, KIND_REVIEW_SESSION_STARTED);
     Ok(id)
 }
@@ -726,7 +870,17 @@ pub fn review_approve(
         };
 
         if git_backed {
-            // HEAD is the immutable baseline; no staging copy to manage.
+            // Record the approved content as this file's new baseline (a
+            // staging override), so a later edit + Reject returns to the
+            // approved version rather than the review-start snapshot.
+            let full_path = resolve_path(&vault, &path)?;
+            if full_path.is_file() {
+                let baseline = baseline_path(Path::new(&vault.path), &session_id, &path);
+                if let Some(parent) = baseline.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::copy(&full_path, &baseline);
+            }
             let _ = append_file_review_ledger(
                 Path::new(&vault.path),
                 &session_id,
@@ -821,9 +975,12 @@ pub fn review_reject(
     };
 
     let vault = active_vault(&state)?;
-    let git_backed = {
+    let (git_backed, baseline_ref) = {
         let current = state.review_session.lock().unwrap();
-        current.as_ref().map(|s| s.git_backed).unwrap_or(false)
+        current
+            .as_ref()
+            .map(|s| (s.git_backed, s.baseline_ref.clone()))
+            .unwrap_or((false, None))
     };
     let baseline = baseline_path(Path::new(&vault.path), &session_id, &path);
     let full_path = resolve_path(&vault, &path)?;
@@ -835,16 +992,22 @@ pub fn review_reject(
             }
         }
         ChangeStatus::Modified | ChangeStatus::Deleted => {
-            if git_backed {
-                git_restore_from_head(Path::new(&vault.path), &path)?;
-            } else {
-                if !baseline.exists() {
-                    return Err(format!("No baseline available for {}", path));
-                }
+            if baseline.exists() {
+                // A staging baseline always wins: the eager non-git pre-image,
+                // or a git approve-override. This is what makes re-edits revert
+                // to the right version (pre-image or last-approved).
                 if let Some(parent) = full_path.parent() {
                     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
                 }
                 fs::copy(&baseline, &full_path).map_err(|e| e.to_string())?;
+            } else if git_backed {
+                // No override — restore from the review-start snapshot, not
+                // HEAD, so we don't erase pre-existing uncommitted work. Falls
+                // back to HEAD only if the snapshot couldn't be captured.
+                let git_ref = baseline_ref.as_deref().unwrap_or("HEAD");
+                git_restore_from_ref(Path::new(&vault.path), git_ref, &path)?;
+            } else {
+                return Err(format!("No baseline available for {}", path));
             }
         }
         ChangeStatus::BaselineMissing => {
@@ -904,6 +1067,62 @@ pub fn review_changeset(state: State<'_, WenmeiState>) -> Result<Vec<ChangesetEn
 }
 
 #[tauri::command]
+pub fn review_file_versions(
+    state: State<'_, WenmeiState>,
+    path: String,
+) -> Result<ReviewFileVersions, String> {
+    let (session_id, status, git_backed, baseline_ref) = {
+        let current = state.review_session.lock().unwrap();
+        let session = current
+            .as_ref()
+            .ok_or_else(|| "No active review session".to_string())?;
+        let entry = session
+            .entries
+            .get(&path)
+            .ok_or_else(|| "Path is not in the active changeset".to_string())?;
+        (
+            session.id.clone(),
+            entry.status.clone(),
+            session.git_backed,
+            session.baseline_ref.clone(),
+        )
+    };
+
+    if status == ChangeStatus::BaselineMissing {
+        return Err(format!("No baseline available for {}", path));
+    }
+
+    let vault = active_vault(&state)?;
+    let vault_path = Path::new(&vault.path);
+    let full_path = resolve_path(&vault, &path)?;
+    let staged_baseline = baseline_path(vault_path, &session_id, &path);
+
+    let baseline_bytes = if status == ChangeStatus::Added {
+        Vec::new()
+    } else if staged_baseline.is_file() {
+        fs::read(&staged_baseline).map_err(|e| format!("Failed to read baseline: {}", e))?
+    } else if git_backed {
+        let git_ref = baseline_ref.as_deref().unwrap_or("HEAD");
+        git_read_ref(vault_path, git_ref, &path)?
+            .ok_or_else(|| format!("No baseline available for {}", path))?
+    } else {
+        return Err(format!("No baseline available for {}", path));
+    };
+
+    let current_bytes = if full_path.is_file() {
+        fs::read(&full_path).map_err(|e| format!("Failed to read current file: {}", e))?
+    } else {
+        Vec::new()
+    };
+
+    Ok(ReviewFileVersions {
+        path,
+        baseline: decode_review_text(baseline_bytes, "Baseline")?,
+        current: decode_review_text(current_bytes, "Current file")?,
+    })
+}
+
+#[tauri::command]
 pub fn review_annotate(
     state: State<'_, WenmeiState>,
     path: String,
@@ -952,6 +1171,96 @@ mod tests {
         ));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    fn git(dir: &Path, args: &[&str]) {
+        let ok = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        assert!(ok, "git {:?} failed", args);
+    }
+
+    // F1: a git Reject must restore the working-tree state at review *start*
+    // (pre-existing uncommitted work included), not HEAD.
+    #[test]
+    fn git_snapshot_baseline_restores_review_start_state_not_head() {
+        if !git_available() {
+            return; // git not present in this environment — skip
+        }
+        let vault = unique_temp_dir("gitsnap");
+        git(&vault, &["init", "-q"]);
+        git(&vault, &["config", "user.email", "t@example.com"]);
+        git(&vault, &["config", "user.name", "Test"]);
+        fs::write(vault.join("f.txt"), "A\n").unwrap(); // committed baseline
+        git(&vault, &["add", "."]);
+        git(&vault, &["commit", "-qm", "init"]);
+
+        // Pre-existing uncommitted work at review start.
+        fs::write(vault.join("f.txt"), "B\n").unwrap();
+        let baseline_ref = git_snapshot_worktree(&vault).expect("snapshot");
+
+        // A later (agent) edit.
+        fs::write(vault.join("f.txt"), "C\n").unwrap();
+
+        // Reject restores from the snapshot.
+        git_restore_from_ref(&vault, &baseline_ref, "f.txt").unwrap();
+        assert_eq!(
+            fs::read_to_string(vault.join("f.txt")).unwrap(),
+            "B\n",
+            "reject must restore review-start state (B), not HEAD (A)"
+        );
+
+        let _ = fs::remove_dir_all(vault);
+    }
+
+    // F1: non-git eager capture stores the pre-image at review start, so Reject
+    // restores the original even when the edit arrived via polling (post-image).
+    #[test]
+    fn non_git_eager_capture_restores_pre_image() {
+        let vault = unique_temp_dir("eager");
+        fs::write(vault.join("f.txt"), "ORIGINAL\n").unwrap();
+
+        let mut session = ReviewSession::new("rs-eager".to_string(), false);
+        initialize_known_paths(&vault, &mut session);
+        eager_capture_baselines(&vault, &mut session);
+
+        // A later external/PTY edit — the file on disk is now the post-image.
+        fs::write(vault.join("f.txt"), "MODIFIED\n").unwrap();
+
+        let baseline = baseline_path(&vault, &session.id, "f.txt");
+        assert!(baseline.exists(), "eager capture must copy the pre-image");
+        fs::copy(&baseline, vault.join("f.txt")).unwrap();
+        assert_eq!(
+            fs::read_to_string(vault.join("f.txt")).unwrap(),
+            "ORIGINAL\n",
+            "reject must restore the pre-image, not the modification-to-itself"
+        );
+
+        let _ = fs::remove_dir_all(vault);
+    }
+
+    // F1: an external deletion is restorable because the pre-image was captured
+    // eagerly at review start.
+    #[test]
+    fn non_git_eager_capture_enables_deletion_restore() {
+        let vault = unique_temp_dir("eagerdel");
+        fs::write(vault.join("f.txt"), "KEEP\n").unwrap();
+
+        let mut session = ReviewSession::new("rs-del".to_string(), false);
+        initialize_known_paths(&vault, &mut session);
+        eager_capture_baselines(&vault, &mut session);
+
+        fs::remove_file(vault.join("f.txt")).unwrap(); // external delete
+
+        let baseline = baseline_path(&vault, &session.id, "f.txt");
+        assert!(baseline.exists(), "deleted file must still have a baseline");
+        fs::copy(&baseline, vault.join("f.txt")).unwrap();
+        assert_eq!(fs::read_to_string(vault.join("f.txt")).unwrap(), "KEEP\n");
+
+        let _ = fs::remove_dir_all(vault);
     }
 
     #[test]

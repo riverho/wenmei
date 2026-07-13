@@ -2,7 +2,7 @@
 
 **Status:** ⚠️ **Re-scoping (13 Jul 2026).** A correctness audit (see
 [Audit findings & rebuild plan](#audit-findings--rebuild-plan-13-jul-2026))
-found the B6 pre-image race is real in practice: baselines are captured *after*
+found the B6 pre-image race is real in practice: baselines are captured _after_
 the edit, the displayed diff is a placeholder, and pending files can vanish from
 the UI. **This feature is NOT a reliable safety boundary yet** — do not present
 it as one. The rebuild is sequenced below: correctness → scope/history → bind to
@@ -52,7 +52,7 @@ Wenmei write path (file_ops.rs) ──▶ ensure_baseline(pre-image) ──▶ m
 External edit (PTY agent)       ──▶ polling.rs detects ──▶ observe_external_change()
                                                         │   Added/Modified/Deleted heuristic
                                                         ▼
-                                     emit "changeset-updated" [ChangesetEntry]
+                                     emit "changeset-observed" [ChangesetEntry]
                                                         │
                                              ReviewPanel.tsx re-renders
 ```
@@ -63,6 +63,9 @@ Tauri commands (`review.rs`, registered in `main.rs`):
   skips copying for git repos (HEAD is the baseline), journals
   `review.session_started`, returns session id.
 - `review_changeset` → current entries (poll/refresh).
+- `changeset-observed` carries incremental polling batches that the frontend
+  merges by path; `changeset-updated` remains the authoritative replacement
+  event for session lifecycle and decisions.
 - `review_approve(path)` → drop entry + its baseline copy; journals
   `review.approved`.
 - `review_reject(path)` → copy baseline back over the working file, drop
@@ -196,6 +199,8 @@ every edit they personally type.
 this lands): F1 (eager/before-the-edit baselines + deletion pre-images), F2
 (serialized save/revert coordinator + scoped catch), F3 (real baseline diff),
 F5 (merge changeset, don't replace).
+
+**Phase 1 implementation status:** F1, F2, F3, and F5 completed 13 Jul 2026.
 
 **Phase 2 — Scope & history**: scope selector (current file → files → folder →
 vault), F4 (history list/get/reopen API + read-only past reviews; redefine

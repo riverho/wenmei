@@ -112,7 +112,7 @@ pub fn start_file_polling(app: AppHandle) {
                         ),
                         None,
                     );
-                    let _ = app.emit("changeset-updated", review_entries);
+                    let _ = app.emit("changeset-observed", review_entries);
                 }
 
                 emit_files_changed(&app, "watcher.changed");

@@ -1,6 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAppStore } from "@/store/appStore";
-import { writeFile } from "@/lib/tauri-bridge";
+import {
+  editorPathsMatch,
+  onEditorBufferInvalidated,
+  saveEditorFile,
+} from "@/lib/editor-save-coordinator";
 import {
   renderMarkdownHTML,
   getLineNumbers,
@@ -38,64 +42,83 @@ export default function CenterPanel() {
   const dirtyRef = useRef(false);
   const pendingRef = useRef<{ path: string; content: string } | null>(null);
   const prevPathRef = useRef<string | null>(null);
+  const editRevisionRef = useRef(0);
+  const savedRevisionRef = useRef(0);
   const [progress, setProgress] = useState(0);
   const splitPos = dragSplitPos ?? splitRatio * 100;
 
-  const savePending = useCallback(() => {
-    if (dirtyRef.current && pendingRef.current) {
-      writeFile(
-        pendingRef.current.path,
-        pendingRef.current.content,
-        "human"
-      ).catch(() => {});
-      dirtyRef.current = false;
+  useEffect(
+    () =>
+      onEditorBufferInvalidated(path => {
+        if (!editorPathsMatch(pendingRef.current?.path ?? null, path)) return;
+        dirtyRef.current = false;
+        pendingRef.current = null;
+        editRevisionRef.current = 0;
+        savedRevisionRef.current = 0;
+      }),
+    []
+  );
+
+  const savePending = useCallback(async () => {
+    const pending = pendingRef.current;
+    const revision = editRevisionRef.current;
+    if (!dirtyRef.current || !pending || revision <= savedRevisionRef.current) {
+      return;
+    }
+
+    try {
+      const result = await saveEditorFile(pending.path, pending.content);
+      if (result === "saved" && pendingRef.current?.path === pending.path) {
+        savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
+        dirtyRef.current = editRevisionRef.current > savedRevisionRef.current;
+      }
+    } catch (error) {
+      dirtyRef.current = true;
+      console.error(`Could not save "${pending.path}":`, error);
     }
   }, []);
 
-  // When the active file is (re)loaded from disk — a fresh open OR a review
-  // revert of the file already open — the store marks it clean. Resync the
-  // editor's pending-save refs to the loaded content so a later blur/switch
-  // can't flush a stale buffer back over the reload (which is what made a
-  // rejected change silently reappear).
-  useEffect(() => {
-    if (!isDirty && activeFilePath) {
-      pendingRef.current = { path: activeFilePath, content: activeFileContent };
-      dirtyRef.current = false;
-    }
-  }, [isDirty, activeFilePath, activeFileContent]);
-
-  // Flush previous file when switching away, and reset pending for new file.
+  // Flush the old file before replacing the local buffer. A clean reload of the
+  // same path resets its revision so stale content cannot be saved afterward.
   useEffect(() => {
     const prevPath = prevPathRef.current;
     const newPath = activeFilePath;
-    if (
-      prevPath &&
-      prevPath !== newPath &&
-      dirtyRef.current &&
-      pendingRef.current
-    ) {
-      writeFile(
-        pendingRef.current.path,
-        pendingRef.current.content,
-        "human"
-      ).catch(() => {});
+
+    if (prevPath !== newPath) {
+      const previousPending = pendingRef.current;
+      if (prevPath && dirtyRef.current && previousPending) {
+        void saveEditorFile(
+          previousPending.path,
+          previousPending.content
+        ).catch(error => {
+          console.error(`Could not save "${previousPending.path}":`, error);
+        });
+      }
+
+      dirtyRef.current = false;
+      pendingRef.current = newPath
+        ? { path: newPath, content: activeFileContent }
+        : null;
+      editRevisionRef.current = 0;
+      savedRevisionRef.current = 0;
+      prevPathRef.current = newPath;
+      return;
     }
-    if (newPath && prevPath !== newPath) {
+
+    if (!isDirty && newPath) {
       dirtyRef.current = false;
       pendingRef.current = { path: newPath, content: activeFileContent };
-    } else if (!newPath) {
-      dirtyRef.current = false;
-      pendingRef.current = null;
+      editRevisionRef.current = 0;
+      savedRevisionRef.current = 0;
     }
-    prevPathRef.current = newPath || null;
-  }, [activeFilePath, activeFileContent]);
+  }, [isDirty, activeFilePath, activeFileContent]);
 
   // Cmd/Ctrl+S saves the pending human edit.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        savePending();
+        void savePending();
       }
     };
     window.addEventListener("keydown", handler);
@@ -155,13 +178,16 @@ export default function CenterPanel() {
     const value = e.target.value;
     setActiveFileContent(value);
     dirtyRef.current = true;
+    editRevisionRef.current += 1;
     if (pendingRef.current) {
       pendingRef.current.content = value;
+    } else if (activeFilePath) {
+      pendingRef.current = { path: activeFilePath, content: value };
     }
   };
 
   const handleBlur = () => {
-    savePending();
+    void savePending();
   };
 
   const isPaper = mode === "paper";

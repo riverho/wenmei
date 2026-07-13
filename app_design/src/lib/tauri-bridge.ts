@@ -157,6 +157,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       return mocks.reviewReject((args as { path: string }).path);
     case "review_changeset":
       return mocks.reviewChangeset();
+    case "review_file_versions":
+      return mocks.reviewFileVersions((args as { path: string }).path);
     case "review_annotate":
       return mocks.reviewAnnotate(
         (args as { path: string }).path,
@@ -593,6 +595,12 @@ export interface ChangesetEntry {
   size: number;
 }
 
+export interface ReviewFileVersions {
+  path: string;
+  baseline: string;
+  current: string;
+}
+
 export interface ReviewSession {
   id: string;
   started_at: string;
@@ -619,6 +627,12 @@ export async function reviewReject(path: string): Promise<void> {
 
 export async function reviewChangeset(): Promise<ChangesetEntry[]> {
   return invoke("review_changeset");
+}
+
+export async function reviewFileVersions(
+  path: string
+): Promise<ReviewFileVersions> {
+  return invoke("review_file_versions", { path });
 }
 
 export async function reviewAnnotate(

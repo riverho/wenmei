@@ -566,6 +566,19 @@ export async function reviewChangeset(): Promise<unknown[]> {
   return mockReviewSession ? Object.values(mockReviewSession.entries) : [];
 }
 
+export async function reviewFileVersions(path: string): Promise<{
+  path: string;
+  baseline: string;
+  current: string;
+}> {
+  await delay(20);
+  return {
+    path,
+    baseline: "",
+    current: mockFileContents.get(path) ?? "",
+  };
+}
+
 export async function reviewAnnotate(
   path: string,
   reviewer: string,

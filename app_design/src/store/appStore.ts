@@ -9,6 +9,7 @@ import type {
   PlatformName,
   ChangesetEntry,
 } from "@/lib/tauri-bridge";
+import { mergeChangesetEntries } from "@/lib/review-changeset";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
 export type LightboxVariant =
@@ -210,6 +211,7 @@ interface AppState {
   // Review session
   setActiveReviewSession: (id: string | null) => void;
   setChangeset: (entries: ChangesetEntry[]) => void;
+  mergeChangeset: (entries: ChangesetEntry[]) => void;
 
   setMobileMenuOpen: (open: boolean) => void;
   setMobilePiOpen: (open: boolean) => void;
@@ -478,6 +480,8 @@ export const useAppStore = create<AppState>()(
 
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),
+      mergeChangeset: entries =>
+        set({ changeset: mergeChangesetEntries(get().changeset, entries) }),
 
       setMobileMenuOpen: open => set({ mobileMenuOpen: open }),
       setMobilePiOpen: open => set({ mobilePiOpen: open }),

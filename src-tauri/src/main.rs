@@ -94,6 +94,7 @@ fn main() {
             review::review_approve,
             review::review_reject,
             review::review_changeset,
+            review::review_file_versions,
             review::review_annotate,
             search::search_workspace,
             search::search_all_vaults,

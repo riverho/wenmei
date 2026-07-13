@@ -7,11 +7,13 @@ import {
   reviewApprove,
   reviewReject,
   reviewChangeset,
+  reviewFileVersions,
   listJournalEvents,
   readFile,
   type ChangesetEntry,
   type JournalEvent,
 } from "@/lib/tauri-bridge";
+import { runExclusiveEditorFileOperation } from "@/lib/editor-save-coordinator";
 import { Check, X, Play, Square, Clock, GitCompare } from "lucide-react";
 
 function statusLabel(status: ChangesetEntry["status"]) {
@@ -19,7 +21,7 @@ function statusLabel(status: ChangesetEntry["status"]) {
     case "added":
       return "Added";
     case "modified":
-      return "Modified";
+      return "Original";
     case "deleted":
       return "Deleted";
     case "baselineMissing":
@@ -42,6 +44,14 @@ function statusColor(status: ChangesetEntry["status"]) {
     default:
       return "var(--text-secondary)";
   }
+}
+
+function normalizedPath(path: string | null): string {
+  return (path ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function simpleDiff(oldText: string, newText: string) {
@@ -77,6 +87,7 @@ export default function ReviewPanel() {
     changeset,
     setActiveReviewSession,
     setChangeset,
+    mergeChangeset,
   } = useAppStore();
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -86,8 +97,10 @@ export default function ReviewPanel() {
     current: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [busyPath, setBusyPath] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [journal, setJournal] = useState<JournalEvent[]>([]);
-  const unlistenRef = useRef<UnlistenFn | null>(null);
+  const unlistenRef = useRef<UnlistenFn[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -96,11 +109,26 @@ export default function ReviewPanel() {
       if (mounted) setChangeset(entries);
     });
 
-    listen<ChangesetEntry[]>("changeset-updated", evt => {
-      setChangeset(evt.payload ?? []);
-    }).then(fn => {
-      unlistenRef.current = fn;
-    });
+    const register = (promise: Promise<UnlistenFn>) => {
+      promise.then(fn => {
+        if (mounted) {
+          unlistenRef.current.push(fn);
+        } else {
+          fn();
+        }
+      });
+    };
+
+    register(
+      listen<ChangesetEntry[]>("changeset-updated", evt => {
+        setChangeset(evt.payload ?? []);
+      })
+    );
+    register(
+      listen<ChangesetEntry[]>("changeset-observed", evt => {
+        mergeChangeset(evt.payload ?? []);
+      })
+    );
 
     listJournalEvents(100).then(events => {
       if (mounted) setJournal(events);
@@ -108,25 +136,19 @@ export default function ReviewPanel() {
 
     return () => {
       mounted = false;
-      unlistenRef.current?.();
+      unlistenRef.current.forEach(fn => fn());
+      unlistenRef.current = [];
     };
-  }, [setChangeset]);
+  }, [mergeChangeset, setChangeset]);
 
   const openPreview = async (path: string) => {
     setSelectedPath(path);
+    setError(null);
     try {
-      const current = await readFile(path);
-      setPreview({
-        path,
-        baseline: "[baseline snapshot stored in .wenmei/staging]",
-        current: current.content,
-      });
-    } catch {
-      setPreview({
-        path,
-        baseline: "[baseline snapshot stored in .wenmei/staging]",
-        current: "",
-      });
+      setPreview(await reviewFileVersions(path));
+    } catch (previewError) {
+      setPreview(null);
+      setError(`Could not load review diff: ${errorMessage(previewError)}`);
     }
   };
 
@@ -166,27 +188,45 @@ export default function ReviewPanel() {
     setJournal(await listJournalEvents(100));
   };
 
-  const reject = async (path: string) => {
-    await reviewReject(path);
-    // The file was reverted on disk. If it's the one open in the editor,
-    // reload it — otherwise the editor keeps its stale buffer and re-saves it
-    // on the next blur/switch, silently clobbering the revert.
-    const { activeFilePath, setActiveFile } = useAppStore.getState();
-    const norm = (p: string | null) => (p ?? "").replace(/^\/+/, "");
-    if (activeFilePath && norm(activeFilePath) === norm(path)) {
+  const reject = async (entry: ChangesetEntry) => {
+    setBusyPath(entry.path);
+    setError(null);
+    try {
+      await runExclusiveEditorFileOperation(entry.path, async () => {
+        await reviewReject(entry.path);
+        const { activeFilePath, setActiveFile } = useAppStore.getState();
+        if (normalizedPath(activeFilePath) !== normalizedPath(entry.path)) {
+          return;
+        }
+
+        if (entry.status === "added") {
+          setActiveFile(null);
+          return;
+        }
+
+        const file = await readFile(entry.path);
+        setActiveFile(file.path, file.content, file.name);
+      });
+      if (selectedPath === entry.path) closePreview();
+    } catch (rejectError) {
+      setError(`Could not reject ${entry.path}: ${errorMessage(rejectError)}`);
+    } finally {
       try {
-        const f = await readFile(path);
-        setActiveFile(f.path, f.content, f.name);
-      } catch {
-        // Rejecting an added file deletes it — clear the editor.
-        setActiveFile(null);
+        const [entries, events] = await Promise.all([
+          reviewChangeset(),
+          listJournalEvents(100),
+        ]);
+        setChangeset(entries);
+        setJournal(events);
+      } catch (refreshError) {
+        setError(`Could not refresh review: ${errorMessage(refreshError)}`);
       }
+      setBusyPath(null);
     }
-    setChangeset(await reviewChangeset());
-    setJournal(await listJournalEvents(100));
   };
 
   const diff = preview ? simpleDiff(preview.baseline, preview.current) : [];
+  const hasTextChanges = diff.some(line => line.type !== "same");
 
   const sessions = journal.reduce<Record<string, JournalEvent[]>>((acc, e) => {
     const sid =
@@ -273,6 +313,20 @@ export default function ReviewPanel() {
         </div>
       </div>
 
+      {error && (
+        <div
+          className="shrink-0 px-3 py-2 text-[10px] leading-relaxed"
+          style={{
+            background:
+              "color-mix(in srgb, var(--accent-rose) 10%, transparent)",
+            color: "var(--accent-rose)",
+            borderBottom: "1px solid var(--surface-3)",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       {/* Changeset */}
       <div className="flex-1 overflow-y-auto wenmei-scroll px-3 py-2">
         {changeset.length === 0 && (
@@ -332,8 +386,9 @@ export default function ReviewPanel() {
                 <button
                   onClick={e => {
                     e.stopPropagation();
-                    reject(entry.path);
+                    void reject(entry);
                   }}
+                  disabled={busyPath === entry.path}
                   className="p-1 rounded transition-colors"
                   style={{ color: "var(--accent-rose)" }}
                   title="Reject / restore baseline"
@@ -351,10 +406,8 @@ export default function ReviewPanel() {
                   color: "var(--text-tertiary)",
                 }}
               >
-                {diff.length <= 1 ? (
-                  <div>
-                    [baseline not loaded; diff requires workspace access]
-                  </div>
+                {!hasTextChanges ? (
+                  <div>No textual differences.</div>
                 ) : (
                   diff.map((line, idx) => (
                     <div
