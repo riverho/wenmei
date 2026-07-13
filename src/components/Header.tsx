@@ -368,7 +368,7 @@ export default function Header() {
 
         {/* Settings */}
         <button
-          onClick={() => openLightbox("settings", "Settings", "lg")}
+          onClick={() => openLightbox("settings", "Settings", "xl")}
           className="settings-btn flex items-center justify-center w-8 h-8 rounded transition-all duration-200 hover:-translate-y-0.5"
           style={{ color: "var(--text-secondary)" }}
           title="Settings"
