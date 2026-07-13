@@ -132,7 +132,9 @@ fn pi_user_bin() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".pi").join("agent").join("bin"))
 }
 
-fn terminal_boot_script(cwd: &Path, log_file: &Path, pi_session_dir: &Path) -> String {
+fn terminal_boot_script(cwd: &Path, log_file: &Path, _pi_session_dir: &Path) -> String {
+    // Land the tab straight in an interactive login shell at the sandbox cwd.
+    // Pi is no longer auto-launched — run `pi` yourself when you want the agent.
     format!(
         r#"SANDBOX_DIR={sandbox_dir}
 LOG_FILE={log_file}
@@ -150,46 +152,11 @@ if ! cd "$SANDBOX_DIR" 2>/tmp/wenmei-cd-error.$$; then
   echo "Reason: $(cat /tmp/wenmei-cd-error.$$ 2>/dev/null)"
   echo "Log: $LOG_FILE"
   log "cd failed: $(cat /tmp/wenmei-cd-error.$$ 2>/dev/null)"
-  /bin/rm -f /tmp/wenmei-cd-error.$$ 2>/dev/null || true
-  exec ${{SHELL:-/bin/bash}} -l
 fi
 /bin/rm -f /tmp/wenmei-cd-error.$$ 2>/dev/null || true
-if command -v pi >/dev/null 2>&1; then
-  PI_SESSION_DIR={pi_session_dir}
-  /bin/mkdir -p "$PI_SESSION_DIR" 2>/dev/null || true
-  PI_PREFLIGHT="/tmp/wenmei-pi-preflight.$$"
-  if ! pi --version >"$PI_PREFLIGHT" 2>&1; then
-    echo 'Wenmei blocked Pi before it crashed.'
-    echo ''
-    echo 'Global Pi cannot start in this sandbox cwd.'
-    echo ''
-    echo 'Original error was saved to:'
-    echo "  $LOG_FILE"
-    echo ''
-    log 'blocked pi: pi --version failed in sandbox'
-    /bin/echo '--- pi preflight stderr ---' >> "$LOG_FILE" 2>/dev/null || true
-    /bin/cat "$PI_PREFLIGHT" >> "$LOG_FILE" 2>/dev/null || true
-    /bin/echo '--- end pi preflight stderr ---' >> "$LOG_FILE" 2>/dev/null || true
-    /bin/rm -f "$PI_PREFLIGHT" 2>/dev/null || true
-    exec ${{SHELL:-/bin/bash}} -l
-  fi
-  pi_version="$(/bin/cat "$PI_PREFLIGHT" 2>/dev/null || echo unknown)"
-  /bin/rm -f "$PI_PREFLIGHT" 2>/dev/null || true
-  log "starting pi version=$pi_version session_dir=$PI_SESSION_DIR"
-  pi --session-dir "$PI_SESSION_DIR" --continue || pi --session-dir "$PI_SESSION_DIR"
-  code=$?
-  log "pi exited code=$code"
-else
-  echo 'Pi not found. Configure global Pi first:'
-  echo '  npm install -g @mariozechner/pi-coding-agent'
-  log 'pi not found'
-fi
-echo ''
-echo 'Exited Pi. Shell remains in Wenmei sandbox.'
 exec ${{SHELL:-/bin/bash}} -l
 "#,
         sandbox_dir = shell_quote(&cwd.to_string_lossy()),
         log_file = shell_quote(&log_file.to_string_lossy()),
-        pi_session_dir = shell_quote(&pi_session_dir.to_string_lossy())
     )
 }

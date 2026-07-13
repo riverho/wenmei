@@ -309,9 +309,7 @@ export default function Header() {
             color: isTerminal ? "var(--accent-teal)" : "var(--text-secondary)",
             background: isTerminal ? "var(--surface-2)" : "transparent",
           }}
-          title={
-            isTerminal ? "Exit terminal mode" : "Open embedded terminal with Pi"
-          }
+          title={isTerminal ? "Exit terminal mode" : "Open embedded terminal"}
         >
           {isTerminal ? <Minimize2 size={15} /> : <Terminal size={15} />}
         </button>

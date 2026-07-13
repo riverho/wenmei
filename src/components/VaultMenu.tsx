@@ -53,6 +53,9 @@ export default function VaultMenu({
     try {
       const remaining = await removeVault(id);
       setVaults(remaining);
+      // Close after a successful removal so the next interaction is against a
+      // fresh menu, not a list whose rows just shifted under the cursor.
+      setOpen(false);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : String(err));
     } finally {

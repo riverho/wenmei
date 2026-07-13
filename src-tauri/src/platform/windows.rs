@@ -112,17 +112,18 @@ fn terminal_boot_script_windows(
     raw_cwd: &Path,
     terminal_cwd: &Path,
     log_file: &Path,
-    pi_session_dir: &Path,
+    _pi_session_dir: &Path,
 ) -> String {
+    // Land the tab in an interactive PowerShell at the sandbox cwd (the shell is
+    // launched with -NoExit, so the prompt stays after this script). Pi is no
+    // longer auto-launched — run `pi` yourself when you want the agent.
     let raw_sandbox = ps1_escape(&raw_cwd.to_string_lossy());
     let sandbox = ps1_escape(&terminal_cwd.to_string_lossy());
     let log = ps1_escape(&log_file.to_string_lossy());
-    let pi_sess = ps1_escape(&pi_session_dir.to_string_lossy());
     format!(
         r#"$RAW_SANDBOX_DIR = '{raw_sandbox}'
 $SANDBOX_DIR = '{sandbox}'
 $LOG_FILE = '{log}'
-$PI_SESSION_DIR = '{pi_sess}'
 $ErrorActionPreference = 'SilentlyContinue'
 function wenmei_log {{
     param([string]$msg)
@@ -143,40 +144,11 @@ try {{
     Write-Host "Reason: $($_.Exception.Message)"
     Write-Host "Log: $LOG_FILE"
     wenmei_log "cd failed: $($_.Exception.Message)"
-    return
 }}
-$pi = Get-Command pi -ErrorAction SilentlyContinue
-if ($pi) {{
-    New-Item -ItemType Directory -Force -Path $PI_SESSION_DIR | Out-Null
-    $piVer = (& pi --version 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) {{
-        Write-Host 'Wenmei blocked Pi before it crashed.'
-        Write-Host ''
-        Write-Host 'Global Pi cannot start in this sandbox cwd.'
-        Write-Host ''
-        Write-Host "Log: $LOG_FILE"
-        wenmei_log 'blocked pi: pi --version failed in sandbox'
-        Add-Content -Path $LOG_FILE -Value '--- pi preflight stderr ---'
-        Add-Content -Path $LOG_FILE -Value $piVer
-        Add-Content -Path $LOG_FILE -Value '--- end pi preflight stderr ---'
-        return
-    }}
-    wenmei_log "starting pi version=$piVer session_dir=$PI_SESSION_DIR"
-    & pi --session-dir $PI_SESSION_DIR --continue
-    if ($LASTEXITCODE -ne 0) {{ & pi --session-dir $PI_SESSION_DIR }}
-    wenmei_log "pi exited code=$LASTEXITCODE"
-}} else {{
-    Write-Host 'Pi not found. Configure global Pi first:'
-    Write-Host '  npm install -g @mariozechner/pi-coding-agent'
-    wenmei_log 'pi not found'
-}}
-Write-Host ''
-Write-Host 'Exited Pi. Shell remains in Wenmei sandbox.'
 "#,
         raw_sandbox = raw_sandbox,
         sandbox = sandbox,
         log = log,
-        pi_sess = pi_sess,
     )
 }
 

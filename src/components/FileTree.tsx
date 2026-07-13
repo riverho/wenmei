@@ -11,7 +11,6 @@ import {
   copyFilePath,
   revealInFolder,
   openFileWindow,
-  searchWorkspace,
   moveFile,
 } from "@/lib/tauri-bridge";
 import type { FileNode } from "@/lib/tauri-bridge";
@@ -355,6 +354,12 @@ export default function FileTree() {
     cancelRename,
   } = useAppStore();
 
+  // Search is applied on Enter, not on every keystroke. `searchDraft` is what
+  // the user is typing; `searchQuery` (store) is the committed filter that
+  // drives the recursive tree walk — live filtering was too costly on large
+  // vaults. Clearing the box clears the filter immediately.
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
+
   const [newFileParent, setNewFileParent] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState("");
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
@@ -692,27 +697,40 @@ export default function FileTree() {
           <Search size={13} style={{ color: "var(--text-tertiary)" }} />
           <input
             type="text"
-            placeholder="Search files... (Ctrl+B)"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search files — Enter to filter (Ctrl+B)"
+            value={searchDraft}
+            onChange={e => {
+              const next = e.target.value;
+              setSearchDraft(next);
+              // Clearing the box drops the filter immediately; otherwise the
+              // filter only re-applies when the user presses Enter.
+              if (next === "") setSearchQuery("");
+            }}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setSearchQuery(searchDraft.trim());
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setSearchDraft("");
+                setSearchQuery("");
+                e.currentTarget.blur();
+              }
+            }}
             className="file-search-input bg-transparent text-sm w-full outline-none"
             style={{ color: "var(--text-primary)" }}
           />
-          {searchQuery && (
+          {searchDraft && (
             <button
-              onClick={async () => {
-                if (searchQuery.length > 1) {
-                  const results = await searchWorkspace(searchQuery);
-                  console.log("Search results:", results);
-                }
-              }}
+              onClick={() => setSearchQuery(searchDraft.trim())}
+              title="Filter the tree (Enter)"
               className="text-xs px-1.5 py-0.5 rounded"
               style={{
                 background: "var(--accent-teal)",
                 color: "#fff",
               }}
             >
-              Find
+              Filter
             </button>
           )}
         </div>
