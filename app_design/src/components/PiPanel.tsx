@@ -354,7 +354,7 @@ export default function PiPanel() {
         const formatted = formatMarkdown(activeFileContent);
         if (formatted === activeFileContent)
           return message("log", "Document is already clean.");
-        await writeFile(activeFilePath, formatted);
+        await writeFile(activeFilePath, formatted, "agent");
         setActiveFileContent(formatted);
         return message(
           "diff",
@@ -388,7 +388,7 @@ export default function PiPanel() {
             .slice(0, 48) || "generated-note";
         const path = await createFile("/", `${slug}.md`);
         const content = `# ${prompt}\n\nCreated from Pi.\n\n## Notes\n\n`;
-        await writeFile(path, content);
+        await writeFile(path, content, "agent");
         const file = await readFile(path);
         setActiveFile(file.path, file.content, file.name);
         setFileTree(await listFiles());

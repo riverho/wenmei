@@ -190,9 +190,11 @@ pub fn read_file(path: String, state: State<'_, WenmeiState>) -> Result<FileCont
 pub fn write_file(
     path: String,
     content: String,
+    source: Option<String>,
     app: AppHandle,
     state: State<'_, WenmeiState>,
 ) -> Result<(), String> {
+    let source = source.unwrap_or_else(|| "human".to_string());
     let vault = active_vault(&state)?;
     let full_path = resolve_path(&vault, &path)?;
     ensure_parent(&full_path)?;
@@ -205,7 +207,7 @@ pub fn write_file(
         "file-panel",
         Some(path.clone()),
         format!("Updated {}", path),
-        serde_json::json!({}),
+        serde_json::json!({"source": source}),
     );
     emit_files_changed(&app, "file.updated");
     save_state(&state)

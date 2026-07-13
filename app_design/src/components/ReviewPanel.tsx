@@ -77,6 +77,7 @@ export default function ReviewPanel() {
     changeset,
     setActiveReviewSession,
     setChangeset,
+    setActiveFile,
   } = useAppStore();
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -168,6 +169,20 @@ export default function ReviewPanel() {
 
   const reject = async (path: string) => {
     await reviewReject(path);
+    // The file was reverted on disk. If it's the one open in the editor,
+    // reload it — otherwise the editor keeps its stale buffer and re-saves it
+    // on the next blur/switch, silently clobbering the revert.
+    const { activeFilePath } = useAppStore.getState();
+    const norm = (p: string | null) => (p ?? "").replace(/^\/+/, "");
+    if (activeFilePath && norm(activeFilePath) === norm(path)) {
+      try {
+        const f = await readFile(path);
+        setActiveFile(f.path, f.content, f.name);
+      } catch {
+        // Rejecting an added file deletes it — clear the editor.
+        setActiveFile(null);
+      }
+    }
     setChangeset(await reviewChangeset());
     setJournal(await listJournalEvents(100));
   };

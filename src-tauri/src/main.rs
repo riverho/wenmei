@@ -90,6 +90,7 @@ fn main() {
             file_ops::reveal_in_folder,
             review::review_session_start,
             review::review_session_close,
+            review::clear_review_staging,
             review::review_approve,
             review::review_reject,
             review::review_changeset,

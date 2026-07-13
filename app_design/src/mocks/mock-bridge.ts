@@ -56,7 +56,11 @@ export async function readFile(path: string): Promise<FileContent> {
   return { path, content, name: node.name };
 }
 
-export async function writeFile(path: string, content: string): Promise<void> {
+export async function writeFile(
+  path: string,
+  content: string,
+  _source?: string
+): Promise<void> {
   await delay(20);
   mockFileContents.set(path, content);
 }
@@ -537,6 +541,10 @@ export async function reviewSessionStart(): Promise<string> {
 export async function reviewSessionClose(_discard = false): Promise<void> {
   await delay(20);
   mockReviewSession = null;
+}
+
+export async function clearReviewStaging(): Promise<void> {
+  await delay(20);
 }
 
 export async function reviewApprove(path: string): Promise<void> {

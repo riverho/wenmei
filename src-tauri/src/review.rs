@@ -163,6 +163,25 @@ fn review_ledger_path(vault_path: &Path, session_id: &str) -> PathBuf {
     session_dir(vault_path, session_id).join(REVIEW_LEDGER_FILE)
 }
 
+/// Lightweight walk that records which files exist at session start without
+/// copying their contents. Existing files that later change are classified as
+/// Modified; new files are Added. This replaces the eager full-tree snapshot.
+fn initialize_known_paths(vault_path: &Path, session: &mut ReviewSession) {
+    for entry in WalkDir::new(vault_path)
+        .into_iter()
+        .filter_entry(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            entry.depth() == 0 || (!name.starts_with('.') && name != ".wenmei")
+        })
+        .filter_map(|entry| entry.ok())
+    {
+        if entry.file_type().is_file() {
+            let rel = relative_path(entry.path(), vault_path);
+            session.known_paths.insert(rel);
+        }
+    }
+}
+
 fn within_cap(session: &ReviewSession, new_bytes: u64) -> bool {
     session.total_baseline_bytes + new_bytes <= STAGING_CAP_MB * 1024 * 1024
 }
@@ -316,27 +335,6 @@ fn copy_baseline(
     fs::copy(full_path, &baseline).map_err(|e| e.to_string())?;
     session.total_baseline_bytes += size;
     Ok(true)
-}
-
-fn snapshot_existing_file(
-    state: &State<'_, WenmeiState>,
-    vault_path: &Path,
-    rel: &str,
-    full_path: &Path,
-) -> Result<(), String> {
-    let meta = match fs::metadata(full_path) {
-        Ok(m) if m.is_file() => m,
-        _ => return Ok(()),
-    };
-
-    let mut current = state.review_session.lock().unwrap();
-    let Some(session) = current.as_mut() else {
-        return Ok(());
-    };
-
-    session.known_paths.insert(rel.to_string());
-    let _ = copy_baseline(vault_path, session, rel, full_path, meta.len())?;
-    Ok(())
 }
 
 /// Ensure a baseline copy exists before a file is mutated by Wenmei or an agent.
@@ -622,7 +620,9 @@ pub fn review_session_start(state: State<'_, WenmeiState>, app: AppHandle) -> Re
 
     {
         let mut current = state.review_session.lock().unwrap();
-        *current = Some(ReviewSession::new(id.clone(), git_backed));
+        let mut session = ReviewSession::new(id.clone(), git_backed);
+        initialize_known_paths(Path::new(&vault.path), &mut session);
+        *current = Some(session);
     }
 
     append_journal_event(
@@ -646,28 +646,9 @@ pub fn review_session_start(state: State<'_, WenmeiState>, app: AppHandle) -> Re
 
     emit_changeset_updated(&app, vec![]);
 
-    // For git-backed vaults, HEAD is the immutable baseline; copying the whole
-    // tree into .wenmei/staging is wasted space. For non-git vaults we still
-    // eagerly snapshot visible files so PTY-driven edits can be rejected back
-    // to their true pre-session content.
-    if !git_backed {
-        let workspace = PathBuf::from(&vault.path);
-        for entry in WalkDir::new(&workspace)
-            .into_iter()
-            .filter_entry(|entry| {
-                let name = entry.file_name().to_string_lossy();
-                entry.depth() == 0 || (!name.starts_with('.') && name != ".wenmei")
-            })
-            .filter_map(|entry| entry.ok())
-        {
-            if entry.file_type().is_file() {
-                let path = entry.path();
-                let rel = relative_path(path, &workspace);
-                let _ = snapshot_existing_file(&state, &workspace, &rel, path);
-            }
-        }
-    }
-
+    // Baselines are captured lazily when a file is actually mutated, not at
+    // session start. known_paths was populated above so existing files that
+    // change are reported as Modified rather than Added.
     let _ = emit_files_changed(&app, KIND_REVIEW_SESSION_STARTED);
     Ok(id)
 }
@@ -709,6 +690,16 @@ pub fn review_session_close(
 
     emit_changeset_updated(&app, vec![]);
     let _ = emit_files_changed(&app, KIND_REVIEW_SESSION_CLOSED);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn clear_review_staging(state: State<'_, WenmeiState>) -> Result<(), String> {
+    let vault = active_vault(&state)?;
+    let staging = staging_root(Path::new(&vault.path));
+    if staging.exists() {
+        fs::remove_dir_all(&staging).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -1045,6 +1036,48 @@ mod tests {
         assert_eq!(rows[2].risk_level.as_deref(), Some("low"));
         assert_eq!(rows[2].proposed_decision.as_deref(), Some("approve"));
         assert_eq!(rows[3].final_decision.as_deref(), Some("rejected"));
+
+        let _ = fs::remove_dir_all(vault);
+    }
+
+    #[test]
+    fn initialize_known_paths_does_not_copy_baselines() {
+        let vault = unique_temp_dir("lazy");
+        fs::write(vault.join("a.txt"), "a").unwrap();
+        fs::write(vault.join("b.txt"), "b").unwrap();
+
+        let mut session = ReviewSession::new("rs-lazy".to_string(), false);
+        initialize_known_paths(&vault, &mut session);
+
+        assert!(session.known_paths.contains("a.txt"));
+        assert!(session.known_paths.contains("b.txt"));
+        assert!(session.total_baseline_bytes == 0);
+
+        let baseline_dir = baseline_dir(&vault, &session.id);
+        assert!(!baseline_dir.exists() || baseline_dir.read_dir().unwrap().next().is_none());
+
+        let _ = fs::remove_dir_all(vault);
+    }
+
+    #[test]
+    fn copy_baseline_captures_single_file_on_demand() {
+        let vault = unique_temp_dir("ondemand");
+        fs::write(vault.join("x.txt"), "original").unwrap();
+
+        let mut session = ReviewSession::new("rs-ondemand".to_string(), false);
+        initialize_known_paths(&vault, &mut session);
+        let full = vault.join("x.txt");
+        let size = fs::metadata(&full).unwrap().len();
+
+        let copied = copy_baseline(&vault, &mut session, "x.txt", &full, size).unwrap();
+        assert!(copied);
+        assert!(baseline_path(&vault, &session.id, "x.txt").exists());
+        assert!(session.total_baseline_bytes == size);
+
+        // Second call is idempotent.
+        let copied2 = copy_baseline(&vault, &mut session, "x.txt", &full, size).unwrap();
+        assert!(copied2);
+        assert!(session.total_baseline_bytes == size);
 
         let _ = fs::remove_dir_all(vault);
     }

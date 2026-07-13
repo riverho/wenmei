@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/appStore";
+import { clearReviewStaging } from "@/lib/tauri-bridge";
 import {
   Settings,
   Monitor,
@@ -543,6 +544,32 @@ function VaultsSection() {
         boundary in state.json. Files on disk are never touched, so there is
         nothing to archive; add the folder back anytime.
       </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={async () => {
+            if (
+              window.confirm(
+                "Clear all review staging baselines for the active vault? This does not affect your files."
+              )
+            ) {
+              try {
+                await clearReviewStaging();
+              } catch (err) {
+                window.alert(err instanceof Error ? err.message : String(err));
+              }
+            }
+          }}
+          className="flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium"
+          style={{
+            background: "var(--surface-2)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <Trash2 size={10} />
+          Clear review staging
+        </button>
+      </div>
     </Section>
   );
 }

@@ -15,6 +15,7 @@ export default function CenterPanel() {
     activeFileContent,
     activeFilePath,
     setActiveFileContent,
+    isDirty,
     theme,
     exitPaperMode,
     splitRatio,
@@ -34,17 +35,72 @@ export default function CenterPanel() {
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const dirtyRef = useRef(false);
+  const pendingRef = useRef<{ path: string; content: string } | null>(null);
+  const prevPathRef = useRef<string | null>(null);
   const [progress, setProgress] = useState(0);
   const splitPos = dragSplitPos ?? splitRatio * 100;
 
-  // Auto-save to disk via Tauri
+  const savePending = useCallback(() => {
+    if (dirtyRef.current && pendingRef.current) {
+      writeFile(
+        pendingRef.current.path,
+        pendingRef.current.content,
+        "human"
+      ).catch(() => {});
+      dirtyRef.current = false;
+    }
+  }, []);
+
+  // When the active file is (re)loaded from disk — a fresh open OR a review
+  // revert of the file already open — the store marks it clean. Resync the
+  // editor's pending-save refs to the loaded content so a later blur/switch
+  // can't flush a stale buffer back over the reload (which is what made a
+  // rejected change silently reappear).
   useEffect(() => {
-    if (!activeFilePath) return;
-    const timer = setTimeout(() => {
-      writeFile(activeFilePath, activeFileContent).catch(() => {});
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [activeFileContent, activeFilePath]);
+    if (!isDirty && activeFilePath) {
+      pendingRef.current = { path: activeFilePath, content: activeFileContent };
+      dirtyRef.current = false;
+    }
+  }, [isDirty, activeFilePath, activeFileContent]);
+
+  // Flush previous file when switching away, and reset pending for new file.
+  useEffect(() => {
+    const prevPath = prevPathRef.current;
+    const newPath = activeFilePath;
+    if (
+      prevPath &&
+      prevPath !== newPath &&
+      dirtyRef.current &&
+      pendingRef.current
+    ) {
+      writeFile(
+        pendingRef.current.path,
+        pendingRef.current.content,
+        "human"
+      ).catch(() => {});
+    }
+    if (newPath && prevPath !== newPath) {
+      dirtyRef.current = false;
+      pendingRef.current = { path: newPath, content: activeFileContent };
+    } else if (!newPath) {
+      dirtyRef.current = false;
+      pendingRef.current = null;
+    }
+    prevPathRef.current = newPath || null;
+  }, [activeFilePath, activeFileContent]);
+
+  // Cmd/Ctrl+S saves the pending human edit.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        savePending();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [savePending]);
 
   const handleSplitDrag = useCallback(
     (e: React.MouseEvent) => {
@@ -94,6 +150,19 @@ export default function CenterPanel() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [mode]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setActiveFileContent(value);
+    dirtyRef.current = true;
+    if (pendingRef.current) {
+      pendingRef.current.content = value;
+    }
+  };
+
+  const handleBlur = () => {
+    savePending();
+  };
 
   const isPaper = mode === "paper";
 
@@ -200,7 +269,8 @@ export default function CenterPanel() {
       <textarea
         ref={textareaRef}
         value={activeFileContent}
-        onChange={e => setActiveFileContent(e.target.value)}
+        onChange={handleChange}
+        onBlur={handleBlur}
         className="editor-textarea flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll"
         style={{
           background: "var(--surface-1)",
@@ -259,7 +329,8 @@ export default function CenterPanel() {
         </div>
         <textarea
           value={activeFileContent}
-          onChange={e => setActiveFileContent(e.target.value)}
+          onChange={handleChange}
+          onBlur={handleBlur}
           className="flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll"
           style={{
             background: "var(--surface-1)",
