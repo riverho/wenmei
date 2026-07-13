@@ -920,9 +920,11 @@ export default function SettingsPanel() {
     scrollRef.current
       ?.querySelector(`#settings-${id}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.setTimeout(() => {
+    const done = () => {
       clickScrollRef.current = false;
-    }, 600);
+    };
+    scrollRef.current?.addEventListener("scrollend", done, { once: true });
+    window.setTimeout(done, 1000);
   };
 
   useEffect(() => {
@@ -930,19 +932,24 @@ export default function SettingsPanel() {
     if (!root) return;
     const onScroll = () => {
       if (clickScrollRef.current) return;
-      let current = activeSection;
+      const rootRect = root.getBoundingClientRect();
+      let current: string | null = null;
       root
         .querySelectorAll<HTMLElement>("[data-settings-section]")
         .forEach(sec => {
-          if (sec.offsetTop - root.scrollTop <= 48) {
+          const secRect = sec.getBoundingClientRect();
+          if (secRect.top - rootRect.top <= 48) {
             current = sec.dataset.settingsSection ?? current;
           }
         });
-      setActiveSection(current);
+      if (current) {
+        setActiveSection(prev => (prev === current ? prev : current!));
+      }
     };
     root.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
     return () => root.removeEventListener("scroll", onScroll);
-  }, [activeSection]);
+  }, []);
 
   return (
     <div

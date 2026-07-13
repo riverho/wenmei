@@ -24,10 +24,10 @@ afterward, from a quiesced tree:
   commit.
 
 **Correction (recorded for honesty):** an earlier draft of this doc cited the
-relocation of `design-contract.yaml` (root → `app_design/`) as a *silent
-agent race*. That was a misattribution — the move was a **deliberate human
-action**, not an agent collision. The correct evidence is the *shared
-uncommitted pile with no per-actor isolation*, which is a hazard regardless
+relocation of `design-contract.yaml` (root → `app_design/`) as a _silent
+agent race_. That was a misattribution — the move was a **deliberate human
+action**, not an agent collision. The correct evidence is the _shared
+uncommitted pile with no per-actor isolation_, which is a hazard regardless
 of who authored each change. The lesson is unchanged; the example was wrong,
 and the meta-lesson is real too: **ambiguous working-tree state must be
 surfaced to the human, not assumed to be an agent collision.**
