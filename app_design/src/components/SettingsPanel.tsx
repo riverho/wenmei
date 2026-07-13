@@ -20,6 +20,8 @@ import {
   Copy,
   FolderOpen,
   Trash2,
+  Menu,
+  X,
 } from "lucide-react";
 
 // ─── Toggle component ─────────────────────────────────────────────────────────
@@ -139,42 +141,15 @@ function SettingsNav({
   active: string;
   onSelect: (id: string) => void;
 }) {
-  const navRef = useRef<HTMLElement>(null);
-
-  // On mobile the rail is a horizontal tab strip; keep the active tab in view
-  // as scroll-spy moves it.
-  useEffect(() => {
-    const el = navRef.current?.querySelector<HTMLElement>(
-      `[data-nav-id="${active}"]`
-    );
-    el?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [active]);
-
   return (
-    <nav
-      ref={navRef}
-      className="
-        flex shrink-0 gap-1
-        overflow-x-auto md:overflow-x-visible md:overflow-y-auto
-        flex-row md:flex-col
-        w-full md:w-44
-        px-2 py-2 md:py-3
-        border-b md:border-b-0 md:border-r
-        border-[var(--surface-3)]
-      "
-    >
+    <nav className="flex flex-col gap-0.5 px-2 py-3">
       {SETTINGS_NAV.map(({ id, label, icon: Icon }) => {
         const isActive = active === id;
         return (
           <button
             key={id}
-            data-nav-id={id}
             onClick={() => onSelect(id)}
-            className="
-              flex items-center gap-2 shrink-0 md:w-full
-              px-2.5 py-1.5 rounded-lg text-xs mb-0 md:mb-0.5
-              whitespace-nowrap transition-colors text-left
-            "
+            className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap transition-colors text-left"
             style={{
               background: isActive ? "var(--surface-2)" : "transparent",
               color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
@@ -188,18 +163,93 @@ function SettingsNav({
                 color: isActive ? "var(--accent-teal)" : "var(--text-tertiary)",
               }}
             />
-            {/* Hide labels on the tightest phones — icon + active label only */}
-            <span
-              className={
-                isActive ? "inline" : "hidden min-[420px]:inline md:inline"
-              }
-            >
-              {label}
-            </span>
+            <span>{label}</span>
           </button>
         );
       })}
     </nav>
+  );
+}
+
+function MobileSettingsNav({
+  active,
+  onSelect,
+}: {
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeLabel =
+    SETTINGS_NAV.find(({ id }) => id === active)?.label ?? "Settings";
+
+  return (
+    <div className="relative">
+      <div
+        className="flex items-center justify-between px-4 py-2.5"
+        style={{ background: "var(--surface-1)" }}
+      >
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="flex items-center gap-2 text-xs font-medium"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {open ? <X size={14} /> : <Menu size={14} />}
+          <span>{open ? "Close" : "Menu"}</span>
+        </button>
+        <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+          {activeLabel}
+        </span>
+      </div>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            style={{ background: "rgba(0, 0, 0, 0.2)" }}
+            onClick={() => setOpen(false)}
+          />
+          <nav
+            className="absolute top-full left-0 right-0 z-50 px-2 py-2 border-b"
+            style={{
+              background: "var(--surface-1)",
+              borderColor: "var(--surface-3)",
+            }}
+          >
+            {SETTINGS_NAV.map(({ id, label, icon: Icon }) => {
+              const isActive = active === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setOpen(false);
+                    onSelect(id);
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-colors text-left"
+                  style={{
+                    background: isActive ? "var(--surface-2)" : "transparent",
+                    color: isActive
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
+                    fontWeight: isActive ? 600 : 400,
+                  }}
+                >
+                  <Icon
+                    size={13}
+                    className="shrink-0"
+                    style={{
+                      color: isActive
+                        ? "var(--accent-teal)"
+                        : "var(--text-tertiary)",
+                    }}
+                  />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -609,8 +659,15 @@ export default function SettingsPanel() {
   const scrollToSection = (id: string) => {
     setActiveSection(id);
     clickScrollRef.current = true;
+    const root = scrollRef.current;
     const el = scrollRef.current?.querySelector(`#settings-${id}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (root && el) {
+      const top =
+        el.getBoundingClientRect().top -
+        root.getBoundingClientRect().top +
+        root.scrollTop;
+      root.scrollTo({ top, behavior: "smooth" });
+    }
     window.setTimeout(() => {
       clickScrollRef.current = false;
     }, 600);
@@ -625,9 +682,10 @@ export default function SettingsPanel() {
       const sections = root.querySelectorAll<HTMLElement>(
         "[data-settings-section]"
       );
+      const rootTop = root.getBoundingClientRect().top;
       let current = activeSection;
       for (const sec of sections) {
-        if (sec.offsetTop - root.scrollTop <= 48) {
+        if (sec.getBoundingClientRect().top - rootTop <= 48) {
           current = sec.dataset.settingsSection ?? current;
         }
       }
@@ -639,14 +697,30 @@ export default function SettingsPanel() {
 
   return (
     <div
-      className="flex flex-col md:flex-row h-full overflow-hidden"
+      ref={scrollRef}
+      className="flex flex-col md:flex-row items-stretch h-full min-h-0 overflow-y-auto wenmei-scroll"
       style={{ background: "var(--surface-1)" }}
     >
-      <SettingsNav active={activeSection} onSelect={scrollToSection} />
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto wenmei-scroll"
+      {/* Desktop: sticky nav rail inside the shared scroll container */}
+      <aside
+        className="hidden md:flex sticky top-0 self-start flex-col w-44 shrink-0 h-full max-h-full overflow-y-auto border-r"
+        style={{
+          borderColor: "var(--surface-3)",
+          background: "var(--surface-1)",
+        }}
       >
+        <SettingsNav active={activeSection} onSelect={scrollToSection} />
+      </aside>
+
+      {/* Mobile: hamburger menu that anchors to sections */}
+      <div
+        className="md:hidden sticky top-0 z-30 shrink-0"
+        style={{ background: "var(--surface-1)" }}
+      >
+        <MobileSettingsNav active={activeSection} onSelect={scrollToSection} />
+      </div>
+
+      <div className="flex-1 min-w-0">
         <div className="max-w-2xl px-4 py-4 md:px-6 md:py-5 space-y-6">
           {/* ── General ── */}
           <Section icon={Settings} title="General" id="general">

@@ -47,6 +47,10 @@ export default function Lightbox() {
   } = useAppStore();
 
   const isOnboarding = lightboxVariant === "onboarding";
+  const isSettings = lightboxVariant === "settings";
+  const heightClass = isSettings
+    ? "h-[min(720px,calc(100dvh-32px))]"
+    : (SIZE_HEIGHTS[lightboxSize] ?? "max-h-[min(560px,92vh)]");
 
   useEffect(() => {
     document.body.style.overflow = lightboxOpen ? "hidden" : "";
@@ -71,7 +75,7 @@ export default function Lightbox() {
         }}
       />
       <div
-        className={`relative w-full ${SIZE_CLASSES[lightboxSize] ?? "max-w-[420px]"} ${SIZE_HEIGHTS[lightboxSize] ?? "max-h-[min(560px,92vh)]"} flex flex-col overflow-hidden`}
+        className={`relative w-full ${SIZE_CLASSES[lightboxSize] ?? "max-w-[420px]"} ${heightClass} flex flex-col overflow-hidden`}
         style={{
           background: "var(--surface-1)",
           borderRadius: isOnboarding ? "12px" : "12px 12px 0 0",
@@ -111,8 +115,10 @@ export default function Lightbox() {
             </button>
           )}
         </div>
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div
+            className={`h-full min-h-0 ${isSettings ? "overflow-hidden" : "overflow-y-auto"}`}
+          >
             <LightboxContent variant={lightboxVariant} />
           </div>
         </div>
