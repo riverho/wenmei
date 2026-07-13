@@ -1,7 +1,13 @@
 # Design — Changeset Review (Phase B)
 
-**Status:** In progress (B1 done 07 Jul 2026); doc restored 07 Jul 2026 after
-the original was lost uncommitted.
+**Status:** ⚠️ **Re-scoping (13 Jul 2026).** A correctness audit (see
+[Audit findings & rebuild plan](#audit-findings--rebuild-plan-13-jul-2026))
+found the B6 pre-image race is real in practice: baselines are captured *after*
+the edit, the displayed diff is a placeholder, and pending files can vanish from
+the UI. **This feature is NOT a reliable safety boundary yet** — do not present
+it as one. The rebuild is sequenced below: correctness → scope/history → bind to
+agent runs. Earlier notes (B1 done 07 Jul 2026; doc restored 07 Jul 2026 after
+the original was lost uncommitted) kept for history.
 **Plan ref:** [`docs/revamp-phase-improvement-plan-04Jul2026.md`](../revamp-phase-improvement-plan-04Jul2026.md) §4 Phase B.
 
 Agent edits land as a reviewable changeset — per-file approve/reject against a
@@ -114,3 +120,94 @@ Run a real agent in the PTY, let it edit files, and confirm ReviewPanel shows
 the changeset with working approve/reject (reject restores content). If the
 pre-image race makes diffs unreliable in practice, stop and re-scope before
 Phase C.
+
+**Outcome: B6 failed as feared.** The pre-image race is real; re-scope below.
+
+## Audit findings & rebuild plan (13 Jul 2026)
+
+Correctness audit of the review workstream. The through-line: **baselines are
+captured too late to be a safety boundary.** Keep the feature — reviewable agent
+work is a real Wenmei differentiator — but rebuild the interaction model and,
+first, the correctness floor.
+
+### Findings (severity-ordered)
+
+- **[F1 · Critical] Reject is not reliably reversible.**
+  - _Non-git_: the lazy baseline is captured only when polling notices an
+    external/PTY edit — at which point it copies the **already-modified** file,
+    so Reject restores the modification to itself. External **deletions** have
+    no baseline at all. (`review.rs:490`, `polling.rs:99`)
+  - _Git_: reject uses `HEAD`, not the working-tree state when review started,
+    so it can **erase pre-existing uncommitted work**. Approve a file, edit it
+    again, then Reject → returns to HEAD, not the approved version.
+    (`review.rs:837`)
+- **[F2 · High] Save/revert race.** `savePending()` fires `writeFile()` without
+  awaiting and marks its ref clean immediately. Clicking Reject blurs the editor
+  first (starting that write), then runs Reject; resetting `pendingRef` can't
+  cancel an in-flight write that may land **after** the restore. Needs one
+  serialized save/revert coordinator. Also: the broad `catch` should clear the
+  editor **only** when the rejected entry was `Added`; other read failures must
+  stay visible. (`CenterPanel.tsx:44`, `ReviewPanel.tsx:169`)
+- **[F3 · High] The diff is fake.** The baseline shown is a literal placeholder
+  string; `simpleDiff()` compares that placeholder to the file → meaningless
+  red/green under a trust-critical action. Load and render the **real**
+  baseline. (`ReviewPanel.tsx:115`)
+- **[F4 · High] No history / reopen.** Closing drops the only in-memory session;
+  the bridge has no list/get/reopen API; the timeline is static journal text.
+  "Discard" deletes staging but does **not** undo working-file changes — likely
+  not what the user expects. (`review.rs:657`, `ReviewPanel.tsx:401`)
+- **[F5 · High] Pending files vanish from the UI.** Polling emits only the
+  latest changed batch; ReviewPanel **replaces** the whole Zustand changeset
+  with that payload, so earlier unresolved files (still tracked in the backend)
+  disappear from the panel. Merge, don't replace. (`polling.rs:98`,
+  `ReviewPanel.tsx:99`)
+- **[F6 · Medium] External-edit hardening is incomplete.** File-change events
+  refresh only the tree, not the open document. The new clean-state effect helps
+  explicit reloads (Reject, Cmd-R) but ordinary terminal/agent edits still leave
+  a stale open editor. (`App.tsx:171`)
+
+Meta: `source: "human"` is only journal metadata — human editor writes enter the
+same review machinery as agent writes. Start silently inventories and watches
+the **whole vault**. The UI exposes an internal "session" abstraction without
+explaining scope or intent.
+
+### Product direction — supervise an agent run, not your own edits
+
+The intended user is a human **supervising an agent run**, not someone reviewing
+every edit they personally type.
+
+- Starting an agent run **auto-creates** an "Agent Changes" review.
+- Manual use becomes **Checkpoint current file** (current file = default scope).
+- Optional scopes: selected files → selected folder → whole vault (advanced).
+- **Baselines captured before the run**: current working-tree state for git;
+  eager copies for selected non-git files. PTY-wide tracking requires a real
+  upfront snapshot or a copy-on-write workspace — **polling cannot reconstruct
+  pre-images after the fact.**
+- **Pending and History are separate.** History is read-only unless the user
+  explicitly starts a new restore operation.
+- Replace Close/Discard with precise actions: **Accept all**, **Revert all**,
+  **Stop monitoring**. Don't allow "Finish" while files remain unresolved.
+- Load and display the **real** baseline — a trust surface can't use a
+  placeholder diff.
+
+### Sequence (do in this order)
+
+**Phase 1 — Restore correctness** (nothing ships as a safety boundary until
+this lands): F1 (eager/before-the-edit baselines + deletion pre-images), F2
+(serialized save/revert coordinator + scoped catch), F3 (real baseline diff),
+F5 (merge changeset, don't replace).
+
+**Phase 2 — Scope & history**: scope selector (current file → files → folder →
+vault), F4 (history list/get/reopen API + read-only past reviews; redefine
+Discard), Accept all / Revert all / Stop monitoring, block-finish-while-pending.
+
+**Phase 3 — Bind to agent runs**: auto-create "Agent Changes" review on run
+start, F6 (reload the open document on external edits, not just the tree),
+reframe the UI around supervising a run.
+
+### Test debt
+
+- No Vitest frontend tests exist; the review flow is untested in the UI.
+- Rust tests don't cover external-edit rejection or the save/revert race —
+  add cases for F1 (non-git deletion, post-modification capture) and F2.
+- `rustfmt` isn't installed, so `cargo fmt --check` can't run in this env.
