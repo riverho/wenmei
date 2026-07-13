@@ -29,11 +29,27 @@ pub enum ChangeStatus {
     BaselineMissing,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum BaselineKind {
+    Original,
+    Accepted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewVersion {
+    pub version: u32,
+    pub created_at: String,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangesetEntry {
     pub path: String,
     pub status: ChangeStatus,
     pub size: u64,
+    pub baseline_kind: BaselineKind,
+    pub versions: Vec<ReviewVersion>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +92,7 @@ pub struct ReviewSession {
     /// review began* — including pre-existing uncommitted work — rather than
     /// HEAD. `None` for non-git sessions or a repo with no commits.
     pub baseline_ref: Option<String>,
+    pub accepted_paths: HashSet<String>,
 }
 
 impl ReviewSession {
@@ -88,6 +105,7 @@ impl ReviewSession {
             total_baseline_bytes: 0,
             git_backed,
             baseline_ref: None,
+            accepted_paths: HashSet::new(),
         }
     }
 }
@@ -234,6 +252,45 @@ fn baseline_dir(vault_path: &Path, session_id: &str) -> PathBuf {
 
 fn baseline_path(vault_path: &Path, session_id: &str, rel: &str) -> PathBuf {
     baseline_dir(vault_path, session_id).join(rel.trim_start_matches('/'))
+}
+
+fn versions_dir(vault_path: &Path, session_id: &str, rel: &str) -> PathBuf {
+    session_dir(vault_path, session_id)
+        .join("versions")
+        .join(rel.trim_start_matches('/'))
+}
+
+fn version_path(vault_path: &Path, session_id: &str, rel: &str, version: u32) -> PathBuf {
+    versions_dir(vault_path, session_id, rel).join(format!("v{}.snapshot", version))
+}
+
+fn normalized_review_path(path: &str) -> String {
+    path.replace('\\', "/")
+        .trim_start_matches('/')
+        .to_string()
+}
+
+fn new_changeset_entry(
+    session: &ReviewSession,
+    path: &str,
+    status: ChangeStatus,
+    size: u64,
+) -> ChangesetEntry {
+    ChangesetEntry {
+        path: path.to_string(),
+        status,
+        size,
+        baseline_kind: if session
+            .accepted_paths
+            .iter()
+            .any(|accepted| normalized_review_path(accepted) == normalized_review_path(path))
+        {
+            BaselineKind::Accepted
+        } else {
+            BaselineKind::Original
+        },
+        versions: Vec::new(),
+    }
 }
 
 fn review_ledger_path(vault_path: &Path, session_id: &str) -> PathBuf {
@@ -506,14 +563,8 @@ pub fn ensure_baseline(
     // For git-backed vaults, HEAD is the immutable baseline. No copy needed.
     if session.git_backed {
         let session_id = session.id.clone();
-        session.entries.insert(
-            path.to_string(),
-            ChangesetEntry {
-                path: path.to_string(),
-                status: status.clone(),
-                size,
-            },
-        );
+        let entry = new_changeset_entry(session, path, status.clone(), size);
+        session.entries.insert(path.to_string(), entry);
         session.known_paths.insert(path.to_string());
         let _ = append_file_review_ledger(
             Path::new(&vault.path),
@@ -539,14 +590,8 @@ pub fn ensure_baseline(
             return Ok(true);
         }
         let session_id = session.id.clone();
-        session.entries.insert(
-            path.to_string(),
-            ChangesetEntry {
-                path: path.to_string(),
-                status: status.clone(),
-                size,
-            },
-        );
+        let entry = new_changeset_entry(session, path, status.clone(), size);
+        session.entries.insert(path.to_string(), entry);
         session.known_paths.insert(path.to_string());
         let _ = append_file_review_ledger(
             Path::new(&vault.path),
@@ -566,14 +611,8 @@ pub fn ensure_baseline(
 
     if status == ChangeStatus::Added {
         let session_id = session.id.clone();
-        session.entries.insert(
-            path.to_string(),
-            ChangesetEntry {
-                path: path.to_string(),
-                status: status.clone(),
-                size,
-            },
-        );
+        let entry = new_changeset_entry(session, path, status.clone(), size);
+        session.entries.insert(path.to_string(), entry);
         let _ = append_file_review_ledger(
             Path::new(&vault.path),
             &session_id,
@@ -592,14 +631,8 @@ pub fn ensure_baseline(
 
     if session.known_paths.contains(path) && (is_large(size) || !within_cap(session, size)) {
         let session_id = session.id.clone();
-        session.entries.insert(
-            path.to_string(),
-            ChangesetEntry {
-                path: path.to_string(),
-                status: ChangeStatus::BaselineMissing,
-                size,
-            },
-        );
+        let entry = new_changeset_entry(session, path, ChangeStatus::BaselineMissing, size);
+        session.entries.insert(path.to_string(), entry);
         let _ = append_file_review_ledger(
             Path::new(&vault.path),
             &session_id,
@@ -623,14 +656,8 @@ pub fn ensure_baseline(
     } else {
         ChangeStatus::BaselineMissing
     };
-    session.entries.insert(
-        path.to_string(),
-        ChangesetEntry {
-            path: path.to_string(),
-            status: ledger_status.clone(),
-            size,
-        },
-    );
+    let entry = new_changeset_entry(session, path, ledger_status.clone(), size);
+    session.entries.insert(path.to_string(), entry);
     session.known_paths.insert(path.to_string());
     let _ = append_file_review_ledger(
         Path::new(&vault.path),
@@ -663,14 +690,8 @@ fn record_change(
         }
         let vault = active_vault(state)?;
         let session_id = session.id.clone();
-        session.entries.insert(
-            path.to_string(),
-            ChangesetEntry {
-                path: path.to_string(),
-                status: status.clone(),
-                size,
-            },
-        );
+        let entry = new_changeset_entry(session, path, status.clone(), size);
+        session.entries.insert(path.to_string(), entry);
         let _ = append_file_review_ledger(
             Path::new(&vault.path),
             &session_id,
@@ -848,6 +869,86 @@ pub fn clear_review_staging(state: State<'_, WenmeiState>) -> Result<(), String>
 }
 
 #[tauri::command]
+pub fn review_capture_version(
+    state: State<'_, WenmeiState>,
+    app: AppHandle,
+    path: String,
+) -> Result<Option<ReviewVersion>, String> {
+    let normalized_path = normalized_review_path(&path);
+    let vault = active_vault(&state)?;
+    let full_path = resolve_path(&vault, &normalized_path)?;
+    let metadata = fs::metadata(&full_path).map_err(|e| e.to_string())?;
+    if !metadata.is_file() {
+        return Err("Only files can be versioned".to_string());
+    }
+    let size = metadata.len();
+
+    let (session_id, entry_path, version, entries) = {
+        let mut current = state.review_session.lock().unwrap();
+        let Some(session) = current.as_mut() else {
+            return Ok(None);
+        };
+        let Some(entry_path) = session
+            .entries
+            .keys()
+            .find(|candidate| normalized_review_path(candidate) == normalized_path)
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let entry = session
+            .entries
+            .get(&entry_path)
+            .expect("matched review entry disappeared");
+        if is_large(size) || !within_cap(session, size) {
+            return Err(format!("Version storage limit reached for {}", entry_path));
+        }
+
+        let next = entry
+            .versions
+            .last()
+            .map(|version| version.version + 1)
+            .unwrap_or(1);
+        let snapshot = version_path(
+            Path::new(&vault.path),
+            &session.id,
+            &normalized_path,
+            next,
+        );
+        if let Some(parent) = snapshot.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::copy(&full_path, snapshot).map_err(|e| e.to_string())?;
+
+        let version = ReviewVersion {
+            version: next,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            size,
+        };
+        session.total_baseline_bytes += size;
+        session
+            .entries
+            .get_mut(&entry_path)
+            .expect("review entry disappeared while versioning")
+            .versions
+            .push(version.clone());
+        let entries = session.entries.values().cloned().collect();
+        (session.id.clone(), entry_path, version, entries)
+    };
+
+    append_journal_event(
+        &state,
+        "review.version_saved",
+        "editor",
+        Some(entry_path.clone()),
+        format!("Saved {} V{}", entry_path, version.version),
+        serde_json::json!({"session_id": session_id, "path": entry_path, "version": version.version}),
+    )?;
+    emit_changeset_updated(&app, entries);
+    Ok(Some(version))
+}
+
+#[tauri::command]
 pub fn review_approve(
     state: State<'_, WenmeiState>,
     app: AppHandle,
@@ -863,6 +964,7 @@ pub fn review_approve(
     };
 
     if let Some(entry) = removed {
+        let version_bytes: u64 = entry.versions.iter().map(|version| version.size).sum();
         let vault = active_vault(&state)?;
         let git_backed = {
             let current = state.review_session.lock().unwrap();
@@ -932,6 +1034,18 @@ pub fn review_approve(
                 Some("approved".to_string()),
                 Some("Approved from ReviewPanel".to_string()),
             );
+        }
+
+        let _ = fs::remove_dir_all(versions_dir(
+            Path::new(&vault.path),
+            &session_id,
+            &path,
+        ));
+        let mut current = state.review_session.lock().unwrap();
+        if let Some(session) = current.as_mut() {
+            session.accepted_paths.insert(path.clone());
+            session.total_baseline_bytes =
+                session.total_baseline_bytes.saturating_sub(version_bytes);
         }
     }
 
@@ -1019,8 +1133,16 @@ pub fn review_reject(
         let mut current = state.review_session.lock().unwrap();
         if let Some(session) = current.as_mut() {
             session.entries.remove(&path);
+            let version_bytes: u64 = entry.versions.iter().map(|version| version.size).sum();
+            session.total_baseline_bytes =
+                session.total_baseline_bytes.saturating_sub(version_bytes);
         }
     }
+    let _ = fs::remove_dir_all(versions_dir(
+        Path::new(&vault.path),
+        &session_id,
+        &path,
+    ));
 
     append_journal_event(
         &state,
@@ -1389,5 +1511,17 @@ mod tests {
         assert!(session.total_baseline_bytes == size);
 
         let _ = fs::remove_dir_all(vault);
+    }
+
+    #[test]
+    fn accepted_file_uses_accepted_baseline_label_on_later_edits() {
+        let mut session = ReviewSession::new("rs-accepted".to_string(), false);
+
+        let original = new_changeset_entry(&session, "notes/a.md", ChangeStatus::Modified, 10);
+        assert_eq!(original.baseline_kind, BaselineKind::Original);
+
+        session.accepted_paths.insert("/notes/a.md".to_string());
+        let accepted = new_changeset_entry(&session, "notes\\a.md", ChangeStatus::Modified, 12);
+        assert_eq!(accepted.baseline_kind, BaselineKind::Accepted);
     }
 }

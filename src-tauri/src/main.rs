@@ -91,6 +91,7 @@ fn main() {
             review::review_session_start,
             review::review_session_close,
             review::clear_review_staging,
+            review::review_capture_version,
             review::review_approve,
             review::review_reject,
             review::review_changeset,

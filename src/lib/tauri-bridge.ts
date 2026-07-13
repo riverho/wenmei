@@ -153,6 +153,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       return mocks.reviewSessionClose((args as { discard: boolean }).discard);
     case "clear_review_staging":
       return mocks.clearReviewStaging();
+    case "review_capture_version":
+      return mocks.reviewCaptureVersion((args as { path: string }).path);
     case "review_approve":
       return mocks.reviewApprove((args as { path: string }).path);
     case "review_reject":
@@ -704,6 +706,14 @@ export interface ChangesetEntry {
   path: string;
   status: "added" | "modified" | "deleted" | "baselineMissing";
   size: number;
+  baseline_kind: "original" | "accepted";
+  versions: ReviewVersion[];
+}
+
+export interface ReviewVersion {
+  version: number;
+  created_at: string;
+  size: number;
 }
 
 export interface ReviewFileVersions {
@@ -726,6 +736,12 @@ export async function reviewSessionStart(): Promise<string> {
 
 export async function reviewSessionClose(discard = false): Promise<void> {
   return invoke("review_session_close", { discard });
+}
+
+export async function reviewCaptureVersion(
+  path: string
+): Promise<ReviewVersion | null> {
+  return invoke("review_capture_version", { path });
 }
 
 export async function reviewApprove(path: string): Promise<void> {

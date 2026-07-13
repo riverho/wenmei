@@ -16,18 +16,18 @@ import {
 import { runExclusiveEditorFileOperation } from "@/lib/editor-save-coordinator";
 import { Check, X, Play, Square, Clock, GitCompare } from "lucide-react";
 
-function statusLabel(status: ChangesetEntry["status"]) {
-  switch (status) {
+function statusLabel(entry: ChangesetEntry) {
+  switch (entry.status) {
     case "added":
       return "Added";
     case "modified":
-      return "Original";
+      return entry.baseline_kind === "accepted" ? "Accepted" : "Original";
     case "deleted":
       return "Deleted";
     case "baselineMissing":
       return "No baseline";
     default:
-      return status;
+      return entry.status;
   }
 }
 
@@ -182,10 +182,41 @@ export default function ReviewPanel() {
     }
   };
 
-  const approve = async (path: string) => {
-    await reviewApprove(path);
-    setChangeset(await reviewChangeset());
-    setJournal(await listJournalEvents(100));
+  const approve = async (entry: ChangesetEntry) => {
+    setBusyPath(entry.path);
+    setError(null);
+    try {
+      await runExclusiveEditorFileOperation(entry.path, async () => {
+        await reviewApprove(entry.path);
+        const { activeFilePath, setActiveFile } = useAppStore.getState();
+        if (normalizedPath(activeFilePath) !== normalizedPath(entry.path)) {
+          return;
+        }
+
+        if (entry.status === "deleted") {
+          setActiveFile(null);
+          return;
+        }
+
+        const file = await readFile(entry.path);
+        setActiveFile(file.path, file.content, file.name);
+      });
+      if (selectedPath === entry.path) closePreview();
+    } catch (approveError) {
+      setError(`Could not accept ${entry.path}: ${errorMessage(approveError)}`);
+    } finally {
+      try {
+        const [entries, events] = await Promise.all([
+          reviewChangeset(),
+          listJournalEvents(100),
+        ]);
+        setChangeset(entries);
+        setJournal(events);
+      } catch (refreshError) {
+        setError(`Could not refresh review: ${errorMessage(refreshError)}`);
+      }
+      setBusyPath(null);
+    }
   };
 
   const reject = async (entry: ChangesetEntry) => {
@@ -362,7 +393,7 @@ export default function ReviewPanel() {
                   className="text-[10px] font-semibold uppercase shrink-0"
                   style={{ color: statusColor(entry.status) }}
                 >
-                  {statusLabel(entry.status)}
+                  {statusLabel(entry)}
                 </span>
                 <span
                   className="text-xs truncate"
@@ -375,11 +406,12 @@ export default function ReviewPanel() {
                 <button
                   onClick={e => {
                     e.stopPropagation();
-                    approve(entry.path);
+                    void approve(entry);
                   }}
+                  disabled={busyPath === entry.path}
                   className="p-1 rounded transition-colors"
                   style={{ color: "var(--accent-teal)" }}
-                  title="Approve"
+                  title="Accept current version"
                 >
                   <Check size={12} />
                 </button>
@@ -391,12 +423,27 @@ export default function ReviewPanel() {
                   disabled={busyPath === entry.path}
                   className="p-1 rounded transition-colors"
                   style={{ color: "var(--accent-rose)" }}
-                  title="Reject / restore baseline"
+                  title="Reject versions and restore baseline"
                 >
                   <X size={12} />
                 </button>
               </div>
             </button>
+
+            {entry.versions.length > 0 && (
+              <div className="flex flex-wrap gap-1 px-2 pb-2">
+                {entry.versions.map(version => (
+                  <span
+                    key={version.version}
+                    className="text-[10px] terminal-font"
+                    style={{ color: "var(--text-tertiary)" }}
+                    title={new Date(version.created_at).toLocaleString()}
+                  >
+                    V{version.version}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {preview?.path === entry.path && (
               <div

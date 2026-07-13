@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { writeFileMock } = vi.hoisted(() => ({
+const { reviewCaptureVersionMock, writeFileMock } = vi.hoisted(() => ({
+  reviewCaptureVersionMock: vi.fn(),
   writeFileMock: vi.fn(),
 }));
 
 vi.mock("@/lib/tauri-bridge", () => ({
+  reviewCaptureVersion: reviewCaptureVersionMock,
   writeFile: writeFileMock,
 }));
 
@@ -24,7 +26,24 @@ function deferred() {
 
 describe("editor save coordinator", () => {
   beforeEach(() => {
+    reviewCaptureVersionMock.mockReset();
     writeFileMock.mockReset();
+  });
+
+  it("captures a review version after an explicit save", async () => {
+    await expect(
+      saveEditorFile("notes/a.md", "checkpoint", true)
+    ).resolves.toBe("saved");
+
+    expect(writeFileMock).toHaveBeenCalledWith(
+      "notes/a.md",
+      "checkpoint",
+      "human"
+    );
+    expect(reviewCaptureVersionMock).toHaveBeenCalledWith("notes/a.md");
+    expect(writeFileMock.mock.invocationCallOrder[0]).toBeLessThan(
+      reviewCaptureVersionMock.mock.invocationCallOrder[0]
+    );
   });
 
   it("finishes an in-flight save, skips queued stale saves, then reverts", async () => {

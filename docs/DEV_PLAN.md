@@ -3,10 +3,12 @@
 ## Current Frame
 
 Wenmei is an agentic thinking environment for local folders.
+Hello again
+Exchange ideas
 
 
 - Local folder = world
-- Sandbox = thinking room
+- Sandbox = ??
 - Markdown = durable thinking surface
 - Pi = agent inside the sandbox
 - Terminal = visible CLI floor under Pi

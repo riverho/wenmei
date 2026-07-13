@@ -530,21 +530,36 @@ export async function listJournalEvents(limit = 50): Promise<JournalEvent[]> {
 
 let mockReviewSession: { id: string; entries: Record<string, unknown> } | null =
   null;
+const mockReviewVersionCounts = new Map<string, number>();
 
 export async function reviewSessionStart(): Promise<string> {
   await delay(20);
   const id = `rs-${Date.now()}`;
   mockReviewSession = { id, entries: {} };
+  mockReviewVersionCounts.clear();
   return id;
 }
 
 export async function reviewSessionClose(_discard = false): Promise<void> {
   await delay(20);
   mockReviewSession = null;
+  mockReviewVersionCounts.clear();
 }
 
 export async function clearReviewStaging(): Promise<void> {
   await delay(20);
+}
+
+export async function reviewCaptureVersion(path: string): Promise<{
+  version: number;
+  created_at: string;
+  size: number;
+} | null> {
+  await delay(20);
+  if (!mockReviewSession) return null;
+  const version = (mockReviewVersionCounts.get(path) ?? 0) + 1;
+  mockReviewVersionCounts.set(path, version);
+  return { version, created_at: new Date().toISOString(), size: 0 };
 }
 
 export async function reviewApprove(path: string): Promise<void> {
@@ -552,6 +567,7 @@ export async function reviewApprove(path: string): Promise<void> {
   if (mockReviewSession) {
     delete mockReviewSession.entries[path];
   }
+  mockReviewVersionCounts.delete(path);
 }
 
 export async function reviewReject(path: string): Promise<void> {
@@ -559,6 +575,7 @@ export async function reviewReject(path: string): Promise<void> {
   if (mockReviewSession) {
     delete mockReviewSession.entries[path];
   }
+  mockReviewVersionCounts.delete(path);
 }
 
 export async function reviewChangeset(): Promise<unknown[]> {

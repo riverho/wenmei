@@ -44,6 +44,7 @@ export default function CenterPanel() {
   const prevPathRef = useRef<string | null>(null);
   const editRevisionRef = useRef(0);
   const savedRevisionRef = useRef(0);
+  const versionedRevisionRef = useRef(0);
   const [progress, setProgress] = useState(0);
   const splitPos = dragSplitPos ?? splitRatio * 100;
 
@@ -55,21 +56,35 @@ export default function CenterPanel() {
         pendingRef.current = null;
         editRevisionRef.current = 0;
         savedRevisionRef.current = 0;
+        versionedRevisionRef.current = 0;
       }),
     []
   );
 
-  const savePending = useCallback(async () => {
+  const savePending = useCallback(async (captureVersion = false) => {
     const pending = pendingRef.current;
     const revision = editRevisionRef.current;
-    if (!dirtyRef.current || !pending || revision <= savedRevisionRef.current) {
+    const needsSave = revision > savedRevisionRef.current;
+    const needsVersion =
+      captureVersion && revision > versionedRevisionRef.current;
+    if (!pending || (!needsSave && !needsVersion)) {
       return;
     }
 
     try {
-      const result = await saveEditorFile(pending.path, pending.content);
+      const result = await saveEditorFile(
+        pending.path,
+        pending.content,
+        captureVersion
+      );
       if (result === "saved" && pendingRef.current?.path === pending.path) {
         savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
+        if (captureVersion) {
+          versionedRevisionRef.current = Math.max(
+            versionedRevisionRef.current,
+            revision
+          );
+        }
         dirtyRef.current = editRevisionRef.current > savedRevisionRef.current;
       }
     } catch (error) {
@@ -101,6 +116,7 @@ export default function CenterPanel() {
         : null;
       editRevisionRef.current = 0;
       savedRevisionRef.current = 0;
+      versionedRevisionRef.current = 0;
       prevPathRef.current = newPath;
       return;
     }
@@ -110,6 +126,7 @@ export default function CenterPanel() {
       pendingRef.current = { path: newPath, content: activeFileContent };
       editRevisionRef.current = 0;
       savedRevisionRef.current = 0;
+      versionedRevisionRef.current = 0;
     }
   }, [isDirty, activeFilePath, activeFileContent]);
 
@@ -118,7 +135,7 @@ export default function CenterPanel() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        void savePending();
+        void savePending(true);
       }
     };
     window.addEventListener("keydown", handler);

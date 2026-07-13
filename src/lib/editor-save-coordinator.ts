@@ -1,4 +1,4 @@
-import { writeFile } from "@/lib/tauri-bridge";
+import { reviewCaptureVersion, writeFile } from "@/lib/tauri-bridge";
 
 type SaveResult = "saved" | "skipped";
 
@@ -56,7 +56,8 @@ function enqueue<T>(queue: PathQueue, operation: () => Promise<T>): Promise<T> {
 
 export function saveEditorFile(
   path: string,
-  content: string
+  content: string,
+  captureVersion = false
 ): Promise<SaveResult> {
   const queue = getQueue(path);
   const generation = queue.generation;
@@ -70,6 +71,9 @@ export function saveEditorFile(
       return "skipped";
     }
     await writeFile(path, content, "human");
+    if (captureVersion) {
+      await reviewCaptureVersion(path);
+    }
     return "saved";
   });
 }
