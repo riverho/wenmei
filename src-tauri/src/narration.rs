@@ -38,6 +38,12 @@ impl NarrationBuffer {
         }
     }
 
+    /// Milliseconds since the last byte of PTY output — the idle age used for
+    /// per-tab status.
+    pub fn idle_ms(&self) -> u128 {
+        self.last_output.elapsed().as_millis()
+    }
+
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
         if !enabled {

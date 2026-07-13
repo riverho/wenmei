@@ -377,6 +377,7 @@ fn handle_rpc(app: &tauri::AppHandle, request: RpcRequest) -> serde_json::Value 
         }
         "terminal.start" => {
             let session_id = param_optional_string(&request.params, "session_id");
+            let sandbox_id = param_optional_string(&request.params, "sandbox_id");
             let rows = param_u16(&request.params, "rows", 24);
             let cols = param_u16(&request.params, "cols", 80);
             let force_restart = param_bool(&request.params, "force_restart", false);
@@ -385,6 +386,7 @@ fn handle_rpc(app: &tauri::AppHandle, request: RpcRequest) -> serde_json::Value 
                 app.clone(),
                 state,
                 session_id,
+                sandbox_id,
                 rows,
                 cols,
                 Some(force_restart),

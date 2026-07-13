@@ -12,7 +12,7 @@ use crate::journal::{
 use crate::narration::{spawn_narration_flush_thread, NarrationBuffer, SharedNarrationBuffer};
 use crate::platform::Platform;
 use crate::state::{
-    active_terminal_context, log_action, save_state, terminal_log_file, terminal_pi_session_dir,
+    log_action, save_state, terminal_context_for, terminal_log_file, terminal_pi_session_dir,
     TerminalSession, WenmeiState,
 };
 
@@ -40,11 +40,55 @@ fn with_session<R>(
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum TerminalActivity {
+    /// Output is flowing right now.
     Active,
+    /// Alive but quiet for a while.
     Idle,
+    /// Sitting on a recognized input prompt — wants a human.
+    NeedsInput,
+    /// The PTY errored or died.
     Stuck,
+}
+
+/// Quiet-for-this-long (ms) before an Active session is reported Idle.
+const STATUS_IDLE_MS: u128 = 2500;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TerminalTabStatus {
+    pub session_id: String,
+    pub activity: TerminalActivity,
+    pub idle_ms: u64,
+}
+
+/// Per-tab live status for every running session, derived from each session's
+/// own narration buffer (last-output age) and the approval-relay prompt
+/// detector (needs-input). Zero-cost snapshot — the frontend polls it to paint
+/// the tab dots and the needs-input attention badge. Dead sessions simply
+/// aren't in the map, so their tabs fall back to "unknown".
+#[tauri::command]
+pub fn terminal_statuses(state: State<'_, WenmeiState>) -> Vec<TerminalTabStatus> {
+    let terminals = state.terminals.lock().unwrap();
+    terminals
+        .values()
+        .map(|session| {
+            let nb = session.narration_buffer.lock().unwrap();
+            let idle_ms = nb.idle_ms();
+            let activity = if crate::approval::tail_has_prompt(&nb.recent_text(12)) {
+                TerminalActivity::NeedsInput
+            } else if idle_ms >= STATUS_IDLE_MS {
+                TerminalActivity::Idle
+            } else {
+                TerminalActivity::Active
+            };
+            TerminalTabStatus {
+                session_id: session.session_id.clone(),
+                activity,
+                idle_ms: idle_ms as u64,
+            }
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -132,11 +176,14 @@ pub fn terminal_start(
     app: AppHandle,
     state: State<'_, WenmeiState>,
     session_id: Option<String>,
+    sandbox_id: Option<String>,
     rows: u16,
     cols: u16,
     force_restart: Option<bool>,
 ) -> Result<TerminalStarted, String> {
-    let ctx = active_terminal_context(&state)?;
+    // Scope to the tab's own sandbox binding when it has one, so a background
+    // tab is not force-reset when the globally-focused sandbox changes.
+    let ctx = terminal_context_for(&state, sandbox_id.as_deref())?;
     // The tab id is the session key. Fall back to a sandbox-derived id for
     // legacy single-terminal callers.
     let session_id = session_id

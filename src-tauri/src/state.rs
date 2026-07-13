@@ -910,28 +910,49 @@ pub fn safe_meta_name(value: &str) -> String {
 }
 
 pub fn active_terminal_context(state: &State<'_, WenmeiState>) -> Result<TerminalContext, String> {
+    terminal_context_for(state, None)
+}
+
+/// Resolve the working context for a terminal, scoped to `requested_sandbox`
+/// when a tab carries its own binding, or the globally-active sandbox when it
+/// doesn't (legacy/unbound callers). Binding a tab to its own sandbox is what
+/// lets background tabs survive a change of global focus without the
+/// context-switch reset dance — their `cwd`/`meta_root` stop depending on
+/// which sandbox is currently focused.
+pub fn terminal_context_for(
+    state: &State<'_, WenmeiState>,
+    requested_sandbox: Option<&str>,
+) -> Result<TerminalContext, String> {
     let app_state = state.app_state.lock().unwrap();
-    if app_state.open_mode == "document" || app_state.active_sandbox_id.is_none() {
+
+    // The tab's own binding wins; fall back to the active sandbox.
+    let target_sandbox_id = requested_sandbox
+        .map(|s| s.to_string())
+        .or_else(|| app_state.active_sandbox_id.clone());
+
+    if app_state.open_mode == "document" || target_sandbox_id.is_none() {
         return Err("This folder is open in document mode. Authorize it as a sandbox before starting Pi or Terminal.".to_string());
     }
+    let target_sandbox_id = target_sandbox_id.unwrap();
+
+    // A bound tab decides its vault via its sandbox (it may point at a
+    // different vault than the active one); fall back to the active vault.
+    let sandbox = app_state
+        .sandboxes
+        .iter()
+        .find(|s| s.id == target_sandbox_id)
+        .cloned();
+    let vault_id = sandbox
+        .as_ref()
+        .map(|s| s.vault_id.clone())
+        .unwrap_or_else(|| app_state.active_vault_id.clone());
     let vault = app_state
         .vaults
         .iter()
-        .find(|v| v.id == app_state.active_vault_id)
+        .find(|v| v.id == vault_id)
         .cloned()
         .or_else(|| app_state.vaults.first().cloned())
         .ok_or_else(|| "No vault configured".to_string())?;
-
-    let sandbox = app_state
-        .active_sandbox_id
-        .as_ref()
-        .and_then(|id| {
-            app_state
-                .sandboxes
-                .iter()
-                .find(|s| &s.id == id && s.vault_id == vault.id)
-        })
-        .cloned();
 
     let root_path = sandbox
         .as_ref()

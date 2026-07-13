@@ -18,11 +18,14 @@ export type LightboxVariant =
 export interface TerminalTab {
   id: string;
   title: string;
+  /** Sandbox this tab is bound to at creation — scopes its PTY context so a
+   *  change of global focus doesn't reset it. Null for legacy/unbound tabs. */
+  sandboxId: string | null;
+  /** True until the user renames the tab, so a bound tab can keep tracking
+   *  its sandbox's name instead of a stale default. */
+  autoTitle: boolean;
   createdAt: number;
 }
-
-/** Rough per-tab memory estimate (xterm buffer + PTY scrollback). */
-export const TERMINAL_TAB_MB = 9;
 export type Keymap = Record<string, string>;
 
 export const DEFAULT_KEYMAP: Keymap = {
@@ -177,6 +180,7 @@ interface AppState {
   addTerminalTab: () => void;
   closeTerminalTab: (id: string) => void;
   setActiveTerminalTab: (id: string) => void;
+  renameTerminalTab: (id: string, title: string) => void;
 
   // Review session
   setActiveReviewSession: (id: string | null) => void;
@@ -375,14 +379,25 @@ export const useAppStore = create<AppState>()(
         get().setMode("terminal");
       },
       addTerminalTab: () => {
-        const { terminalTabs, terminalTabLimit, terminalTabsUnlimited } = get();
+        const {
+          terminalTabs,
+          terminalTabLimit,
+          terminalTabsUnlimited,
+          sandboxes,
+          activeSandboxId,
+        } = get();
         if (!terminalTabsUnlimited && terminalTabs.length >= terminalTabLimit) {
           return;
         }
         const id = `term-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const sandbox = sandboxes.find(s => s.id === activeSandboxId);
         const tab: TerminalTab = {
           id,
-          title: `zsh ${terminalTabs.length + 1}`,
+          // Bind the tab to whichever sandbox is focused right now; name it
+          // after that sandbox so tabs read as contexts, not "zsh 1/2/3".
+          title: sandbox?.name ?? `zsh ${terminalTabs.length + 1}`,
+          sandboxId: activeSandboxId,
+          autoTitle: true,
           createdAt: Date.now(),
         };
         set({ terminalTabs: [...terminalTabs, tab], activeTerminalTabId: id });
@@ -400,6 +415,16 @@ export const useAppStore = create<AppState>()(
         }
       },
       setActiveTerminalTab: id => set({ activeTerminalTabId: id }),
+      renameTerminalTab: (id, title) => {
+        const trimmed = title.trim();
+        set({
+          terminalTabs: get().terminalTabs.map(t =>
+            t.id === id
+              ? { ...t, title: trimmed || t.title, autoTitle: false }
+              : t
+          ),
+        });
+      },
 
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),

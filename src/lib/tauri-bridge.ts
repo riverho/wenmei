@@ -21,7 +21,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
     case "write_file":
       return mocks.writeFile(
         (args as { path: string }).path,
-        (args as { content: string }).content
+        (args as { content: string }).content,
+        (args as { source?: string }).source
       );
     case "create_file":
       return mocks.createFile(
@@ -150,6 +151,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       return mocks.reviewSessionStart();
     case "review_session_close":
       return mocks.reviewSessionClose((args as { discard: boolean }).discard);
+    case "clear_review_staging":
+      return mocks.clearReviewStaging();
     case "review_approve":
       return mocks.reviewApprove((args as { path: string }).path);
     case "review_reject":
@@ -181,6 +184,8 @@ async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
       );
     case "terminal_set_active":
       return undefined;
+    case "terminal_statuses":
+      return [];
     case "terminal_stop":
       return mocks.terminalStop();
     case "terminal_set_narration_enabled":
@@ -361,8 +366,16 @@ export async function readFile(path: string): Promise<FileContent> {
   return invoke("read_file", { path });
 }
 
-export async function writeFile(path: string, content: string): Promise<void> {
-  return invoke("write_file", { path, content });
+export async function writeFile(
+  path: string,
+  content: string,
+  source: "human" | "agent" = "human"
+): Promise<void> {
+  return invoke("write_file", { path, content, source });
+}
+
+export async function clearReviewStaging(): Promise<void> {
+  return invoke("clear_review_staging");
 }
 
 export async function createFile(
@@ -737,6 +750,8 @@ export async function reviewAnnotate(
 
 // ─── Terminal ───
 
+export type TerminalActivity = "active" | "idle" | "needs-input" | "stuck";
+
 export interface TerminalStarted {
   session_id: string;
   sessionId?: string;
@@ -744,16 +759,34 @@ export interface TerminalStarted {
   log_file: string;
   reused: boolean;
   snapshot: number[];
-  activity?: "active" | "idle" | "stuck";
+  activity?: TerminalActivity;
+}
+
+export interface TerminalTabStatus {
+  session_id: string;
+  activity: TerminalActivity;
+  idle_ms: number;
 }
 
 export async function terminalStart(
   sessionId: string | null,
+  sandboxId: string | null,
   rows: number,
   cols: number,
   forceRestart = false
 ): Promise<TerminalStarted> {
-  return invoke("terminal_start", { sessionId, rows, cols, forceRestart });
+  return invoke("terminal_start", {
+    sessionId,
+    sandboxId,
+    rows,
+    cols,
+    forceRestart,
+  });
+}
+
+/** Live status for every running session — polled to paint the tab dots. */
+export async function terminalStatuses(): Promise<TerminalTabStatus[]> {
+  return invoke("terminal_statuses");
 }
 
 export async function terminalSetActive(sessionId: string): Promise<void> {

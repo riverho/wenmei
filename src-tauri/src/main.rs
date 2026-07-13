@@ -138,6 +138,7 @@ fn main() {
             pi_rpc::pi_panel_restart,
             pi_rpc::pi_panel_stop,
             terminal::terminal_start,
+            terminal::terminal_statuses,
             terminal::terminal_set_active,
             terminal::terminal_write,
             terminal::pi_type_into_terminal,

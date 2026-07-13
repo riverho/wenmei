@@ -48,6 +48,34 @@ export function useKeyboardShortcuts() {
         e.stopPropagation();
       };
 
+      // Terminal-mode tab navigation. Gated to terminal mode so Ctrl/Cmd+1..9
+      // don't clash with the panel shortcuts below; read fresh from the store
+      // so this closure never goes stale on the tab list.
+      if (mode === "terminal") {
+        const st = useAppStore.getState();
+        const tabs = st.terminalTabs;
+        if (tabs.length > 0) {
+          // Ctrl/Cmd+Tab — next, +Shift — previous (wraps)
+          if (e.key === "Tab" && meta) {
+            prevent();
+            const idx = tabs.findIndex(t => t.id === st.activeTerminalTabId);
+            const next = e.shiftKey
+              ? (idx - 1 + tabs.length) % tabs.length
+              : (idx + 1) % tabs.length;
+            st.setActiveTerminalTab(tabs[next].id);
+            return;
+          }
+          // Ctrl/Cmd+1..8 — jump to that tab; 9 — last tab
+          if (meta && !e.shiftKey && /^[1-9]$/.test(e.key)) {
+            prevent();
+            const n = Number(e.key);
+            const target = n === 9 ? tabs[tabs.length - 1] : tabs[n - 1];
+            if (target) st.setActiveTerminalTab(target.id);
+            return;
+          }
+        }
+      }
+
       // Cmd/Ctrl + 1 — Focus/Toggle left panel
       if (shortcut("toggleLeftPanel")) {
         prevent();

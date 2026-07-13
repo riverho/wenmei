@@ -99,6 +99,13 @@ fn detect_in(text: &str) -> Option<(&'static PromptPattern, DetectedPrompt)> {
     None
 }
 
+/// Whether a screen tail is sitting on a recognized input prompt. Used by the
+/// per-tab status snapshot to flag "needs input" without allocating a full
+/// DetectedPrompt.
+pub fn tail_has_prompt(tail: &str) -> bool {
+    detect_in(tail).is_some()
+}
+
 /// Read the active terminal's recent tail and return a detected prompt, if
 /// any. Side-effect-free — the caller dedups on `screen_hash` before
 /// alerting so one prompt fires once.
