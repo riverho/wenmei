@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::thread;
@@ -199,6 +200,19 @@ pub fn run_card_delete(state: State<'_, WenmeiState>, id: String) -> Result<(), 
 const STAGING_ALERT_BYTES: u64 = 160 * 1024 * 1024; // 80% of the 200 MB cap
 const RESOURCE_CHECK_EVERY_TICKS: u32 = 12; // ~1 min at 5s ticks
 
+/// Auto-briefing (D2 / case #3, "you return from coffee to a useful
+/// briefing"): checked on the same tick cadence as the resource check, not on
+/// terminal-session-start (memory-foreman.md's original wording predates the
+/// heartbeat engine). Firing only while the window is unfocused, gated by a
+/// cooldown and "anything new happened," reuses the exact restraint pattern
+/// already established for stuck-run detection below — quiet by default,
+/// visible only when there's something to report. `BRIEFING_CHECK_EVERY_TICKS`
+/// is just the internal poll granularity (how often we glance at the clock);
+/// the actual cooldown is the user-configured `heartbeat_interval_minutes`
+/// (Settings › Heartbeat), and the whole check is skipped when
+/// `heartbeat_enabled` is off.
+const BRIEFING_CHECK_EVERY_TICKS: u32 = 12; // ~1 min at 5s ticks
+
 fn dir_size(path: &PathBuf) -> u64 {
     let Ok(entries) = fs::read_dir(path) else {
         return 0;
@@ -224,6 +238,10 @@ pub fn start_heartbeat(app: AppHandle) {
     thread::spawn(move || {
         let mut tick: u32 = 0;
         let mut last_prompt_hash: u64 = 0;
+        // vault_id -> (epoch a briefing last fired, ts of the newest journal
+        // event it covered). In-memory only — a restart just resets timing,
+        // which is harmless.
+        let mut briefing_state: HashMap<String, (i64, String)> = HashMap::new();
         loop {
         thread::sleep(Duration::from_millis(TICK_MS));
         tick = tick.wrapping_add(1);
@@ -255,6 +273,57 @@ pub fn start_heartbeat(app: AppHandle) {
                     ),
                     None,
                 );
+            }
+        }
+        let (heartbeat_enabled, heartbeat_interval_secs) = {
+            let app_state = state.app_state.lock().unwrap();
+            (
+                app_state.heartbeat_enabled,
+                i64::from(app_state.heartbeat_interval_minutes) * 60,
+            )
+        };
+        if tick % BRIEFING_CHECK_EVERY_TICKS == 0 && heartbeat_enabled {
+            let focused = app
+                .get_webview_window("main")
+                .and_then(|w| w.is_focused().ok())
+                .unwrap_or(true);
+            if !focused {
+                if let Some(state_for_events) = app.try_state::<WenmeiState>() {
+                    if let Ok(events) =
+                        crate::journal::list_journal_events(Some(1), state_for_events)
+                    {
+                        if let Some(latest) = events.first() {
+                            let (last_shown, last_seen_ts) = briefing_state
+                                .get(&vault.id)
+                                .cloned()
+                                .unwrap_or((0, String::new()));
+                            let has_new = latest.ts != last_seen_ts;
+                            let cooled_down = now_epoch() - last_shown > heartbeat_interval_secs;
+                            if has_new && cooled_down {
+                                if let Some(state_for_briefing) =
+                                    app.try_state::<WenmeiState>()
+                                {
+                                    if let Ok(briefing) = crate::journal::build_briefing(
+                                        Some(20),
+                                        state_for_briefing,
+                                    ) {
+                                        emit_notification(
+                                            &app,
+                                            "briefing.ready",
+                                            "While you were away",
+                                            &briefing,
+                                            None,
+                                        );
+                                        briefing_state.insert(
+                                            vault.id.clone(),
+                                            (now_epoch(), latest.ts.clone()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         for mut card in load_cards(&vault.path) {

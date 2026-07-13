@@ -89,6 +89,8 @@ interface AppState {
 
   // Machine-level settings persisted in state.json (Settings panel)
   narrateByDefault: boolean;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalMinutes: number;
   terminalTabLimit: number;
   terminalTabsUnlimited: boolean;
   sandboxNewWindows: boolean;
@@ -169,6 +171,8 @@ interface AppState {
 
   // Machine-level settings (persisted via save_app_state → state.json)
   setNarrateByDefault: (on: boolean) => void;
+  setHeartbeatEnabled: (on: boolean) => void;
+  setHeartbeatIntervalMinutes: (n: number) => void;
   setTerminalTabLimit: (n: number) => void;
   setTerminalTabsUnlimited: (on: boolean) => void;
   setSandboxNewWindows: (on: boolean) => void;
@@ -247,6 +251,8 @@ export const useAppStore = create<AppState>()(
       licenseTier: "free",
       licenseKey: null,
       narrateByDefault: true,
+      heartbeatEnabled: true,
+      heartbeatIntervalMinutes: 30,
       terminalTabLimit: 8,
       terminalTabsUnlimited: false,
       sandboxNewWindows: true,
@@ -370,6 +376,9 @@ export const useAppStore = create<AppState>()(
         }),
 
       setNarrateByDefault: on => set({ narrateByDefault: on }),
+      setHeartbeatEnabled: on => set({ heartbeatEnabled: on }),
+      setHeartbeatIntervalMinutes: n =>
+        set({ heartbeatIntervalMinutes: Math.max(1, Math.round(n)) }),
       setTerminalTabLimit: n => set({ terminalTabLimit: n }),
       setTerminalTabsUnlimited: on => set({ terminalTabsUnlimited: on }),
       setSandboxNewWindows: on => set({ sandboxNewWindows: on }),
@@ -517,6 +526,8 @@ export const useAppStore = create<AppState>()(
           licenseTier: state.license_tier ?? "free",
           licenseKey: state.license_key ?? null,
           narrateByDefault: state.narrate_by_default ?? true,
+          heartbeatEnabled: state.heartbeat_enabled ?? true,
+          heartbeatIntervalMinutes: state.heartbeat_interval_minutes ?? 30,
           terminalTabLimit: state.terminal_tab_limit ?? 8,
           terminalTabsUnlimited: state.terminal_tabs_unlimited ?? false,
           sandboxNewWindows: state.sandbox_new_windows ?? true,
@@ -559,6 +570,8 @@ export const useAppStore = create<AppState>()(
         license_tier: get().licenseTier,
         license_key: get().licenseKey,
         narrate_by_default: get().narrateByDefault,
+        heartbeat_enabled: get().heartbeatEnabled,
+        heartbeat_interval_minutes: get().heartbeatIntervalMinutes,
         terminal_tab_limit: get().terminalTabLimit,
         terminal_tabs_unlimited: get().terminalTabsUnlimited,
         sandbox_new_windows: get().sandboxNewWindows,

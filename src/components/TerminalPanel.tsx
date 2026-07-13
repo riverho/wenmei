@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Plus, X } from "lucide-react";
 import { listen, type UnlistenFn } from "@/lib/tauri-events";
+import {
+  registerTerminalLinkProvider,
+  TerminalLinkTransform,
+} from "@/lib/terminal-links";
 import { useAppStore } from "@/store/appStore";
 import {
   terminalResize,
@@ -286,18 +292,33 @@ function TerminalInstance({
     if (!hostRef.current) return;
     let disposed = false;
     let unlistenOutput: UnlistenFn | null = null;
+    let linkProvider: { dispose: () => void } | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    const linkTransform = new TerminalLinkTransform();
 
     const term = new Terminal({
       cursorBlink: true,
-      allowProposedApi: false,
+      // Unicode width providers are exposed through xterm's proposed API.
+      // The terminal uses this to keep modern TUI glyphs in the right cells.
+      allowProposedApi: true,
       fontFamily:
-        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
-      fontSize: 13,
-      lineHeight: 1.35,
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+      fontSize: 14,
+      fontWeight: "400",
+      fontWeightBold: "600",
+      letterSpacing: 0,
+      lineHeight: 1,
+      customGlyphs: true,
+      rescaleOverlappingGlyphs: true,
       scrollback: 5000,
       theme: XTERM_THEME,
     });
+    // xterm defaults to Unicode 6 width rules. Modern TUIs and native
+    // terminals use newer wcwidth tables, so activate Unicode 11 before any
+    // output is parsed to keep emoji, CJK, and symbols in the correct cells.
+    const unicode11 = new Unicode11Addon();
+    term.loadAddon(unicode11);
+    term.unicode.activeVersion = "11";
     // Let tab-nav chords bubble to the window handler instead of the PTY.
     term.attachCustomKeyEventHandler(e => {
       if (e.type === "keydown" && isTabNavChord(e)) return false;
@@ -306,6 +327,23 @@ function TerminalInstance({
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(hostRef.current);
+    linkProvider = registerTerminalLinkProvider(term);
+    // Native terminal apps draw box characters as joined glyphs. xterm's
+    // WebGL renderer preserves that continuity with custom glyphs, while the
+    // normal DOM renderer can leave visible seams between border characters.
+    // Keep the DOM renderer as a fallback for WebGL2-less webviews.
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+      // The OSC-8 layer is disabled because the native-looking link treatment
+      // is applied by TerminalLinkTransform and the provider above.
+      const linkLayer =
+        hostRef.current.querySelector<HTMLElement>(".xterm-link-layer");
+      if (linkLayer) linkLayer.style.display = "none";
+    } catch {
+      // DOM renderer remains active when WebGL2 is unavailable.
+    }
     fit.fit();
     termRef.current = term;
     fitRef.current = fit;
@@ -333,7 +371,9 @@ function TerminalInstance({
             "terminal-output",
             event => {
               if (event.payload.session_id !== sessionId) return; // isolation
-              term.write(new Uint8Array(event.payload.data));
+              term.write(
+                linkTransform.transform(new Uint8Array(event.payload.data))
+              );
             }
           );
         }
@@ -345,7 +385,7 @@ function TerminalInstance({
           forceRestart
         );
         if (started.reused && started.snapshot.length > 0) {
-          term.write(new Uint8Array(started.snapshot));
+          term.write(linkTransform.transform(new Uint8Array(started.snapshot)));
         }
         if (!disposed) onContext(started);
         resizeObserver?.disconnect();
@@ -373,6 +413,7 @@ function TerminalInstance({
       writeDisposable.dispose();
       resizeObserver?.disconnect();
       unlistenOutput?.();
+      linkProvider?.dispose();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;

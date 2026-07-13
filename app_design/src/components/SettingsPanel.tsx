@@ -22,6 +22,8 @@ import {
   Trash2,
   Menu,
   X,
+  HeartPulse,
+  HeartOff,
 } from "lucide-react";
 
 // ─── Toggle component ─────────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ const SETTINGS_NAV: { id: string; label: string; icon: React.ElementType }[] = [
   { id: "windows", label: "Windows", icon: Square },
   { id: "keyboard", label: "Keyboard", icon: Keyboard },
   { id: "agent", label: "Agent & Narration", icon: Bot },
+  { id: "heartbeat", label: "Heartbeat", icon: HeartPulse },
   { id: "integrations", label: "Integrations", icon: Link2 },
   { id: "license", label: "License", icon: Key },
   { id: "about", label: "About", icon: Info },
@@ -375,6 +378,120 @@ function Stepper({
       >
         <Plus size={10} />
       </button>
+    </div>
+  );
+}
+
+// ─── Heartbeat toggle — bespoke heart icon, not the generic rocker. Red +
+// double-thump animation when on; grey crossed-out heart when off. ──────────
+
+function HeartbeatToggleButton({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!enabled)}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+      style={{
+        background: enabled ? "rgba(194, 74, 74, 0.08)" : "var(--surface-2)",
+        border: `1px solid ${enabled ? "var(--accent-rose)" : "var(--surface-3)"}`,
+        color: enabled ? "var(--accent-rose)" : "var(--text-tertiary)",
+      }}
+      title={
+        enabled
+          ? "Heartbeat is on — click to turn off"
+          : "Heartbeat is off — click to turn on"
+      }
+    >
+      {enabled ? (
+        <HeartPulse size={15} className="animate-heartbeat" />
+      ) : (
+        <HeartOff size={15} />
+      )}
+      {enabled ? "On" : "Off"}
+    </button>
+  );
+}
+
+// ─── Heartbeat interval — three presets plus an open field for any value ────
+
+const HEARTBEAT_PRESETS = [5, 15, 30];
+
+function HeartbeatIntervalSelector({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+  disabled?: boolean;
+}) {
+  const isPreset = HEARTBEAT_PRESETS.includes(value);
+  const [customDraft, setCustomDraft] = useState(isPreset ? "" : String(value));
+
+  function commitCustom() {
+    const n = parseInt(customDraft, 10);
+    if (Number.isFinite(n) && n > 0) onChange(n);
+  }
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+    >
+      {HEARTBEAT_PRESETS.map(minutes => {
+        const active = value === minutes;
+        return (
+          <button
+            key={minutes}
+            onClick={() => {
+              setCustomDraft("");
+              onChange(minutes);
+            }}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150"
+            style={{
+              background: active ? "var(--accent-teal)" : "var(--surface-2)",
+              color: active ? "#fff" : "var(--text-secondary)",
+              border: active ? "none" : "1px solid var(--surface-3)",
+            }}
+          >
+            {minutes}m
+          </button>
+        );
+      })}
+      <div
+        className="flex items-center gap-1 pl-2 rounded-lg transition-all duration-150"
+        style={{
+          background: !isPreset ? "var(--accent-teal)" : "var(--surface-2)",
+          border: !isPreset ? "none" : "1px solid var(--surface-3)",
+        }}
+      >
+        <input
+          type="number"
+          min={1}
+          placeholder="Custom"
+          value={customDraft}
+          onChange={e => setCustomDraft(e.target.value)}
+          onBlur={commitCustom}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
+              commitCustom();
+              e.currentTarget.blur();
+            }
+          }}
+          className="w-12 bg-transparent outline-none text-xs font-mono text-center py-1"
+          style={{ color: !isPreset ? "#fff" : "var(--text-primary)" }}
+        />
+        <span
+          className="text-[10px] pr-2"
+          style={{ color: !isPreset ? "#fff" : "var(--text-tertiary)" }}
+        >
+          min
+        </span>
+      </div>
     </div>
   );
 }
@@ -636,6 +753,10 @@ export default function SettingsPanel() {
     setTerminalTabsUnlimited,
     sandboxNewWindows,
     setSandboxNewWindows,
+    heartbeatEnabled,
+    setHeartbeatEnabled,
+    heartbeatIntervalMinutes,
+    setHeartbeatIntervalMinutes,
     licenseTier,
     licenseKey,
     platform,
@@ -984,6 +1105,32 @@ export default function SettingsPanel() {
                 <option value="idle">On idle (2.5s after last output)</option>
                 <option value="manual">Manual only</option>
               </select>
+            </SettingRow>
+          </Section>
+
+          <Divider />
+
+          {/* ── Heartbeat ── */}
+          <Section icon={HeartPulse} title="Heartbeat" id="heartbeat">
+            <SettingRow
+              label="Heartbeat"
+              description="Watches active runs for stuck/idle and speaks up only when something needs you — never executes work itself"
+            >
+              <HeartbeatToggleButton
+                enabled={heartbeatEnabled}
+                onChange={setHeartbeatEnabled}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Check interval"
+              description="How often the heartbeat checks in. Lower catches stuck runs sooner; higher stays quieter."
+            >
+              <HeartbeatIntervalSelector
+                value={heartbeatIntervalMinutes}
+                onChange={setHeartbeatIntervalMinutes}
+                disabled={!heartbeatEnabled}
+              />
             </SettingRow>
           </Section>
 

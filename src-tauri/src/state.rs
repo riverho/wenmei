@@ -116,6 +116,10 @@ pub struct AppState {
     pub license_key: Option<String>,
     #[serde(default = "default_true")]
     pub narrate_by_default: bool,
+    #[serde(default = "default_true")]
+    pub heartbeat_enabled: bool,
+    #[serde(default = "default_heartbeat_interval_minutes")]
+    pub heartbeat_interval_minutes: u32,
     #[serde(default = "default_tab_limit")]
     pub terminal_tab_limit: u32,
     #[serde(default)]
@@ -130,6 +134,10 @@ pub struct AppState {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_heartbeat_interval_minutes() -> u32 {
+    30
 }
 
 fn default_tab_limit() -> u32 {
@@ -254,6 +262,8 @@ impl AppState {
             license_tier: default_license_tier(),
             license_key: None,
             narrate_by_default: true,
+            heartbeat_enabled: true,
+            heartbeat_interval_minutes: default_heartbeat_interval_minutes(),
             terminal_tab_limit: default_tab_limit(),
             terminal_tabs_unlimited: false,
             sandbox_new_windows: true,

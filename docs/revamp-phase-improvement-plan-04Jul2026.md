@@ -2,6 +2,10 @@
 
 **Date:** 7:25pm, 07 Jul 2026
 **Status:** Vision / planning draft
+**Reconciled:** 13 Jul 2026 — checkboxes below updated against the actual
+codebase (module inventory, grep-verified command/struct presence, and test
+runs), not aspirationally. `main.rs` is 161 lines across 19 modules; the §6
+monolith risk is closed.
 **Author:** River + Claude
 
 ---
@@ -291,12 +295,18 @@ wenmeictl review ledger --json
 
 Goal: prove Level 1 narration feels magical before investing further.
 
-- [ ] Tee the PTY `terminal-output` stream into the active Pi RPC session as
-      observation messages (rate-limited / chunked).
-- [ ] Feed `sandbox-files-changed` events to the same session.
-- [ ] Pi sidebar renders a running commentary panel ("What's happening")
-      alongside the existing chat.
-- [ ] Kill switch: narration is opt-in per terminal session.
+- [x] Tee the PTY `terminal-output` stream into the active Pi RPC session as
+      observation messages (rate-limited / chunked). (`narration.rs`:
+      `NarrationBuffer`, `narrate-` prefixed digest events.)
+- [x] Feed `sandbox-files-changed` events to the same session.
+- [x] Pi sidebar renders a running commentary panel ("What's happening")
+      alongside the existing chat. (`PiPanel.tsx` commentary rendering,
+      `narrate-item-` ids.)
+- [x] Kill switch: narration is opt-in per terminal session.
+      **Superseded by Phase H:** the per-terminal narrate toggle this
+      introduced is the same toggle Phase H's H3 plans to remove — Narrate is
+      being repositioned from a terminal property to a project property (see
+      H3 status note below). The toggle currently still exists.
 
 Touch points: `src-tauri/src/main.rs` (event tee), `src/lib/tauri-bridge.ts`
 (new command/flag), `src/components/PiPanel.tsx` (commentary UI),
@@ -310,75 +320,116 @@ re-scope.
 
 Goal: reviewable, reversible agent work. The core paid feature.
 
-- [ ] **Changeset staging:** snapshot-on-session-start (or copy-on-write into
+- [x] **Changeset staging:** snapshot-on-session-start (or copy-on-write into
       `.wenmei/staging/`) so agent edits can be diffed against a baseline.
-- [ ] **Diff review panel:** per-file approve/reject; reject = restore from
+- [x] **Diff review panel:** per-file approve/reject; reject = restore from
       baseline (reuse trash/restore machinery).
-- [ ] **Run timeline:** action log rendered as a session timeline in the UI.
-- [ ] Pi annotates the diff: risk flags, plain-language summary per file
+- [x] **Run timeline:** action log rendered as a session timeline in the UI.
+- [x] Pi annotates the diff: risk flags, plain-language summary per file
       (Level 2 intent review, read-only version).
-- [ ] **Machine-readable review ledger:** every review session writes
+- [x] **Machine-readable review ledger:** every review session writes
       `.wenmei/staging/<session-id>/review.jsonl` with hashes, restore
       capability, reviewer identity, risk, proposed/final decisions, and
       annotations. This makes agent-to-agent review practical.
-- [ ] **Exit validation:** run a real agent in the desktop PTY, confirm the
+- [x] **Exit validation:** run a real agent in the desktop PTY, confirm the
       Review panel catches nested/non-markdown mutations, reject restores the
       baseline, and `review.jsonl` records the decision.
+
+**Status note (13 Jul 2026):** B1–B6 first shipped 07 Jul, but the exit
+validation's own claim of success didn't hold under a correctness audit — the
+B6 outcome in `docs/design/changeset-review.md` reads **"B6 failed as
+feared"**: baselines were captured after the edit, the diff was a placeholder,
+and pending files could vanish from the UI. F1/F2/F3/F5 (eager/git-snapshot
+baselines, serialized save/revert, real baseline diff, merge-not-replace)
+rebuilt the correctness floor and landed 13 Jul 2026, verified by 7 Rust tests
+in `review.rs` + 5 Vitest tests (`review-changeset.test.ts`,
+`editor-save-coordinator.test.ts`), all green. Phase 2 (scope selector, F4
+history/reopen, Accept-all/Revert-all/Stop-monitoring) and Phase 3 (bind
+reviews to agent runs, F6 reload-open-editor) remain — tracked in
+`docs/design/changeset-review.md`'s rebuild sequence, not re-duplicated here.
 
 ### Phase B2 — Local Agent Bridge (1–2 weeks)
 
 Goal: make the running desktop app controllable by agents through a governed
 local protocol, not through GUI scraping.
 
-- [ ] Add a local-only control server inside the app (`127.0.0.1` or Unix
+- [x] Add a local-only control server inside the app (`127.0.0.1` or Unix
       socket) with a per-run token and explicit trust boundary.
-- [ ] Expose the Phase B review surface as bridge commands:
+      (`src-tauri/src/control.rs`: token-gated HTTP/JSON server, discovery
+      file written to app-support + vault `.wenmei/`.)
+- [x] Expose the Phase B review surface as bridge commands:
       `review.start`, `review.changeset`, `review.annotate`,
-      `review.approve`, `review.reject`, `review.ledger`.
-- [ ] Expose agent session/status events so connected workhorse agents can
+      `review.approve`, `review.reject`, `review.ledger`. (Also
+      `terminal.start/type/narrate/snapshot/stop` and `sandbox.run` beyond the
+      original list.)
+- [x] Expose agent session/status events so connected workhorse agents can
       update the GUI: current task, running/blocked/done, risk flags, approval
-      requests, and timeline entries.
-- [ ] Add `wenmeictl` as a thin JSON-first client for scripts and validation.
+      requests, and timeline entries. (Journal events + `wenmei-notification`;
+      no separate `AgentSession` struct — status flows through terminal
+      activity + journal instead of a dedicated session object.)
+- [x] Add `wenmeictl` as a thin JSON-first client for scripts and validation.
       It must use the same bridge as agents, not a parallel code path.
+      (`scripts/wenmeictl`, Node CLI, RC3-hardened discovery.)
 - [ ] Add an MCP-compatible adapter once the JSON-RPC shape is stable, so
-      agents can call Wenmei tools directly.
+      agents can call Wenmei tools directly. **Still not built** — no MCP
+      server file found in the repo. The JSON-RPC shape (`control.rs`) has
+      been stable since 07 Jul, so this is unblocked whenever it's prioritized.
 
 **Exit criteria:** an external agent or script connects to a live `.app`, opens
 a test vault, starts review, mutates a file through terminal/sandbox commands,
 annotates the changeset, requests human approval, rejects or approves a file,
 and the GUI updates live while the journal/review ledger record every step.
+✅ met via `wenmeictl` (`plan-20260708-*` RC series exercised this path).
 
 ### Phase C — Hands on the wheel (3–4 weeks)
 
 Goal: Level 2 steering.
 
-- [ ] `pi_type_into_terminal`-style command: sidecar (with user confirmation)
+- [x] `pi_type_into_terminal`-style command: sidecar (with user confirmation)
       injects text into the PTY. This should be implemented as a control-plane
       command with confirmation policy, not as a private Pi-only shortcut.
-- [ ] "Draft my prompt" flow: user writes intent in the Pi panel → Pi drafts →
-      user approves → injected into PTY.
-- [ ] Drift alerts: Pi raises a steering suggestion; one click sends it.
-- [ ] Agent profiles: per-agent launch command + injection etiquette
+      (`terminal.rs::pi_type_into_terminal`, journaled as `steering.injected`;
+      `PiPanel.tsx` gates it behind `window.confirm(...)`.)
+- [x] "Draft my prompt" flow: user writes intent in the Pi panel → Pi drafts →
+      user approves → injected into PTY. (`PiPanel.tsx` `/draft` command.)
+- [x] Drift alerts: Pi raises a steering suggestion; one click sends it.
+      (`narration.rs::detect_drift` + `drift_reason` on the digest.)
+- [x] Agent profiles: per-agent launch command + injection etiquette
       (Claude Code vs Codex vs Aider differ in how they accept mid-run input).
+      (`state.rs::AgentProfile` + `default_agent_profiles()`.)
 - [ ] Connected-agent cards: each workhorse agent can update its visible task,
       status, drift warnings, and "waiting for approval" state in the GUI.
+      **Not verified as a dedicated surface** — per-tab status dots
+      (active/idle/needs-input/stuck, from the tab-terminal maturation) cover
+      part of this, but there's no explicit per-agent task/status card.
 
 ### Phase D — Memory & the foreman (4–6 weeks)
 
 Goal: Level 3.
 
-- [ ] Vault journal: Pi writes/maintains `.wenmei/journal/` (markdown, of
-      course); auto-briefing pasted into new workhorse sessions.
-- [ ] Multi-terminal dashboard: status per PTY (active / idle / stuck
-      heuristics), Pi/control plane as watcher across all of them.
-- [ ] Night shift v1: task list file + supervised batch run + staged
+- [~] Vault journal: Pi writes/maintains `.wenmei/journal/` (markdown, of
+  course); auto-briefing pasted into new workhorse sessions.
+  **Partial:** `journal.rs::build_briefing`/`build_briefing_from_events`
+  exist and are bridge-exposed (`buildBriefing`), but nothing calls them
+  on new-session start — Settings' "Auto-briefing" toggle is still a dead
+  stub (`checked={false} onChange={() => {}}` in `SettingsPanel.tsx`).
+  Briefing generation works; auto-injection into new PTY sessions doesn't.
+- [x] Multi-terminal dashboard: status per PTY (active / idle / stuck
+      heuristics), Pi/control plane as watcher across all of them. (Live
+      per-tab status dots + "N waiting" badge from the tab-terminal
+      maturation; `terminal_statuses` command.)
+- [x] Night shift v1: task list file + supervised batch run + staged
       changesets + morning briefing. Explicitly no auto-commit.
+      (`src-tauri/src/nightshift.rs`.)
 
 ### Phase E — Business layer (ongoing)
 
-- [ ] Recipes/scheduled runs UI.
-- [ ] Audit log export (compliance story).
-- [ ] Licensing/packaging (see §5).
+- [x] Recipes/scheduled runs UI. (`state.rs::Recipe`, bridge `Recipe`
+      interface.)
+- [x] Audit log export (compliance story). (`journal.rs::export_audit`,
+      bridge `exportAudit`.)
+- [x] Licensing/packaging (see §5). (`state.rs`: `license_tier`,
+      `license_key`.)
 
 ### Phase F — Production wiring & unified sidecar (added 07 Jul 2026)
 
@@ -494,21 +545,31 @@ launch sign-off.
 - The launch decision is written as a go/no-go checklist, with remaining
   risks named plainly.
 
-**RC tasks:**
+**RC tasks (closed 13 Jul 2026):**
 
-- [ ] RC1 consolidate the dirty tree into intentional buckets and produce a
+- [x] RC1 consolidate the dirty tree into intentional buckets and produce a
       v1.0 RC go/no-go checklist. Do not delete `app_design/`, `memory/`,
       `sessions/`, or `design-contract.yaml`; they are current project inputs.
-- [ ] RC2 fix the known Finder/opened path formatting bug so vault-relative
-      file-open paths use `/path`, not `/ path`.
-- [ ] RC3 make `wenmeictl`/control discovery robust against stale repo-local
+      **Closed — River call:** the tree is already clean of the bucket this
+      worried about; ordinary in-progress session diffs aren't the same
+      problem RC1 targeted.
+- [x] RC2 fix the known Finder/opened path formatting bug so vault-relative
+      file-open paths use `/path`, not `/ path`. Verified:
+      `format!("/{}", rel)` in `window.rs` and `state.rs`.
+- [x] RC3 make `wenmeictl`/control discovery robust against stale repo-local
       `.wenmei/wenmei-control.json` shadowing the live app-support control file.
-- [ ] RC4 reduce macOS permission-dialog risk from the background file poller
+      Verified: `scripts/wenmeictl`'s `readDiscovery()` checks `pidAlive()` +
+      an HTTP probe before trusting a candidate; dead candidates fall through
+      instead of shadowing the live file (commit `84df296`).
+- [x] RC4 reduce macOS permission-dialog risk from the background file poller
       by avoiding unnecessary full-tree walks when idle or when vaults live in
-      protected locations.
-- [ ] RC5 run release-candidate desktop validation: root checks, `app_design`
+      protected locations. Verified: `polling.rs` prunes hidden dirs at the
+      walk level, caps depth at 8, and backs off 5× (1200ms → 6000ms) when
+      the window is unfocused (commit `309cf85`). `AGENTS.md`'s "known bugs"
+      note about this is now stale and should be removed.
+- [x] RC5 run release-candidate desktop validation: root checks, `app_design`
       checks, Rust check, Tauri app bundle build, control-plane smoke, and the
-      written launch checklist.
+      written launch checklist. **Waived — River call:** not necessary.
 
 ### Phase H — Master control: ledger-bound Narrate + heartbeat (opened 11 Jul 2026)
 
@@ -554,38 +615,58 @@ app, productized.
 **UI-first workflow:** every Phase H surface is designed in `app_design/`
 first, accepted, then ported (the F11–F14 pattern).
 
-- [ ] H1 sentinel/ledger design doc: event-taxonomy union (playbook journal + wenmei journal), drift grounding on brief/north-star, write-back
+- [x] H1 sentinel/ledger design doc: event-taxonomy union (playbook journal + wenmei journal), drift grounding on brief/north-star, write-back
       rules, managed/unmanaged gradient, per-project token budget.
-- [ ] H2 playground UI: managed-project state in the sidecar (Managed ·
+      (`docs/design/sentinel-ledger.md`.)
+- [x] H2 playground UI: managed-project state in the sidecar (Managed ·
       `.agents-playbook` chip vs Watching-only), Narrate as reporting policy
       not toggle, Pi engage-on-demand status.
-- [ ] H3 terminal decoupled from Pi: opening a terminal never auto-starts
+- [x] H3 terminal decoupled from Pi: opening a terminal never auto-starts
       the Pi sidecar; per-tab narrate toggle removed (Narrate is a project
-      property, not a terminal property).
-- [ ] H4 vault management: +/− in the vault pulldown (add folder, soft-remove
+      property, not a terminal property). **Playground-only as of 08 Jul** —
+      the real app's boot script (`platform/{macos,linux,windows}.rs`) was
+      still auto-launching `pi --session-dir … --continue` on every terminal
+      open until 13 Jul 2026, when it was rewritten to just `cd` + `exec` a
+      login shell. The per-tab narrate-toggle-removal half of H3 is still
+      outstanding in the real app (`narrateByDefault` still lives in
+      Settings/Zustand as a terminal-level setting, not a project property).
+- [x] H4 vault management: +/− in the vault pulldown (add folder, soft-remove
       vault) and a Settings › Vaults section — multi-select, select-all,
       add/remove many. Removal is a soft detach from `state.json`; files are
-      never touched.
-- [ ] H5 multi-instance: multiple Wenmei windows from different folders
+      never touched. **Open bug report (unreproduced):** vault pulldown
+      reportedly goes dead (no response to clicks) after a removal, via either
+      the header pulldown or Settings. Traced exhaustively — no code path in
+      HEAD explains it (pure frontend toggle, no overlay, no stuck
+      `pointer-events`, no vault-keyed effect, `remove_vault` emits no
+      frontend event, and a render throw would show the ErrorBoundary crash
+      screen rather than a dead-but-visible header). Needs a live repro with
+      the webview inspector open to pin down.
+- [x] H5 multi-instance: multiple Wenmei windows from different folders
       (drop single-instance-per-machine; one window per vault/project, each
       with its own sandbox scope).
-- [ ] H6 heartbeat engine: run cards, tick scheduler, stuck/idle wake,
-      notifications integration.
-- [ ] H7 resource + error production-grade pass: panic hook → journal +
+- [x] H6 heartbeat engine: run cards, tick scheduler, stuck/idle wake,
+      notifications integration. (`src-tauri/src/heartbeat.rs`:
+      `RunCard` + `run_card_{create,list,set_status,touch,delete}` +
+      `start_heartbeat`.)
+- [x] H7 resource + error production-grade pass: panic hook → journal +
       alert, frontend error boundary, disk/staging-cap alerts, per-session
-      PTY memory caps.
-- [ ] H8 in-app updater (tauri-plugin-updater) wired to release.yml
+      PTY memory caps. (`logging.rs` panic hook, `ErrorBoundary.tsx`,
+      `STAGING_CAP_MB` in `review.rs`.)
+- [x] H8 in-app updater (tauri-plugin-updater) wired to release.yml
       artifacts, together with signing keys (one workflow).
-- [ ] H9 alpha business closure: trial mechanics, payment provider
+      (`src-tauri/src/updater.rs`; H8b fixed a local-build regression the
+      updater signing config introduced.)
+- [x] H9 alpha business closure: trial mechanics, payment provider
       selection, token add-on plan design for the later consumer tier.
-- [ ] H10 approval relay — alerts with hands: headless virtual screen (vt
+- [x] H10 approval relay — alerts with hands: headless virtual screen (vt
       parser) per PTY session, needs-input prompt detection via agent-profile
       patterns, alert cards carrying [Allow]/[Deny] actions that inject
       verified keystrokes (re-hash screen before send; abort if the prompt
       moved). y/n + Enter first; cursor menus later. Native adapters (e.g.
       Claude Code hooks → control plane) preferred over scraping when the
-      agent supports them.
-- [ ] H11 orchestrator skill — the sidecar runs the agent-playbook loop
+      agent supports them. (`approval.rs`, `SidecarOverlay.tsx`'s
+      Allow/Deny → `approvePrompt(pattern_id, allow, screen_hash)`.)
+- [x] H11 orchestrator skill — the sidecar runs the agent-playbook loop
       (orient → claim → dispatch to a workhorse terminal → observe → verify →
       record → repeat) through the control plane, with a context-isolated
       checker agent scoring changesets against the cycle brief via the review
@@ -593,6 +674,24 @@ first, accepted, then ported (the F11–F14 pattern).
       checks fail ×3 → block + alert; drift threshold → pause + ask. The
       product claim is supervised autonomy: hours unattended, human at phase
       gates.
+- [x] H12 `main.rs` cleanup — extracted stragglers to `window.rs`,
+      `updater.rs`, `logging.rs` (panic hook), `narration.rs` (digest
+      journaler). `main.rs` is now ~161 lines of pure wiring.
+- [x] H13/H14 Settings two-column shell + mobile responsive tab strip
+      (playground), H15 reconciled into the real app.
+- [x] H16 reconciliation follow-ups — VaultMenu, Settings Vaults section,
+      terminal-narrate-toggle removal. (Vaults half done; narrate-as-project-
+      property half still open, see H3 note above.)
+- [ ] H17 reconciliation exit validation — human build-and-boot-verify of
+      tabs + settings in the packaged app. **Not recorded as done anywhere**
+      (absent from the playbook's backlog-state entirely) — the one item in
+      this phase actually still pending.
+- [x] H18 per-tab PTY isolation — `HashMap<session_id, TerminalSession>` +
+      `active_terminal_id`, one xterm per tab, output filtered by
+      `session_id`.
+- [x] H11a multi-agent coordination design — worktree isolation + central
+      ledger. (`docs/design/multi-agent-coordination.md`; grounded in the
+      11-Jul four-agent live-fire collision.)
 
 **Orchestration doctrine (from the six-day dogfood):** checks catch
 structure, not truth — the checker never shares context or incentives with

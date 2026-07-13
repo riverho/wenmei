@@ -119,6 +119,8 @@ interface AppState {
   narrateByDefault: boolean;
   terminalTabLimit: number;
   terminalTabsUnlimited: boolean;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalMinutes: number;
 
   // Multi-window
   isChildWindow: boolean;
@@ -190,6 +192,8 @@ interface AppState {
   setNarrateByDefault: (on: boolean) => void;
   setTerminalTabLimit: (n: number) => void;
   setTerminalTabsUnlimited: (on: boolean) => void;
+  setHeartbeatEnabled: (on: boolean) => void;
+  setHeartbeatIntervalMinutes: (n: number) => void;
   setIsChildWindow: (on: boolean) => void;
   setSandboxNewWindows: (on: boolean) => void;
   spawnChildWindow: (path: string, name: string) => void;
@@ -276,6 +280,8 @@ export const useAppStore = create<AppState>()(
       narrateByDefault: true,
       terminalTabLimit: 8,
       terminalTabsUnlimited: false,
+      heartbeatEnabled: true,
+      heartbeatIntervalMinutes: 30,
       isChildWindow: false,
       sandboxNewWindows: true,
       childWindows: [],
@@ -423,6 +429,9 @@ export const useAppStore = create<AppState>()(
       setNarrateByDefault: on => set({ narrateByDefault: on }),
       setTerminalTabLimit: n => set({ terminalTabLimit: n }),
       setTerminalTabsUnlimited: on => set({ terminalTabsUnlimited: on }),
+      setHeartbeatEnabled: on => set({ heartbeatEnabled: on }),
+      setHeartbeatIntervalMinutes: n =>
+        set({ heartbeatIntervalMinutes: Math.max(1, Math.round(n)) }),
       setIsChildWindow: on => set({ isChildWindow: on }),
       setSandboxNewWindows: on => set({ sandboxNewWindows: on }),
       spawnChildWindow: (path, name) => {

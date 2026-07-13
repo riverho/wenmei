@@ -73,8 +73,13 @@ Sessions stored at `<vault>/.wenmei/pi-sessions/<sandbox-id>`.
 
 ## Known bugs
 
-- `src-tauri/src/main.rs:2270` — `RunEvent::Opened` path formatting has a space: `format!("/ {}", rel)` should be `format!("/{}", rel)`. Finder file-open events arrive with malformed vault-relative paths.
-- Background file poller runs every 1.2s with full `WalkDir` — can repeatedly trigger macOS permission dialogs on Documents/Desktop/Downloads vaults.
+- Vault pulldown (header, and Settings › Vaults) reportedly goes dead — no
+  response to clicks — after removing a vault, via either removal path.
+  Unreproduced as of 13 Jul 2026: traced exhaustively (VaultMenu open/close
+  state, `setVaults`, `remove_vault`, overlays, `pointer-events`, the
+  `ErrorBoundary`) with no code path in HEAD that explains it. Needs a live
+  repro with the webview inspector open. See
+  `docs/revamp-phase-improvement-plan-04Jul2026.md` Phase H, H4.
 
 ## State file locations
 

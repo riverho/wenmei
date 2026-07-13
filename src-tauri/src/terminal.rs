@@ -257,6 +257,11 @@ pub fn terminal_start(
     cmd.cwd(&terminal_cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    // `NO_COLOR` can be set by the host agent/runtime, but an embedded PTY is
+    // a real interactive terminal. Do not leak that host presentation flag or
+    // TUI programs such as Claude Code will suppress their ANSI palette.
+    cmd.env_remove("NO_COLOR");
+    ensure_utf8_locale(&mut cmd);
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);
@@ -391,6 +396,22 @@ pub fn terminal_start(
         snapshot: vec![],
         activity: TerminalActivity::Idle,
     })
+}
+
+fn ensure_utf8_locale(cmd: &mut portable_pty::CommandBuilder) {
+    // Apps launched from Finder/Dock do not reliably inherit the user's shell
+    // locale. TUIs use these variables for wcwidth and output encoding, so give
+    // the PTY a UTF-8 locale when the parent process has no UTF-8 locale at all.
+    let has_utf8_locale = ["LC_ALL", "LC_CTYPE", "LANG"].iter().any(|name| {
+        std::env::var(name).is_ok_and(|value| {
+            let normalized = value.to_ascii_lowercase().replace('-', "");
+            normalized.contains("utf8")
+        })
+    });
+    if !has_utf8_locale {
+        cmd.env("LANG", "C.UTF-8");
+        cmd.env("LC_CTYPE", "C.UTF-8");
+    }
 }
 
 #[tauri::command]

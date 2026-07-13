@@ -136,6 +136,8 @@ function AppContent() {
     useAppStore(s => s.openFolders),
     useAppStore(s => s.onboardingCompleted),
     useAppStore(s => s.narrateByDefault),
+    useAppStore(s => s.heartbeatEnabled),
+    useAppStore(s => s.heartbeatIntervalMinutes),
     useAppStore(s => s.terminalTabLimit),
     useAppStore(s => s.terminalTabsUnlimited),
     useAppStore(s => s.sandboxNewWindows),

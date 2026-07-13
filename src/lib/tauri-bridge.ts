@@ -319,6 +319,8 @@ export interface AppPersistedState {
   license_tier?: "free" | "pro";
   license_key?: string | null;
   narrate_by_default?: boolean;
+  heartbeat_enabled?: boolean;
+  heartbeat_interval_minutes?: number;
   terminal_tab_limit?: number;
   terminal_tabs_unlimited?: boolean;
   sandbox_new_windows?: boolean;

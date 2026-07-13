@@ -294,6 +294,31 @@
   animation: cursor-blink 530ms infinite;
 }
 
+/* Heartbeat toggle — a real double-thump, not a generic pulse */
+@keyframes heartbeat-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.18);
+  }
+  30% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  60% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat-beat 1.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
 /* Keyboard shortcut kbd elements */
 kbd {
   font-family: "JetBrains Mono", "Fira Code", monospace;

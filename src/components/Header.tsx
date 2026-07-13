@@ -47,6 +47,13 @@ function findFirstFile(nodes: FileNode[]): FileNode | null {
   return null;
 }
 
+function compactBreadcrumbPath(path: string | null, name: string): string {
+  const source = path || name || "untitled.md";
+  const segments = source.replace(/\\/g, "/").split("/").filter(Boolean);
+  const leaf = segments.at(-1) ?? "untitled.md";
+  return segments.length > 1 ? `/.../${leaf}` : `/${leaf}`;
+}
+
 export default function Header() {
   const {
     mode,
@@ -57,8 +64,6 @@ export default function Header() {
     rightPanelWidth,
     activeFilePath,
     activeFileName,
-    vaults,
-    activeVaultId,
     openMode,
     metadataMode,
     sandboxAuthStatus,
@@ -80,7 +85,8 @@ export default function Header() {
 
   const isPaper = mode === "paper";
   const isTerminal = mode === "terminal";
-  const activeVault = vaults.find(vault => vault.id === activeVaultId);
+  const breadcrumbSource = activeFilePath || activeFileName || "untitled.md";
+  const breadcrumbPath = compactBreadcrumbPath(activeFilePath, activeFileName);
   const agentState =
     openMode === "document"
       ? {
@@ -183,7 +189,7 @@ export default function Header() {
       }}
     >
       {/* Left section */}
-      <div className="flex items-center gap-3 overflow-hidden min-w-0">
+      <div className="flex items-center gap-3 min-w-0">
         {/* Mobile menu */}
         <button
           onClick={() => setMobileMenuOpen(true)}
@@ -214,13 +220,12 @@ export default function Header() {
             onSwitch={id => handleVaultSwitch(id)}
             onAddFolder={handleJoinVault}
           />
-          <span style={{ color: "var(--text-tertiary)" }}>/</span>
           <span
             className="truncate max-w-[240px]"
             style={{ color: "var(--text-secondary)" }}
-            title={activeVault?.path}
+            title={breadcrumbSource}
           >
-            {activeFilePath || activeFileName || "untitled.md"}
+            {breadcrumbPath}
           </span>
           <span
             className="hidden lg:inline-flex px-1.5 py-0.5 rounded uppercase tracking-wider"
