@@ -268,11 +268,11 @@ const XTERM_DARK = {
 
 const XTERM_LIGHT = {
   background: "#f6f4f2",
-  foreground: "#111111",
+  foreground: "#000000",
   cursor: "#008673",
   cursorAccent: "#f6f4f2",
   selectionBackground: "#c2e0da",
-  black: "#111111",
+  black: "#000000",
   red: "#cd3131",
   green: "#15803d",
   yellow: "#a16207",
@@ -354,6 +354,11 @@ function TerminalInstance({
       rescaleOverlappingGlyphs: true,
       scrollback: 5000,
       theme: isDark ? XTERM_DARK : XTERM_LIGHT,
+      // TUIs running inside (Claude Code, etc.) emit their own truecolor
+      // output tuned for a dark background; the theme palette can't remap
+      // those. Enforce a floor so pale-on-light text stays readable —
+      // same mechanism and default ratio as VS Code's terminal.
+      minimumContrastRatio: 4.5,
     });
     // xterm defaults to Unicode 6 width rules. Modern TUIs and native
     // terminals use newer wcwidth tables, so activate Unicode 11 before any
