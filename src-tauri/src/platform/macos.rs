@@ -87,21 +87,14 @@ impl crate::platform::Platform for MacosPlatform {
         }
     }
 
-    fn probe_cli_version(path: &str) -> Option<String> {
-        let output = ProcessCommand::new(path).arg("--version").output().ok()?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let text = if stdout.trim().is_empty() {
-            stderr
-        } else {
-            stdout
-        };
-        let text = text.trim();
-        if text.is_empty() {
-            None
-        } else {
-            Some(text.to_string())
-        }
+    fn probe_cli_version(_path: &str) -> Option<String> {
+        // Never execute the CLI shim to probe it. Installed shims without a
+        // --version handler fall through to their "open" path, which resolves
+        // the flag to the caller's cwd and runs `open -na Wenmei --args <cwd>`
+        // — opening Settings would launch a second app instance pointed at a
+        // folder. Same reasoning as the Windows probe skip; the version field
+        // is not surfaced in the UI anyway.
+        None
     }
 
     fn build_terminal_command(

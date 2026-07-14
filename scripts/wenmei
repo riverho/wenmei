@@ -51,8 +51,9 @@ die() {
 abs_existing() {
   local raw="$1"
   local dir base dir_abs
-  dir="$(dirname "$raw")"
-  base="$(basename "$raw")"
+  dir="$(dirname -- "$raw")"
+  base="$(basename -- "$raw")"
+  [ -n "$base" ] || return 1
   dir_abs="$(cd "$dir" 2>/dev/null && pwd -P)" || return 1
   local target="$dir_abs/$base"
   [ -e "$target" ] || return 1
@@ -62,8 +63,9 @@ abs_existing() {
 abs_for_create() {
   local raw="$1"
   local dir base dir_abs
-  dir="$(dirname "$raw")"
-  base="$(basename "$raw")"
+  dir="$(dirname -- "$raw")"
+  base="$(basename -- "$raw")"
+  [ -n "$base" ] || return 1
   mkdir -p "$dir" || return 1
   dir_abs="$(cd "$dir" 2>/dev/null && pwd -P)" || return 1
   printf '%s/%s\n' "$dir_abs" "$base"
@@ -104,6 +106,10 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
   usage
   exit 0
 fi
+if [ "${1:-}" = "-V" ] || [ "${1:-}" = "--version" ] || [ "${1:-}" = "version" ]; then
+  echo "wenmei CLI (Wenmei)"
+  exit 0
+fi
 
 new_window=0
 args=()
@@ -111,6 +117,12 @@ for arg in "$@"; do
   case "$arg" in
     --new-window)
       new_window=1
+      ;;
+    -*)
+      # Unknown flags must never fall through to the path handlers below —
+      # dirname/basename would resolve them to the caller's cwd and launch
+      # the app against it.
+      die "unknown option: $arg (see wenmei --help)"
       ;;
     *)
       args+=("$arg")

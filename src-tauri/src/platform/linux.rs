@@ -50,21 +50,12 @@ impl crate::platform::Platform for LinuxPlatform {
         }
     }
 
-    fn probe_cli_version(path: &str) -> Option<String> {
-        let output = ProcessCommand::new(path).arg("--version").output().ok()?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let text = if stdout.trim().is_empty() {
-            stderr
-        } else {
-            stdout
-        };
-        let text = text.trim();
-        if text.is_empty() {
-            None
-        } else {
-            Some(text.to_string())
-        }
+    fn probe_cli_version(_path: &str) -> Option<String> {
+        // Never execute the CLI shim to probe it — shims without a --version
+        // handler fall through to their "open" path and can launch a second
+        // app instance (see the macOS probe). Version isn't surfaced in the
+        // UI, so there is nothing to gain from running the script.
+        None
     }
 
     fn build_terminal_command(
