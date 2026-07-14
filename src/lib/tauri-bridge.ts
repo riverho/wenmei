@@ -1,9 +1,17 @@
 import { invoke as rawInvoke } from "@tauri-apps/api/core";
-import * as mocks from "@/mocks/mock-bridge";
 import { open } from "@tauri-apps/plugin-dialog";
+
 const isTauri =
   typeof window !== "undefined" &&
   !!(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+
+let _mocks: typeof import("@/mocks/mock-bridge") | null = null;
+async function getMocks() {
+  if (!_mocks) {
+    _mocks = await import("@/mocks/mock-bridge");
+  }
+  return _mocks;
+}
 
 async function invoke<T>(cmd: string, args?: unknown): Promise<T> {
   if (!isTauri) {
@@ -13,6 +21,7 @@ async function invoke<T>(cmd: string, args?: unknown): Promise<T> {
 }
 
 async function mockInvoke(cmd: string, args?: unknown): Promise<unknown> {
+  const mocks = await getMocks();
   switch (cmd) {
     case "list_files":
       return mocks.listFiles();
@@ -504,7 +513,7 @@ export async function cliIntegrationStatus(): Promise<CliStatus> {
 }
 
 export async function openFolderDialog(): Promise<string | null> {
-  if (!isTauri) return mocks.openFolderDialog();
+  if (!isTauri) return (await getMocks()).openFolderDialog();
   const result = await open({ directory: true });
   return result ?? null;
 }
