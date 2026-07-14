@@ -218,6 +218,8 @@ export default function PiPanel() {
     sidecarItems,
     addSidecarItem,
     markSidecarClassRead,
+    pendingFeedFilter,
+    clearPendingFeedFilter,
   } = useAppStore();
 
   const [showHistory, setShowHistory] = useState(false);
@@ -336,27 +338,23 @@ export default function PiPanel() {
     return () => window.clearTimeout(timer);
   }, [feedFilter, inputActive, sidecarItems.length, markSidecarClassRead]);
 
+  // Consume the header bell's pane-open request. Store-backed so a request
+  // made while this panel was unmounted (terminal mode with the pane closed)
+  // still lands on the mount that follows.
   useEffect(() => {
-    const onOpenFilter = (event: Event) => {
-      const filter = (event as CustomEvent<{ filter?: FeedFilter }>).detail
-        ?.filter;
-      if (filter !== "alerts" && filter !== "review" && filter !== "narrate") {
-        return;
-      }
-      setFeedFilter(filter);
+    if (!pendingFeedFilter) return;
+    const timer = window.setTimeout(() => {
+      setFeedFilter(pendingFeedFilter);
       setInputActive(false);
       setOverlayPage(0);
-      window.setTimeout(() => {
-        overlayStackRef.current?.scrollIntoView({
-          block: "start",
-          behavior: "smooth",
-        });
-      }, 0);
-    };
-    window.addEventListener("wenmei-open-sidecar-filter", onOpenFilter);
-    return () =>
-      window.removeEventListener("wenmei-open-sidecar-filter", onOpenFilter);
-  }, []);
+      clearPendingFeedFilter();
+      overlayStackRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pendingFeedFilter, clearPendingFeedFilter]);
 
   const startPiForFocusedSandbox = useCallback(
     async (forceRestart = false) => {

@@ -11,6 +11,7 @@ import type {
   TerminalActivity,
 } from "@/lib/tauri-bridge";
 import type { SidecarItem, SidecarItemKind } from "@/lib/sidecar-types";
+import type { FeedFilter } from "@/lib/sidecar-feed";
 import { mergeChangesetEntries } from "@/lib/review-changeset";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
@@ -119,6 +120,11 @@ interface AppState {
   // Unified sidecar overlay items (chat stays in piMessages)
   sidecarItems: SidecarItem[];
   sidecarLastSeen: Record<string, string>;
+  // Pane-open request carrying a feed filter — set by the header bell,
+  // consumed by PiPanel on mount. Store-backed (not a window event) because
+  // PiPanel may be unmounted when the request is made (e.g. terminal mode
+  // with the right pane closed).
+  pendingFeedFilter: Exclude<FeedFilter, "all" | "chat"> | null;
 
   // Review session
   activeReviewSession: string | null;
@@ -175,6 +181,8 @@ interface AppState {
   // Unified sidecar overlay items
   addSidecarItem: (item: SidecarItem) => void;
   markSidecarClassRead: (kinds: SidecarItemKind[]) => void;
+  requestSidecarFilter: (filter: Exclude<FeedFilter, "all" | "chat">) => void;
+  clearPendingFeedFilter: () => void;
 
   // Machine-level settings (persisted via save_app_state → state.json)
   setNarrateByDefault: (on: boolean) => void;
@@ -278,6 +286,7 @@ export const useAppStore = create<AppState>()(
       commentary: [],
       sidecarItems: [],
       sidecarLastSeen: {},
+      pendingFeedFilter: null,
       activeReviewSession: null,
       changeset: [],
       mobileMenuOpen: false,
@@ -385,6 +394,9 @@ export const useAppStore = create<AppState>()(
             ),
           },
         }),
+      requestSidecarFilter: filter =>
+        set({ pendingFeedFilter: filter, rightPanelOpen: true }),
+      clearPendingFeedFilter: () => set({ pendingFeedFilter: null }),
 
       setNarrateByDefault: on => set({ narrateByDefault: on }),
       setHeartbeatEnabled: on => set({ heartbeatEnabled: on }),

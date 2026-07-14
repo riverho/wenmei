@@ -308,9 +308,8 @@ function LeftPanel() {
 }
 
 function RightPanel() {
-  const { rightPanelOpen, rightPanelWidth, mode } = useAppStore();
+  const { rightPanelOpen, rightPanelWidth } = useAppStore();
   const [tab, setTab] = useState<"pi" | "review">("pi");
-  if (mode === "terminal") return null;
   return (
     <div
       className="hidden md:flex flex-col shrink-0 transition-all duration-300 ease-out overflow-hidden"

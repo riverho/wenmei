@@ -35,11 +35,11 @@ const STATUS_DOT: Record<
   TerminalActivity | "unknown",
   { color: string; pulse: boolean; label: string }
 > = {
-  active: { color: "#5eead4", pulse: false, label: "running" },
-  idle: { color: "#3a4650", pulse: false, label: "idle" },
+  active: { color: "var(--accent-teal)", pulse: false, label: "running" },
+  idle: { color: "var(--text-tertiary)", pulse: false, label: "idle" },
   "needs-input": { color: "#fbbf24", pulse: true, label: "waiting for input" },
   stuck: { color: "#ef4444", pulse: true, label: "stuck" },
-  unknown: { color: "#2a333d", pulse: false, label: "starting…" },
+  unknown: { color: "var(--surface-3)", pulse: false, label: "starting…" },
 };
 
 // Store-backed tab strip. Each tab is its own isolated PTY session
@@ -94,7 +94,10 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
   return (
     <div
       className="flex items-stretch overflow-x-auto shrink-0"
-      style={{ background: "#070a0d", borderBottom: "1px solid #1b2127" }}
+      style={{
+        background: "var(--surface-2)",
+        borderBottom: "1px solid var(--surface-3)",
+      }}
     >
       {terminalTabs.map(tab => {
         const active = tab.id === activeTerminalTabId;
@@ -111,12 +114,12 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
             className="group flex items-center gap-2 pl-3 pr-2 py-1.5 cursor-pointer shrink-0 transition-colors border-t-2"
             style={{
               background: active
-                ? "#0a0d10"
+                ? "var(--surface-0)"
                 : attention
                   ? "rgba(251,191,36,0.06)"
                   : "transparent",
               borderTopColor: active ? "var(--accent-teal)" : "transparent",
-              color: active ? "#d7dde5" : "#7c8894",
+              color: active ? "var(--text-primary)" : "var(--text-secondary)",
             }}
             title={`${tab.title}${
               sbName ? ` · sandbox: ${sbName}` : " · no sandbox"
@@ -140,7 +143,10 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
                   if (e.key === "Escape") setEditingId(null);
                 }}
                 className="bg-transparent outline-none text-[11px] font-mono w-24"
-                style={{ color: "#d7dde5", borderBottom: "1px solid #2dd4bf" }}
+                style={{
+                  color: "var(--text-primary)",
+                  borderBottom: "1px solid var(--accent-teal)",
+                }}
               />
             ) : (
               <span
@@ -157,7 +163,7 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
                 {showSandbox && (
                   <span
                     className="hidden sm:inline text-[9px] font-mono whitespace-nowrap truncate max-w-[90px]"
-                    style={{ color: "#4a5560" }}
+                    style={{ color: "var(--text-tertiary)" }}
                   >
                     {sbName}
                   </span>
@@ -170,8 +176,8 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
                   e.stopPropagation();
                   handleClose(tab.id);
                 }}
-                className="flex items-center justify-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 shrink-0"
-                style={{ color: "#7c8894" }}
+                className="flex items-center justify-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--surface-3)] shrink-0"
+                style={{ color: "var(--text-secondary)" }}
                 title="Close tab"
               >
                 <X size={11} />
@@ -184,8 +190,8 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
       <button
         onClick={() => addTerminalTab()}
         disabled={atLimit}
-        className="flex items-center justify-center w-8 shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
-        style={{ color: "#7c8894" }}
+        className="flex items-center justify-center w-8 shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[var(--surface-3)]"
+        style={{ color: "var(--text-secondary)" }}
         title={
           atLimit
             ? `Tab limit reached (${terminalTabLimit}) — raise it in Settings`
@@ -199,7 +205,7 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
 
       <div
         className="flex items-center gap-2 px-3 shrink-0 text-[10px]"
-        style={{ color: "#5a6570" }}
+        style={{ color: "var(--text-tertiary)" }}
       >
         {waiting > 0 && (
           <span
@@ -233,10 +239,14 @@ function resetMessage(error: unknown) {
   return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
 }
 
-const XTERM_THEME = {
-  background: "#0a0d10",
-  foreground: "#d7dde5",
-  cursor: "#5eead4",
+// xterm needs concrete colors (the WebGL renderer can't resolve CSS vars),
+// so both palettes mirror the app theme tokens in index.css: background/
+// foreground track --surface-0/--text-primary, cursor tracks --accent-teal.
+const XTERM_DARK = {
+  background: "#0f0f0f",
+  foreground: "#e8e8e8",
+  cursor: "#00d9b5",
+  cursorAccent: "#0f0f0f",
   selectionBackground: "#1f3a3a",
   black: "#111827",
   red: "#ef4444",
@@ -255,6 +265,39 @@ const XTERM_THEME = {
   brightCyan: "#67e8f9",
   brightWhite: "#f9fafb",
 };
+
+const XTERM_LIGHT = {
+  background: "#f6f4f2",
+  foreground: "#111111",
+  cursor: "#008673",
+  cursorAccent: "#f6f4f2",
+  selectionBackground: "#c2e0da",
+  black: "#111111",
+  red: "#cd3131",
+  green: "#15803d",
+  yellow: "#a16207",
+  blue: "#0451a5",
+  magenta: "#a626a4",
+  cyan: "#008673",
+  white: "#555555",
+  brightBlack: "#666666",
+  brightRed: "#e45649",
+  brightGreen: "#16a34a",
+  brightYellow: "#b45309",
+  brightBlue: "#0969da",
+  brightMagenta: "#9333ea",
+  brightCyan: "#0d9488",
+  brightWhite: "#a5a5a5",
+};
+
+/** Effective dark-mode flag — same resolution App.tsx applies to the root
+ *  element ("system" resolves against the OS preference at render time). */
+function useIsDarkTheme(): boolean {
+  const theme = useAppStore(s => s.theme);
+  return theme === "system"
+    ? window.matchMedia("(prefers-color-scheme: dark)").matches
+    : theme === "dark";
+}
 
 /** Chords that navigate tabs — xterm must not swallow these or send them to
  *  the PTY; they belong to the global shortcut handler (terminal mode). */
@@ -285,6 +328,7 @@ function TerminalInstance({
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const isDark = useIsDarkTheme();
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -309,7 +353,7 @@ function TerminalInstance({
       customGlyphs: true,
       rescaleOverlappingGlyphs: true,
       scrollback: 5000,
-      theme: XTERM_THEME,
+      theme: isDark ? XTERM_DARK : XTERM_LIGHT,
     });
     // xterm defaults to Unicode 6 width rules. Modern TUIs and native
     // terminals use newer wcwidth tables, so activate Unicode 11 before any
@@ -419,6 +463,14 @@ function TerminalInstance({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // Follow app theme switches live — assigning options.theme repaints the
+  // buffer (WebGL renderer included) without restarting the session.
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.theme = isDark ? XTERM_DARK : XTERM_LIGHT;
+    }
+  }, [isDark]);
+
   // Refit + focus when this tab becomes active (it was display:none).
   useEffect(() => {
     if (!active) return;
@@ -471,7 +523,7 @@ export default function TerminalPanel() {
   return (
     <div
       className="flex flex-col h-full overflow-hidden"
-      style={{ background: "#0a0d10" }}
+      style={{ background: "var(--surface-0)" }}
     >
       <TerminalTabBar statuses={statuses} />
       <div
