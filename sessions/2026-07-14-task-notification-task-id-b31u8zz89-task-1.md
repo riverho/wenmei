@@ -31,7 +31,7 @@ Auto-generated session log.
 ## Technical Notes
 
 Session ID: 164f896e-e3fc-461f-b0c1-a81c849048c0
-Working directory: /Users/river/.openclaw/workspace/projects/wenmei/src-tauri
+Working directory: /Users/river/.openclaw/workspace/projects/wenmei
 
 ## Open Questions / Follow-ups
 
