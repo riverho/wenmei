@@ -40,6 +40,7 @@ import {
 } from "@/lib/sidecar-feed";
 import { effectiveNarrationPrompt } from "@/lib/narration-prompt";
 import { AlertGroupCard, FeedChips, OverlayCard } from "./SidecarOverlay";
+import MarkdownBody from "./MarkdownBody";
 import SidecarDetail from "./SidecarDetail";
 import {
   Send,
@@ -1512,12 +1513,10 @@ export default function PiPanel() {
               clear
             </button>
           </div>
-          <div
-            className="terminal-font leading-relaxed whitespace-pre-wrap"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {commentary[commentary.length - 1].text}
-          </div>
+          <MarkdownBody
+            text={commentary[commentary.length - 1].text}
+            className="leading-relaxed"
+          />
           {commentary.length > 1 && (
             <div
               className="mt-1 text-[10px]"
@@ -1734,6 +1733,26 @@ export default function PiPanel() {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    ) : msg.role === "system" && msg.type === "chat" ? (
+                      // Pi's rich responses render as formatted markdown;
+                      // @path:line mentions stay clickable via #open: links.
+                      <div className="break-words max-w-full overflow-visible">
+                        <MarkdownBody
+                          text={
+                            displayText ||
+                            (msg.id === activeAssistantId
+                              ? activeStreamText
+                              : "")
+                          }
+                          onOpenFile={openLinkedFile}
+                        />
+                        {isProcessing && msg.id === activeAssistantId && (
+                          <span
+                            className="cursor-blink inline-block w-0.5 h-3 ml-0.5 align-middle"
+                            style={{ background: "var(--accent-teal)" }}
+                          />
+                        )}
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap break-words max-w-full overflow-visible">

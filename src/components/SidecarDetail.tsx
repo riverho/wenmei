@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readFile } from "@/lib/tauri-bridge";
+import MarkdownBody from "./MarkdownBody";
 import {
   buildSummary,
   extractArtifacts,
@@ -496,12 +497,7 @@ export default function SidecarDetail({
               >
                 Message
               </div>
-              <div
-                className="text-sm leading-relaxed whitespace-pre-wrap"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {item.body}
-              </div>
+              <MarkdownBody text={item.body} className="leading-relaxed" />
             </div>
 
             {/* Diff viewer */}

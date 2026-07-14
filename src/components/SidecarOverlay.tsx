@@ -14,6 +14,7 @@ import {
   type FeedFilter,
 } from "@/lib/sidecar-feed";
 import { approvePrompt, currentPrompt } from "@/lib/tauri-bridge";
+import MarkdownBody from "./MarkdownBody";
 
 // ─── Overlay layer for the unified sidecar feed (docs/design/unified-sidecar.md)
 // Chat stays the untouched base layer in PiPanel; these cards stack above it.
@@ -127,12 +128,10 @@ export function OverlayCard({
         <>
           {/* Teaser: the lead-in only — the full narration lives in the
               detail overlay behind the link (and the card click). */}
-          <div
+          <MarkdownBody
+            text={item.body}
             className="text-[11px] leading-relaxed break-words line-clamp-2"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {item.body}
-          </div>
+          />
           <button
             onClick={e => {
               e.stopPropagation();
@@ -146,14 +145,14 @@ export function OverlayCard({
           </button>
         </>
       ) : (
-        <div
-          className="text-[11px] leading-relaxed whitespace-pre-wrap break-words"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          {item.expanded || !isLongContent(item.body)
-            ? item.body
-            : truncateBody(item.body)}
-        </div>
+        <MarkdownBody
+          text={
+            item.expanded || !isLongContent(item.body)
+              ? item.body
+              : truncateBody(item.body)
+          }
+          className="text-[11px] leading-relaxed break-words"
+        />
       )}
 
       {/* Approval relay (H10): input.needs_response carries hands. */}
@@ -320,14 +319,14 @@ export function AlertGroupCard({
           {relTime(latest.ts)}
         </span>
       </div>
-      <div
-        className="text-[11px] leading-relaxed whitespace-pre-wrap break-words"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        {latest.expanded || !isLongContent(latest.body)
-          ? latest.body
-          : truncateBody(latest.body)}
-      </div>
+      <MarkdownBody
+        text={
+          latest.expanded || !isLongContent(latest.body)
+            ? latest.body
+            : truncateBody(latest.body)
+        }
+        className="text-[11px] leading-relaxed break-words"
+      />
 
       {latest.alertLabel === "input.needs_response" && <ApprovalActions />}
 

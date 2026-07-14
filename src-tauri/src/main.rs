@@ -28,7 +28,6 @@ mod window;
 
 use crate::platform::Platform;
 use crate::state::WenmeiState;
-use tauri::Emitter;
 
 fn is_wsl() -> bool {
     // WSL1/2 detection: /proc/version contains "microsoft" or "WSL",
@@ -47,19 +46,13 @@ fn main() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
+    // No single-instance lock: opening a markdown file from Explorer (or the
+    // in-app "Open in new window" action) launches a fresh Wenmei process
+    // with its own window and backend state — one window per vault/document.
+    // macOS keeps its LaunchServices behavior (RunEvent::Opened reuses the
+    // running app; see platform/macos.rs).
     let app = tauri::Builder::default()
         .manage(WenmeiState::new())
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // argv[0] is the executable path; argv[1+] are the file paths
-            // from a double-click file-open event on Windows/Linux. The
-            // frontend's read_file takes vault-relative paths, so absolute
-            // paths inside a known vault convert to "/rel" here (the macOS
-            // Opened handler does the same in platform/macos.rs).
-            if argv.len() > 1 {
-                let paths = window::resolve_open_paths(app, &argv[1..]);
-                let _ = app.emit("single-instance", paths);
-            }
-        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

@@ -36,7 +36,8 @@ Rust emits events to frontend via `app.emit()`:
 - `sandbox-files-changed` — file watcher triggered
 - `pi-rpc-event` — streaming Pi response chunks
 - `terminal-output` — PTY byte stream
-- `single-instance` — second-instance file-open args (Windows/Linux), payload: `string[]`
+
+No single-instance lock: opening a file from Explorer (or "Open in new window" in-app) launches a separate Wenmei process with its own window and backend state. macOS file-opens reuse the running app via `RunEvent::Opened` (`os-file-opened` event).
 
 ### State
 

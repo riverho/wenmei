@@ -224,3 +224,130 @@
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Compact markdown — sidecar feed cards, chat messages, detail overlay.
+   Same .md-* markup as the document preview, scaled to the 11–12px pane. */
+.md-compact {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.md-compact .md-h1,
+.md-compact .md-h2,
+.md-compact .md-h3,
+.md-compact .md-h4,
+.md-compact .md-h5,
+.md-compact .md-h6 {
+  font-family: "Inter", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-primary);
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.md-compact .md-h1 {
+  font-size: 14px;
+  margin: 10px 0 6px 0;
+}
+
+.md-compact .md-h2 {
+  font-size: 13px;
+  margin: 10px 0 5px 0;
+}
+
+.md-compact .md-h3,
+.md-compact .md-h4,
+.md-compact .md-h5,
+.md-compact .md-h6 {
+  font-size: 12px;
+  margin: 8px 0 4px 0;
+}
+
+.md-compact .md-p {
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0 0 6px 0;
+  color: inherit;
+}
+
+.md-compact .md-blockquote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left-width: 2px;
+  border-radius: 0 4px 4px 0;
+}
+
+.md-compact .md-blockquote p {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.md-compact .md-pre {
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.md-compact .md-code {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.md-compact .inline-code {
+  font-size: 11px;
+  padding: 1px 4px;
+}
+
+.md-compact .md-ul,
+.md-compact .md-ol {
+  margin: 4px 0 6px 0;
+  padding-left: 18px;
+}
+
+.md-compact .md-li {
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 2px 0;
+  color: inherit;
+}
+
+.md-compact .md-hr {
+  margin: 8px 0;
+}
+
+.md-compact .md-blank {
+  height: 4px;
+}
+
+.md-compact .md-img {
+  margin: 6px 0;
+  border-radius: 4px;
+}
+
+.md-compact .md-table-wrap {
+  margin: 6px 0;
+}
+
+.md-compact .md-table {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.md-compact .md-th {
+  padding: 4px 8px;
+}
+
+.md-compact .md-td {
+  padding: 3px 8px;
+}
+
+.md-compact > :first-child {
+  margin-top: 0;
+}
+
+.md-compact > :last-child {
+  margin-bottom: 0;
+}
