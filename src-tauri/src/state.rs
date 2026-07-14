@@ -8,6 +8,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child as ProcessChild, ChildStdin};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
@@ -120,6 +121,12 @@ pub struct AppState {
     pub heartbeat_enabled: bool,
     #[serde(default = "default_heartbeat_interval_minutes")]
     pub heartbeat_interval_minutes: u32,
+    /// Process names heartbeat.rs watches for as descendants of a terminal's
+    /// shell to detect an agent session, and its completion (docs/design/
+    /// sentinel-ledger.md §agent-completion). User-editable in Settings ›
+    /// Heartbeat.
+    #[serde(default = "default_agent_process_names")]
+    pub agent_process_names: Vec<String>,
     #[serde(default = "default_tab_limit")]
     pub terminal_tab_limit: u32,
     #[serde(default)]
@@ -138,6 +145,13 @@ fn default_true() -> bool {
 
 fn default_heartbeat_interval_minutes() -> u32 {
     30
+}
+
+fn default_agent_process_names() -> Vec<String> {
+    vec!["pi", "claude", "codex", "kimi", "opencode"]
+        .into_iter()
+        .map(String::from)
+        .collect()
 }
 
 fn default_tab_limit() -> u32 {
@@ -264,6 +278,7 @@ impl AppState {
             narrate_by_default: true,
             heartbeat_enabled: true,
             heartbeat_interval_minutes: default_heartbeat_interval_minutes(),
+            agent_process_names: default_agent_process_names(),
             terminal_tab_limit: default_tab_limit(),
             terminal_tabs_unlimited: false,
             sandbox_new_windows: true,
@@ -324,6 +339,14 @@ pub struct TerminalSession {
     pub backlog: Arc<Mutex<Vec<u8>>>,
     pub narration_buffer: narration::SharedNarrationBuffer,
     pub narration_enabled: bool,
+    /// Flipped false by `terminal_stop` so the session's narration flush
+    /// thread (an unbounded 500ms loop) exits instead of leaking forever.
+    pub alive: Arc<AtomicBool>,
+    /// Last-seen agent binary name (from `agent_process_names`) running as a
+    /// descendant of this session's shell, if any. Written only by
+    /// heartbeat.rs's periodic process-tree check; read cheaply by
+    /// `terminal_statuses()`.
+    pub detected_agent: Arc<Mutex<Option<String>>>,
 }
 
 pub struct PiRpcSession {

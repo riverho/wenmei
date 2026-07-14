@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use tauri::{AppHandle, Manager, State};
 
-use crate::journal::{append_journal_event, emit_notification};
+use crate::journal::{append_journal_event, emit_notification, NOTIFY_AGENT_DONE};
 use crate::state::{active_vault, WenmeiState};
 
 // Heartbeat — the native tick engine (docs/design/sentinel-ledger.md §4).
@@ -213,6 +215,65 @@ const RESOURCE_CHECK_EVERY_TICKS: u32 = 12; // ~1 min at 5s ticks
 /// `heartbeat_enabled` is off.
 const BRIEFING_CHECK_EVERY_TICKS: u32 = 12; // ~1 min at 5s ticks
 
+/// Agent-completion detection cadence — this doesn't need 5s tightness, so
+/// it rides a slower multiple of the base tick (~10s focused, ~40s
+/// unfocused).
+const AGENT_CHECK_EVERY_TICKS: u32 = 2;
+
+/// A live terminal session's data needed for one agent-detection pass,
+/// snapshotted from `state.terminals` before the (potentially slow) process
+/// walk so the lock isn't held across it.
+struct AgentCheckSession {
+    session_id: String,
+    pid: Pid,
+    cwd: String,
+    detected: Arc<Mutex<Option<String>>>,
+}
+
+/// pid -> direct children, built once per check and reused for every live
+/// session rather than re-walking the whole process table per session.
+fn children_index(sys: &System) -> HashMap<Pid, Vec<Pid>> {
+    let mut idx: HashMap<Pid, Vec<Pid>> = HashMap::new();
+    for (pid, process) in sys.processes() {
+        if let Some(parent) = process.parent() {
+            idx.entry(parent).or_default().push(*pid);
+        }
+    }
+    idx
+}
+
+/// Depth-first walk of `root`'s descendants (the shell PTY's own process),
+/// looking for one whose name matches an entry in `names` (case-insensitive).
+/// Returns the matched allowlist entry, not the raw process name, so the
+/// notification reads using whatever casing the user configured.
+fn find_agent_descendant(
+    sys: &System,
+    children: &HashMap<Pid, Vec<Pid>>,
+    root: Pid,
+    names: &[String],
+) -> Option<String> {
+    let mut stack = vec![root];
+    let mut visited = HashSet::new();
+    while let Some(pid) = stack.pop() {
+        if !visited.insert(pid) {
+            continue;
+        }
+        let Some(kids) = children.get(&pid) else {
+            continue;
+        };
+        for &kid in kids {
+            if let Some(process) = sys.process(kid) {
+                let pname = process.name().to_string_lossy().to_lowercase();
+                if let Some(matched) = names.iter().find(|n| n.to_lowercase() == pname) {
+                    return Some(matched.clone());
+                }
+            }
+            stack.push(kid);
+        }
+    }
+    None
+}
+
 fn dir_size(path: &PathBuf) -> u64 {
     let Ok(entries) = fs::read_dir(path) else {
         return 0;
@@ -242,8 +303,20 @@ pub fn start_heartbeat(app: AppHandle) {
         // event it covered). In-memory only — a restart just resets timing,
         // which is harmless.
         let mut briefing_state: HashMap<String, (i64, String)> = HashMap::new();
+        // Reused across ticks rather than reconstructed — refreshing an
+        // existing System is far cheaper than rebuilding the process table
+        // from scratch every check.
+        let mut sys = System::new();
         loop {
-        thread::sleep(Duration::from_millis(TICK_MS));
+        // Back off 4x while the window is unfocused, matching polling.rs —
+        // stuck/overdue detection and resource checks still fire, just on a
+        // longer wall-clock cadence, so an idle app stops waking every 5s.
+        let focused = app
+            .get_webview_window("main")
+            .and_then(|w| w.is_focused().ok())
+            .unwrap_or(false);
+        let interval = if focused { TICK_MS } else { TICK_MS * 4 };
+        thread::sleep(Duration::from_millis(interval));
         tick = tick.wrapping_add(1);
         let Some(state) = app.try_state::<WenmeiState>() else {
             continue;
@@ -321,6 +394,71 @@ pub fn start_heartbeat(app: AppHandle) {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+        // Agent-completion detection (docs/design/sentinel-ledger.md-style
+        // "alerts with hands", process-name variant): watch each live
+        // terminal's child processes for a known agent binary, and notify
+        // when it goes from present to absent — the agent exited while the
+        // shell/PTY itself stayed alive, i.e. it finished its task.
+        if tick % AGENT_CHECK_EVERY_TICKS == 0 && heartbeat_enabled {
+            let agent_names = {
+                let app_state = state.app_state.lock().unwrap();
+                app_state.agent_process_names.clone()
+            };
+            if !agent_names.is_empty() {
+                sys.refresh_processes(ProcessesToUpdate::All, true);
+                let children = children_index(&sys);
+                let active_id = state.active_terminal_id.lock().unwrap().clone();
+                let sessions: Vec<AgentCheckSession> = {
+                    let terminals = state.terminals.lock().unwrap();
+                    terminals
+                        .values()
+                        .filter_map(|s| {
+                            let pid = s.child.lock().unwrap().process_id()?;
+                            Some(AgentCheckSession {
+                                session_id: s.session_id.clone(),
+                                pid: Pid::from_u32(pid),
+                                cwd: s.cwd.clone(),
+                                detected: s.detected_agent.clone(),
+                            })
+                        })
+                        .collect()
+                };
+                for session in &sessions {
+                    let found =
+                        find_agent_descendant(&sys, &children, session.pid, &agent_names);
+                    let prev = {
+                        let mut cache = session.detected.lock().unwrap();
+                        let prev = cache.clone();
+                        *cache = found.clone();
+                        prev
+                    };
+                    if let (Some(name), None) = (&prev, &found) {
+                        let watched =
+                            focused && active_id.as_deref() == Some(session.session_id.as_str());
+                        if !watched {
+                            emit_notification(
+                                &app,
+                                NOTIFY_AGENT_DONE,
+                                &format!("{name} finished"),
+                                &format!("Agent process exited in {}", session.cwd),
+                                Some(session.session_id.clone()),
+                            );
+                            let _ = append_journal_event(
+                                &state,
+                                "agent.task_done",
+                                "agent-detect",
+                                None,
+                                format!("{name} finished in {}", session.cwd),
+                                serde_json::json!({
+                                    "session_id": session.session_id,
+                                    "agent": name,
+                                }),
+                            );
                         }
                     }
                 }

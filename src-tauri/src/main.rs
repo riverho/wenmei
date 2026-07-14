@@ -82,6 +82,8 @@ fn main() {
             file_ops::create_folder,
             file_ops::rename_file,
             file_ops::delete_file,
+            file_ops::trash_size,
+            file_ops::empty_trash,
             file_ops::move_file,
             file_ops::toggle_pin,
             file_ops::get_pinned_files,

@@ -305,6 +305,68 @@ pub fn rename_file(
     Ok(rel)
 }
 
+/// Resolves the trash dir for a vault, honoring `metadata_mode` (local:
+/// inside the vault's `.wenmei/`; global: under the shared registry dir,
+/// keyed by vault id) — the one place this branch lives, shared by delete
+/// and the trash-size/empty-trash commands below.
+fn trash_dir_for_vault(state: &State<'_, WenmeiState>, vault: &Vault) -> PathBuf {
+    let metadata_mode = state.app_state.lock().unwrap().metadata_mode.clone();
+    if metadata_mode == "local" {
+        crate::state::init_vault_meta(Path::new(&vault.path));
+        PathBuf::from(&vault.path).join(".wenmei").join("trash")
+    } else {
+        state
+            .registry_file
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("trash")
+            .join(crate::state::safe_meta_name(&vault.id))
+    }
+}
+
+fn dir_size(path: &Path) -> u64 {
+    let Ok(entries) = fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                dir_size(&p)
+            } else {
+                e.metadata().map(|m| m.len()).unwrap_or(0)
+            }
+        })
+        .sum()
+}
+
+#[tauri::command]
+pub fn trash_size(state: State<'_, WenmeiState>) -> Result<u64, String> {
+    let vault = active_vault(&state)?;
+    Ok(dir_size(&trash_dir_for_vault(&state, &vault)))
+}
+
+#[tauri::command]
+pub fn empty_trash(state: State<'_, WenmeiState>) -> Result<(), String> {
+    let vault = active_vault(&state)?;
+    let trash_dir = trash_dir_for_vault(&state, &vault);
+    if trash_dir.exists() {
+        fs::remove_dir_all(&trash_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&trash_dir).map_err(|e| e.to_string())?;
+    }
+    log_action(&state, "emptied vault trash".to_string());
+    let _ = append_journal_event(
+        &state,
+        "trash.emptied",
+        "settings",
+        None,
+        "Emptied vault trash".to_string(),
+        serde_json::json!({}),
+    );
+    Ok(())
+}
+
 #[tauri::command]
 pub fn delete_file(
     path: String,
@@ -317,18 +379,7 @@ pub fn delete_file(
         return Err("File does not exist".to_string());
     }
     let _ = ensure_baseline(&state, &path, ChangeStatus::Deleted);
-    let metadata_mode = state.app_state.lock().unwrap().metadata_mode.clone();
-    let trash_dir = if metadata_mode == "local" {
-        crate::state::init_vault_meta(Path::new(&vault.path));
-        PathBuf::from(&vault.path).join(".wenmei").join("trash")
-    } else {
-        state
-            .registry_file
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join("trash")
-            .join(crate::state::safe_meta_name(&vault.id))
-    };
+    let trash_dir = trash_dir_for_vault(&state, &vault);
     fs::create_dir_all(&trash_dir).map_err(|e| e.to_string())?;
     let name = full_path
         .file_name()

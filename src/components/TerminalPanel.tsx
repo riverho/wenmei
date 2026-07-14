@@ -14,12 +14,12 @@ import {
   terminalResize,
   terminalSetActive,
   terminalStart,
-  terminalStatuses,
   terminalStop,
   terminalWrite,
   type TerminalActivity,
   type TerminalStarted,
 } from "@/lib/tauri-bridge";
+import { type StatusMap } from "@/hooks/useTerminalStatuses";
 import "@xterm/xterm/css/xterm.css";
 
 interface TerminalOutputPayload {
@@ -29,8 +29,6 @@ interface TerminalOutputPayload {
 }
 
 const CONTEXT_RESET_ERROR = "[ERR_CONTEXT_SWITCH_REQUIRES_RESET]";
-
-type StatusMap = Record<string, TerminalActivity>;
 
 /** How each live status paints its tab dot. `unknown` = no status yet. */
 const STATUS_DOT: Record<
@@ -451,8 +449,11 @@ export default function TerminalPanel() {
   const terminalTabs = useAppStore(s => s.terminalTabs);
   const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
   const addTerminalTab = useAppStore(s => s.addTerminalTab);
+  // Polled by useTerminalStatuses (called once from App.tsx, so it keeps
+  // running regardless of which mode is active, not just while this panel
+  // is mounted).
+  const statuses = useAppStore(s => s.terminalTabStatuses);
   const [context, setContext] = useState<TerminalStarted | null>(null);
-  const [statuses, setStatuses] = useState<StatusMap>({});
 
   // Seed a tab when the terminal opens so the strip is never empty.
   useEffect(() => {
@@ -466,28 +467,6 @@ export default function TerminalPanel() {
       terminalSetActive(activeTerminalTabId).catch(() => {});
     }
   }, [activeTerminalTabId]);
-
-  // Poll live per-tab status while the panel is mounted.
-  useEffect(() => {
-    let alive = true;
-    async function tick() {
-      try {
-        const list = await terminalStatuses();
-        if (!alive) return;
-        const map: StatusMap = {};
-        for (const s of list) map[s.session_id] = s.activity;
-        setStatuses(map);
-      } catch {
-        /* backend not ready — leave dots as "unknown" */
-      }
-    }
-    tick();
-    const id = window.setInterval(tick, 1500);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
-  }, []);
 
   return (
     <div

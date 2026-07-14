@@ -11,6 +11,8 @@ import {
   removeVault,
   openFolderDialog,
   clearReviewStaging,
+  trashSize,
+  emptyTrash,
 } from "@/lib/tauri-bridge";
 import {
   Loader2,
@@ -234,6 +236,13 @@ function VaultsSection() {
   const setVaults = useAppStore(s => s.setVaults);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [trashBytes, setTrashBytes] = useState<number | null>(null);
+
+  useEffect(() => {
+    trashSize()
+      .then(setTrashBytes)
+      .catch(() => setTrashBytes(null));
+  }, [activeVaultId]);
 
   const removable = vaults.filter(v => v.id !== activeVaultId);
   const allSelected =
@@ -405,6 +414,35 @@ function VaultsSection() {
         >
           <Trash2 size={10} />
           Clear review staging
+        </button>
+        <button
+          onClick={async () => {
+            if (
+              window.confirm(
+                "Permanently empty the vault trash? Files moved to trash by deletes cannot be recovered after this."
+              )
+            ) {
+              setBusy(true);
+              try {
+                await emptyTrash();
+                setTrashBytes(await trashSize());
+              } catch (err) {
+                window.alert(err instanceof Error ? err.message : String(err));
+              } finally {
+                setBusy(false);
+              }
+            }
+          }}
+          disabled={busy || !trashBytes}
+          className="flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium disabled:opacity-40"
+          style={{
+            background: "var(--surface-2)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <Trash2 size={10} />
+          Empty trash
+          {trashBytes ? ` (${(trashBytes / (1024 * 1024)).toFixed(1)} MB)` : ""}
         </button>
       </div>
     </Section>
@@ -1076,6 +1114,8 @@ export default function SettingsPanel() {
     setHeartbeatEnabled,
     heartbeatIntervalMinutes,
     setHeartbeatIntervalMinutes,
+    agentProcessNames,
+    setAgentProcessNames,
     terminalTabLimit,
     setTerminalTabLimit,
     terminalTabsUnlimited,
@@ -1092,6 +1132,18 @@ export default function SettingsPanel() {
 
   const [copiedKey, setCopiedKey] = useState(false);
   const [activeSection, setActiveSection] = useState("general");
+  const [agentNamesDraft, setAgentNamesDraft] = useState(() =>
+    agentProcessNames.join(", ")
+  );
+
+  function commitAgentNames() {
+    const names = agentNamesDraft
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+    setAgentProcessNames(names);
+    setAgentNamesDraft(names.join(", "));
+  }
   const scrollRef = useRef<HTMLDivElement>(null);
   const clickScrollRef = useRef(false);
 
@@ -1440,6 +1492,29 @@ export default function SettingsPanel() {
                 value={heartbeatIntervalMinutes}
                 onChange={setHeartbeatIntervalMinutes}
                 disabled={!heartbeatEnabled}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Agent process names"
+              description="Process names Wenmei watches for to detect when an agent finishes running in a terminal tab. Comma-separated."
+            >
+              <input
+                type="text"
+                value={agentNamesDraft}
+                onChange={e => setAgentNamesDraft(e.target.value)}
+                onBlur={commitAgentNames}
+                onKeyDown={e => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+                disabled={!heartbeatEnabled}
+                placeholder="pi, claude, codex, kimi, opencode"
+                className="text-[11px] px-2 py-1 rounded w-56 outline-none disabled:opacity-40"
+                style={{
+                  background: "var(--surface-2)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--surface-3)",
+                }}
               />
             </SettingRow>
           </Section>

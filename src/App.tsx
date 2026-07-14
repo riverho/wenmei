@@ -23,6 +23,8 @@ import { MobileFileDrawer, MobilePiSheet } from "./components/MobileDrawers";
 import Lightbox from "./components/Lightbox";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useNotificationListener } from "./hooks/useNotificationListener";
+import { useTerminalStatuses } from "./hooks/useTerminalStatuses";
 import "./App.css";
 
 function AppContent() {
@@ -44,6 +46,14 @@ function AppContent() {
 
   // Keyboard shortcuts
   useKeyboardShortcuts();
+
+  // Live alert/review-changeset events — mode-independent (App.tsx's
+  // AppContent is always mounted, unlike PiPanel which unmounts in
+  // Terminal mode).
+  useNotificationListener();
+
+  // Live per-tab terminal status — mode-independent (see hook doc comment).
+  useTerminalStatuses();
 
   // Load persisted state and files on mount
   useEffect(() => {

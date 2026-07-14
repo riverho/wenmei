@@ -2,6 +2,7 @@ use portable_pty::{native_pty_system, MasterPty, PtySize};
 use serde::Serialize;
 use std::fs;
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -60,6 +61,9 @@ pub struct TerminalTabStatus {
     pub session_id: String,
     pub activity: TerminalActivity,
     pub idle_ms: u64,
+    /// Agent binary name currently detected as a descendant of this
+    /// session's shell, if any (heartbeat.rs's periodic process-tree check).
+    pub agent: Option<String>,
 }
 
 /// Per-tab live status for every running session, derived from each session's
@@ -86,6 +90,7 @@ pub fn terminal_statuses(state: State<'_, WenmeiState>) -> Vec<TerminalTabStatus
                 session_id: session.session_id.clone(),
                 activity,
                 idle_ms: idle_ms as u64,
+                agent: session.detected_agent.lock().unwrap().clone(),
             }
         })
         .collect()
@@ -272,6 +277,7 @@ pub fn terminal_start(
     let child = Arc::new(Mutex::new(child));
     let backlog = Arc::new(Mutex::new(Vec::<u8>::new()));
     let narration_buffer: SharedNarrationBuffer = Arc::new(Mutex::new(NarrationBuffer::new()));
+    let alive = Arc::new(AtomicBool::new(true));
 
     // New sessions inherit the machine-level narrate default (Settings ›
     // Terminal, ships on) — the per-tab toggle can still switch it off.
@@ -296,12 +302,19 @@ pub fn terminal_start(
                 backlog: backlog.clone(),
                 narration_buffer: narration_buffer.clone(),
                 narration_enabled: narrate_default,
+                alive: alive.clone(),
+                detected_agent: Arc::new(Mutex::new(None)),
             },
         );
     }
     *state.active_terminal_id.lock().unwrap() = Some(session_id.clone());
 
-    spawn_narration_flush_thread(app.clone(), narration_buffer.clone(), session_id.clone());
+    spawn_narration_flush_thread(
+        app.clone(),
+        narration_buffer.clone(),
+        session_id.clone(),
+        alive.clone(),
+    );
 
     let app_for_read = app.clone();
     let session_id_for_read = session_id.clone();
@@ -482,6 +495,7 @@ pub fn terminal_stop(
     if let Some(key) = key {
         if let Some(session) = state.terminals.lock().unwrap().remove(&key) {
             let _ = session.child.lock().unwrap().kill();
+            session.alive.store(false, Ordering::Relaxed);
         }
         let mut active = state.active_terminal_id.lock().unwrap();
         if active.as_deref() == Some(key.as_str()) {

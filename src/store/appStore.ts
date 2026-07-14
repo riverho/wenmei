@@ -8,6 +8,7 @@ import type {
   Sandbox,
   PlatformName,
   ChangesetEntry,
+  TerminalActivity,
 } from "@/lib/tauri-bridge";
 import type { SidecarItem, SidecarItemKind } from "@/lib/sidecar-types";
 import { mergeChangesetEntries } from "@/lib/review-changeset";
@@ -91,6 +92,7 @@ interface AppState {
   narrateByDefault: boolean;
   heartbeatEnabled: boolean;
   heartbeatIntervalMinutes: number;
+  agentProcessNames: string[];
   terminalTabLimit: number;
   terminalTabsUnlimited: boolean;
   sandboxNewWindows: boolean;
@@ -100,6 +102,11 @@ interface AppState {
   // Terminal tabs (session-local; each tab is a PTY session)
   terminalTabs: TerminalTab[];
   activeTerminalTabId: string | null;
+  // Live per-session activity, polled by useTerminalStatuses — lifted to
+  // the store (not local TerminalPanel state) so Header's terminal button
+  // can show a badge even while CenterPanel has unmounted TerminalPanel
+  // (it only renders while mode === "terminal").
+  terminalTabStatuses: Record<string, TerminalActivity>;
 
   // Pi Terminal
   piMessages: PiMessage[];
@@ -173,6 +180,7 @@ interface AppState {
   setNarrateByDefault: (on: boolean) => void;
   setHeartbeatEnabled: (on: boolean) => void;
   setHeartbeatIntervalMinutes: (n: number) => void;
+  setAgentProcessNames: (names: string[]) => void;
   setTerminalTabLimit: (n: number) => void;
   setTerminalTabsUnlimited: (on: boolean) => void;
   setSandboxNewWindows: (on: boolean) => void;
@@ -186,6 +194,7 @@ interface AppState {
   closeTerminalTab: (id: string) => void;
   setActiveTerminalTab: (id: string) => void;
   renameTerminalTab: (id: string, title: string) => void;
+  setTerminalTabStatuses: (statuses: Record<string, TerminalActivity>) => void;
 
   // Review session
   setActiveReviewSession: (id: string | null) => void;
@@ -253,6 +262,7 @@ export const useAppStore = create<AppState>()(
       narrateByDefault: true,
       heartbeatEnabled: true,
       heartbeatIntervalMinutes: 30,
+      agentProcessNames: ["pi", "claude", "codex", "kimi", "opencode"],
       terminalTabLimit: 8,
       terminalTabsUnlimited: false,
       sandboxNewWindows: true,
@@ -260,6 +270,7 @@ export const useAppStore = create<AppState>()(
       keymap: DEFAULT_KEYMAP,
       terminalTabs: [],
       activeTerminalTabId: null,
+      terminalTabStatuses: {},
       isDirty: false,
       piMessages: [],
       piInput: "",
@@ -379,6 +390,7 @@ export const useAppStore = create<AppState>()(
       setHeartbeatEnabled: on => set({ heartbeatEnabled: on }),
       setHeartbeatIntervalMinutes: n =>
         set({ heartbeatIntervalMinutes: Math.max(1, Math.round(n)) }),
+      setAgentProcessNames: names => set({ agentProcessNames: names }),
       setTerminalTabLimit: n => set({ terminalTabLimit: n }),
       setTerminalTabsUnlimited: on => set({ terminalTabsUnlimited: on }),
       setSandboxNewWindows: on => set({ sandboxNewWindows: on }),
@@ -436,6 +448,8 @@ export const useAppStore = create<AppState>()(
           ),
         });
       },
+      setTerminalTabStatuses: statuses =>
+        set({ terminalTabStatuses: statuses }),
 
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),
@@ -528,6 +542,13 @@ export const useAppStore = create<AppState>()(
           narrateByDefault: state.narrate_by_default ?? true,
           heartbeatEnabled: state.heartbeat_enabled ?? true,
           heartbeatIntervalMinutes: state.heartbeat_interval_minutes ?? 30,
+          agentProcessNames: state.agent_process_names ?? [
+            "pi",
+            "claude",
+            "codex",
+            "kimi",
+            "opencode",
+          ],
           terminalTabLimit: state.terminal_tab_limit ?? 8,
           terminalTabsUnlimited: state.terminal_tabs_unlimited ?? false,
           sandboxNewWindows: state.sandbox_new_windows ?? true,
@@ -572,6 +593,7 @@ export const useAppStore = create<AppState>()(
         narrate_by_default: get().narrateByDefault,
         heartbeat_enabled: get().heartbeatEnabled,
         heartbeat_interval_minutes: get().heartbeatIntervalMinutes,
+        agent_process_names: get().agentProcessNames,
         terminal_tab_limit: get().terminalTabLimit,
         terminal_tabs_unlimited: get().terminalTabsUnlimited,
         sandbox_new_windows: get().sandboxNewWindows,

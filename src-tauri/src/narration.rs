@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
@@ -194,11 +195,15 @@ pub fn spawn_narration_flush_thread(
     app: tauri::AppHandle,
     buffer: SharedNarrationBuffer,
     session_id: String,
+    alive: Arc<AtomicBool>,
 ) {
     std::thread::spawn(move || {
         let mut counter: u64 = 0;
-        loop {
+        while alive.load(Ordering::Relaxed) {
             std::thread::sleep(Duration::from_millis(500));
+            if !alive.load(Ordering::Relaxed) {
+                break;
+            }
             let digest = {
                 let mut buf = buffer.lock().unwrap();
                 buf.tick()

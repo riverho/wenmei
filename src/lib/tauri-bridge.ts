@@ -321,6 +321,7 @@ export interface AppPersistedState {
   narrate_by_default?: boolean;
   heartbeat_enabled?: boolean;
   heartbeat_interval_minutes?: number;
+  agent_process_names?: string[];
   terminal_tab_limit?: number;
   terminal_tabs_unlimited?: boolean;
   sandbox_new_windows?: boolean;
@@ -407,6 +408,14 @@ export async function renameFile(
 
 export async function deleteFile(path: string): Promise<void> {
   return invoke("delete_file", { path });
+}
+
+export async function trashSize(): Promise<number> {
+  return invoke("trash_size");
+}
+
+export async function emptyTrash(): Promise<void> {
+  return invoke("empty_trash");
 }
 
 export async function moveFile(
@@ -798,6 +807,7 @@ export interface TerminalTabStatus {
   session_id: string;
   activity: TerminalActivity;
   idle_ms: number;
+  agent: string | null;
 }
 
 export async function terminalStart(

@@ -67,6 +67,9 @@ export default function Header() {
     openMode,
     metadataMode,
     sandboxAuthStatus,
+    terminalTabs,
+    terminalTabStatuses,
+    sidecarItems,
     setMode,
     setTheme,
     setActiveFile,
@@ -85,6 +88,19 @@ export default function Header() {
 
   const isPaper = mode === "paper";
   const isTerminal = mode === "terminal";
+  // Terminal button badge: tabs stuck waiting on input, plus unread
+  // agent-completion alerts — both live regardless of mode (terminalTabStatuses
+  // is polled from App.tsx, sidecarItems from useNotificationListener), so
+  // this stays accurate even while Terminal mode (and its tab dots) is
+  // unmounted.
+  const waitingTabs = terminalTabs.filter(t => {
+    const status = terminalTabStatuses[t.id];
+    return status === "needs-input" || status === "stuck";
+  }).length;
+  const unreadAgentDone = sidecarItems.filter(
+    item => item.alertLabel === "agent.task_done" && !item.read
+  ).length;
+  const terminalBadgeCount = waitingTabs + unreadAgentDone;
   const breadcrumbSource = activeFilePath || activeFileName || "untitled.md";
   const breadcrumbPath = compactBreadcrumbPath(activeFilePath, activeFileName);
   const agentState =
@@ -309,14 +325,28 @@ export default function Header() {
         {/* Open sandbox terminal */}
         <button
           onClick={handleOpenTerminal}
-          className="hidden sm:flex items-center justify-center w-8 h-8 rounded transition-all duration-200 hover:-translate-y-0.5"
+          className="hidden sm:flex items-center justify-center w-8 h-8 rounded transition-all duration-200 hover:-translate-y-0.5 relative"
           style={{
             color: isTerminal ? "var(--accent-teal)" : "var(--text-secondary)",
             background: isTerminal ? "var(--surface-2)" : "transparent",
           }}
-          title={isTerminal ? "Exit terminal mode" : "Open embedded terminal"}
+          title={
+            isTerminal
+              ? "Exit terminal mode"
+              : terminalBadgeCount > 0
+                ? `Open embedded terminal (${waitingTabs} waiting on input, ${unreadAgentDone} agent completion${unreadAgentDone === 1 ? "" : "s"})`
+                : "Open embedded terminal"
+          }
         >
           {isTerminal ? <Minimize2 size={15} /> : <Terminal size={15} />}
+          {!isTerminal && terminalBadgeCount > 0 && (
+            <span
+              className="absolute top-1 right-1 min-w-[14px] h-[14px] px-1 rounded-full flex items-center justify-center text-[9px] font-semibold"
+              style={{ background: "var(--accent-rose)", color: "#fff" }}
+            >
+              {terminalBadgeCount > 9 ? "9+" : terminalBadgeCount}
+            </span>
+          )}
         </button>
 
         {/* Paper mode */}

@@ -20,11 +20,12 @@ pub const KIND_REVIEW_REJECTED: &str = "review.rejected";
 // (docs/design/unified-sidecar.md). Journaled as `notification.<kind>`.
 // Active emitters: review.rs, polling.rs (NOTIFY_REVIEW_CHANGES),
 // narration.rs (NOTIFY_NARRATION_RISKY), terminal.rs (NOTIFY_TERMINAL_DONE),
-// nightshift.rs (NOTIFY_NIGHTSHIFT_DONE).
+// nightshift.rs (NOTIFY_NIGHTSHIFT_DONE), heartbeat.rs (NOTIFY_AGENT_DONE).
 pub const NOTIFY_REVIEW_CHANGES: &str = "review.changes";
 pub const NOTIFY_NARRATION_RISKY: &str = "narration.risky";
 pub const NOTIFY_TERMINAL_DONE: &str = "terminal.done";
 pub const NOTIFY_NIGHTSHIFT_DONE: &str = "nightshift.done";
+pub const NOTIFY_AGENT_DONE: &str = "agent.task_done";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEvent {
@@ -123,6 +124,34 @@ fn journal_path(ctx: &TerminalContext) -> PathBuf {
     ctx.meta_root.join("journal.jsonl")
 }
 
+/// Cap the live journal's on-disk size. Rotates (renames) rather than
+/// truncates — same "never destroy, only move" rule this app already
+/// applies to file deletes (`.wenmei/trash/`) — so `list_journal_events`
+/// and `audit.export` only ever see the live file, but nothing is lost;
+/// older history is still on disk under `journal-archive/` if needed.
+const JOURNAL_ROTATE_BYTES: u64 = 10 * 1024 * 1024;
+
+fn rotate_journal_if_needed(path: &PathBuf) {
+    let Ok(meta) = fs::metadata(path) else {
+        return;
+    };
+    if meta.len() < JOURNAL_ROTATE_BYTES {
+        return;
+    }
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let archive_dir = parent.join("journal-archive");
+    if fs::create_dir_all(&archive_dir).is_err() {
+        return;
+    }
+    let archived = archive_dir.join(format!(
+        "journal-{}.jsonl",
+        chrono::Utc::now().format("%Y%m%dT%H%M%S%.f")
+    ));
+    let _ = fs::rename(path, archived);
+}
+
 pub fn append_journal_event(
     state: &State<'_, WenmeiState>,
     kind: &str,
@@ -153,6 +182,7 @@ pub fn append_journal_event(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    rotate_journal_if_needed(&path);
     let mut raw = serde_json::to_string(&event).map_err(|e| e.to_string())?;
     raw.push('\n');
     let mut file = OpenOptions::new()

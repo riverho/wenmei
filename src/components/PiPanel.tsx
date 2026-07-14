@@ -23,12 +23,14 @@ import {
   piPanelStart,
   piTypeIntoTerminal,
   readFile,
+  runCardCreate,
+  runCardList,
+  runCardSetStatus,
   searchAllVaults,
   searchWorkspace,
   writeFile,
 } from "@/lib/tauri-bridge";
 import type { FileNode, PiMessage, SearchResult } from "@/lib/tauri-bridge";
-import type { ChangesetEntry } from "@/lib/tauri-bridge";
 import type { SidecarItem } from "@/lib/sidecar-types";
 import {
   journalEventToItem,
@@ -72,6 +74,18 @@ const SLASH_COMMANDS = [
   },
   { cmd: "/log", desc: "Show recent file actions", icon: Clock },
   { cmd: "/journal", desc: "Show sandbox journal", icon: Clock },
+  { cmd: "/heartbeat", desc: "List heartbeat tasks", icon: Clock },
+  {
+    cmd: "/heartbeat add",
+    desc: "Add a task to heartbeat: /heartbeat add <goal> [every Nm]",
+    icon: Clock,
+  },
+  {
+    cmd: "/heartbeat done",
+    desc: "Mark a heartbeat task done: /heartbeat done <id>",
+    icon: Check,
+  },
+  { cmd: "/heartbeat log", desc: "Show heartbeat activity log", icon: Clock },
   { cmd: "/thinking", desc: "Set thinking level", icon: Sparkles },
   { cmd: "/draft", desc: "Draft prompt into terminal", icon: Terminal },
 ];
@@ -580,6 +594,60 @@ export default function PiPanel() {
           `Sandbox journal:\n${events.map(e => `${e.ts} ${e.kind} [${e.source}] ${e.path ?? ""} — ${e.summary}`).join("\n") || "No journal events yet."}`
         );
       }
+      if (lower.startsWith("/heartbeat add")) {
+        const rest = trimmed.replace(/^\/heartbeat\s+add/i, "").trim();
+        const everyMatch = rest.match(
+          /\s+every\s+(\d+)\s*m(?:in(?:ute)?s?)?$/i
+        );
+        const goal = (
+          everyMatch ? rest.slice(0, everyMatch.index) : rest
+        ).trim();
+        if (!goal) {
+          return message(
+            "log",
+            "Usage: /heartbeat add <goal> [every Nm] — e.g. /heartbeat add Watch the build every 10m"
+          );
+        }
+        const wakeSecs = everyMatch ? Number(everyMatch[1]) * 60 : undefined;
+        const card = await runCardCreate(goal, wakeSecs, true);
+        // Creation alone leaves the card Idle, which the scheduler ignores —
+        // "add to heartbeat" should mean it's actually watched.
+        await runCardSetStatus(card.id, "running");
+        return message(
+          "action",
+          `Added to heartbeat: "${card.goal}" (${card.id})${everyMatch ? ` — checks in every ${everyMatch[1]}m` : ""}`
+        );
+      }
+      if (lower.startsWith("/heartbeat done")) {
+        const id = trimmed.replace(/^\/heartbeat\s+done/i, "").trim();
+        if (!id) return message("log", "Usage: /heartbeat done <id>");
+        const card = await runCardSetStatus(id, "done");
+        return message("action", `Marked done: "${card.goal}" (${card.id})`);
+      }
+      if (lower.startsWith("/heartbeat log")) {
+        const events = (await listJournalEvents(60)).filter(
+          e => e.source === "heartbeat"
+        );
+        return message(
+          "log",
+          `Heartbeat log:\n${events.map(e => `${e.ts} ${e.kind} — ${e.summary}`).join("\n") || "No heartbeat activity yet."}`
+        );
+      }
+      if (lower.startsWith("/heartbeat")) {
+        const cards = await runCardList();
+        return message(
+          "log",
+          `Heartbeat tasks:\n${
+            cards
+              .map(
+                c =>
+                  `${c.id} · ${c.status} · ${c.goal}${c.wake.kind === "interval" ? ` (every ${Math.round(c.wake.secs / 60)}m)` : ""}`
+              )
+              .join("\n") ||
+            "No heartbeat tasks yet. Try /heartbeat add <goal>."
+          }`
+        );
+      }
       if (lower.startsWith("/thinking")) {
         const level = trimmed.replace(/^\/thinking/i, "").trim();
         const allowed = [
@@ -615,7 +683,7 @@ export default function PiPanel() {
 
       return message(
         "chat",
-        `Available desktop commands:\n/format\n/summarize\n/rewrite\n/outline\n/actions\n/find <term> [--all]\n/write <prompt>\n/generate <prompt>\n/explain\n/delete\n/vaults\n/sandboxes\n/sandbox <name>\n/log\n/journal\n/thinking <level>\n/draft <agent task>`
+        `Available desktop commands:\n/format\n/summarize\n/rewrite\n/outline\n/actions\n/find <term> [--all]\n/write <prompt>\n/generate <prompt>\n/explain\n/delete\n/vaults\n/sandboxes\n/sandbox <name>\n/log\n/journal\n/heartbeat\n/heartbeat add <goal> [every Nm]\n/heartbeat done <id>\n/heartbeat log\n/thinking <level>\n/draft <agent task>`
       );
     },
     [
@@ -962,8 +1030,6 @@ export default function PiPanel() {
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
     let unlistenNarration: UnlistenFn | null = null;
-    let unlistenNotification: UnlistenFn | null = null;
-    let unlistenChangeset: UnlistenFn | null = null;
     let mounted = true;
 
     async function startPi() {
@@ -1167,63 +1233,6 @@ export default function PiPanel() {
       unlistenNarration = fn;
     });
 
-    listen<{
-      kind: string;
-      title: string;
-      body: string;
-      session_id?: string | null;
-      ts: string;
-    }>("wenmei-notification", evt => {
-      const note = evt.payload;
-      addRunDetail(`alert: ${note.kind} ${note.title}`);
-      addSidecarItem({
-        id: `alert-${note.ts}-${note.kind}`,
-        kind: "alert",
-        label: "Alert",
-        ts: note.ts,
-        tsLabel: relTime(note.ts),
-        summary: note.title,
-        body: `${note.title}\n${note.body}`,
-        sessionId: note.session_id ?? undefined,
-        severity:
-          note.kind.includes("risky") || note.kind.includes("stuck")
-            ? "warning"
-            : note.kind.includes("done")
-              ? "success"
-              : "info",
-        alertLabel: note.kind,
-        artifacts: [],
-        read: false,
-        expanded: false,
-        inOverlay: false,
-      });
-    }).then(fn => {
-      unlistenNotification = fn;
-    });
-
-    listen<ChangesetEntry[]>("changeset-updated", evt => {
-      const entries = evt.payload;
-      if (!entries || entries.length === 0) return;
-      const ts = new Date().toISOString();
-      addSidecarItem({
-        id: `review-${ts}-${entries.length}`,
-        kind: "review_change",
-        label: "Review",
-        ts,
-        tsLabel: relTime(ts),
-        summary: `${entries.length} file(s) in the changeset`,
-        body: entries
-          .map(e => `${e.status.toUpperCase().padEnd(9)} ${e.path}`)
-          .join("\n"),
-        artifacts: [],
-        read: false,
-        expanded: false,
-        inOverlay: false,
-      });
-    }).then(fn => {
-      unlistenChangeset = fn;
-    });
-
     startPi();
 
     const handleWorkspaceAuthorized = () => {
@@ -1257,8 +1266,6 @@ export default function PiPanel() {
       );
       unlisten?.();
       unlistenNarration?.();
-      unlistenNotification?.();
-      unlistenChangeset?.();
     };
   }, [
     addSidecarItem,
