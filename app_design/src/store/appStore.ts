@@ -12,6 +12,8 @@ import type {
 import { mergeChangesetEntries } from "@/lib/review-changeset";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
+export type TerminalLayout = "tabs" | "grid";
+export type TerminalActivity = "active" | "idle" | "stuck";
 export type LightboxVariant =
   "onboarding" | "settings" | "pi-chat" | "alert" | "custom" | null;
 
@@ -116,6 +118,9 @@ interface AppState {
   // Terminal tabs
   terminalTabs: TerminalTab[];
   activeTerminalTabId: string | null;
+  terminalLayout: TerminalLayout;
+  terminalCwd: string | null;
+  terminalActivity: TerminalActivity;
   narrateByDefault: boolean;
   terminalTabLimit: number;
   terminalTabsUnlimited: boolean;
@@ -188,6 +193,9 @@ interface AppState {
   addTerminalTab: () => void;
   closeTerminalTab: (id: string) => void;
   setActiveTerminalTab: (id: string) => void;
+  setTerminalLayout: (layout: TerminalLayout) => void;
+  setTerminalCwd: (cwd: string | null) => void;
+  setTerminalActivity: (activity: TerminalActivity) => void;
   setTabNarrate: (id: string, narrate: boolean) => void;
   setNarrateByDefault: (on: boolean) => void;
   setTerminalTabLimit: (n: number) => void;
@@ -277,6 +285,9 @@ export const useAppStore = create<AppState>()(
       isDirty: false,
       terminalTabs: [],
       activeTerminalTabId: null,
+      terminalLayout: "tabs",
+      terminalCwd: null,
+      terminalActivity: "idle",
       narrateByDefault: true,
       terminalTabLimit: 8,
       terminalTabsUnlimited: false,
@@ -420,6 +431,9 @@ export const useAppStore = create<AppState>()(
         }
       },
       setActiveTerminalTab: id => set({ activeTerminalTabId: id }),
+      setTerminalLayout: layout => set({ terminalLayout: layout }),
+      setTerminalCwd: cwd => set({ terminalCwd: cwd }),
+      setTerminalActivity: activity => set({ terminalActivity: activity }),
       setTabNarrate: (id, narrate) =>
         set({
           terminalTabs: get().terminalTabs.map(t =>
@@ -619,6 +633,7 @@ export const useAppStore = create<AppState>()(
         rightPanelWidth: state.rightPanelWidth,
         splitRatio: state.splitRatio,
         openFolders: state.openFolders,
+        terminalLayout: state.terminalLayout,
         piMessages: state.piMessages.slice(-200),
       }),
     }

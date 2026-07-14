@@ -15,6 +15,7 @@ import {
   getPlatform,
 } from "@/lib/tauri-bridge";
 import Header from "./components/Header";
+import FooterBar from "./components/FooterBar";
 import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
 import PiPanel from "./components/PiPanel";
@@ -253,6 +254,9 @@ function AppContent() {
         {/* Right Panel — Desktop */}
         <RightPanel />
       </div>
+
+      {/* Footer toolbar — full path + session/save status (hidden in paper) */}
+      <FooterBar />
 
       {/* Mobile Drawers */}
       <MobileFileDrawer />

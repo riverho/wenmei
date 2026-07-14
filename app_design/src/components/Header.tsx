@@ -24,6 +24,8 @@ import {
   BookOpen,
   Terminal,
   Minimize2,
+  LayoutGrid,
+  Rows3,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -82,6 +84,8 @@ export default function Header() {
     setMobilePiOpen,
     openTerminal,
     openLightbox,
+    terminalLayout,
+    setTerminalLayout,
   } = useAppStore();
 
   const isPaper = mode === "paper";
@@ -312,6 +316,28 @@ export default function Header() {
         >
           <Info size={13} />
         </span>
+
+        {/* Terminal layout toggle — tabs vs grid (terminal mode only) */}
+        {isTerminal && (
+          <button
+            onClick={() =>
+              setTerminalLayout(terminalLayout === "tabs" ? "grid" : "tabs")
+            }
+            className="hidden sm:flex items-center justify-center w-8 h-8 rounded transition-all duration-200 hover:-translate-y-0.5"
+            style={{ color: "var(--text-secondary)" }}
+            title={
+              terminalLayout === "tabs"
+                ? "Switch to grid view — all sessions side by side"
+                : "Switch to tab view — one session at a time"
+            }
+          >
+            {terminalLayout === "tabs" ? (
+              <LayoutGrid size={15} />
+            ) : (
+              <Rows3 size={15} />
+            )}
+          </button>
+        )}
 
         {/* Open sandbox terminal */}
         <button

@@ -285,3 +285,26 @@ tab strip** on top with a bottom border, and the content pane stacks beneath
 it. Inactive tab labels hide below 420px (icon-only chips; the active tab
 always shows its label), and the active tab auto-scrolls into view as
 scroll-spy moves it. Content padding tightens on mobile (`px-4 py-4`).
+
+### Terminal layout + footer toolbar (15 Jul 2026)
+
+- **Terminal layout toggle.** Header gains a layout button (visible only in
+  terminal mode): `LayoutGrid` switches to grid view, `Rows3` back to tabs.
+  `terminalLayout: "tabs" | "grid"` lives in the store and persists.
+  - _Tabs_ — the existing `TerminalTabBar` strip.
+  - _Grid_ — all sessions side by side (`ceil(sqrt(n))` columns), each pane
+    with its own title bar, session dot, and close button; a dashed
+    `new session` tile adds tabs until the limit. The playground's single
+    xterm element is created imperatively and **reparented** into the active
+    pane (React never owns it), so switching panes/layouts never kills the
+    terminal. Inactive panes show a quiet prompt mock.
+- **Terminal status bar removed.** The `Embedded Wenmei Terminal · cwd · log`
+  bar is gone from all terminals — session cwd and activity moved to the
+  footer (store fields `terminalCwd`, `terminalActivity`). Errors surface as
+  a slim rose strip only when present.
+- **Footer toolbar (`FooterBar`).** One quiet 24px line at the bottom
+  (hidden in paper mode): left, the **full path** of where you are — vault
+  root + active file, or the terminal cwd in terminal mode — click to copy;
+  right, word count (editor modes), terminal session count + activity dot
+  (whenever sessions exist), and Saved/Unsaved state. Deliberately sparse —
+  more can earn its way in later.
