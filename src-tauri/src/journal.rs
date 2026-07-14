@@ -60,12 +60,23 @@ pub struct WenmeiNotification {
     pub ts: String,
 }
 
-/// Identical (kind, session, title) within this window collapses (no re-emit),
-/// so a stuck terminal or a chatty agent doesn't spam alerts.
-const NOTIFY_DEDUP_SECS: u64 = 60;
+/// Escalating "give up" backoff for repeat notifications of the same
+/// (kind, session, title). Level-triggered checks (e.g. heartbeat.rs polling
+/// staging size every ~60s while it stays over the cap) would otherwise
+/// re-emit every poll forever; each repeat of the *same* dedup_key waits
+/// progressively longer before firing again, capping out at once per hour.
+/// A gap longer than the last-required wait is treated as a resolved-then-new
+/// incident (see `retain` below) and restarts the schedule.
+const BACKOFF_SCHEDULE_SECS: [u64; 4] = [60, 5 * 60, 15 * 60, 60 * 60];
 
-fn notify_dedup_map() -> &'static Mutex<HashMap<String, Instant>> {
-    static MAP: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+struct NotifyState {
+    /// How many times this key has fired so far.
+    count: u32,
+    last: Instant,
+}
+
+fn notify_dedup_map() -> &'static Mutex<HashMap<String, NotifyState>> {
+    static MAP: OnceLock<Mutex<HashMap<String, NotifyState>>> = OnceLock::new();
     MAP.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -83,11 +94,23 @@ pub fn emit_notification(
     {
         let mut map = notify_dedup_map().lock().unwrap();
         let now = Instant::now();
-        map.retain(|_, at| now.duration_since(*at).as_secs() < NOTIFY_DEDUP_SECS);
-        if map.contains_key(&dedup_key) {
-            return;
+        // Longest backoff step is the last schedule entry — once a key has
+        // been silent that long, drop it so a later recurrence starts fresh
+        // rather than inheriting the old (maxed-out) backoff.
+        let max_gap = *BACKOFF_SCHEDULE_SECS.last().unwrap();
+        map.retain(|_, s| now.duration_since(s.last).as_secs() < max_gap);
+        if let Some(state) = map.get(&dedup_key) {
+            let idx = ((state.count as usize).saturating_sub(1))
+                .min(BACKOFF_SCHEDULE_SECS.len() - 1);
+            let required = BACKOFF_SCHEDULE_SECS[idx];
+            if now.duration_since(state.last).as_secs() < required {
+                return; // still backing off — the "give up" window
+            }
+            let count = state.count + 1;
+            map.insert(dedup_key.clone(), NotifyState { count, last: now });
+        } else {
+            map.insert(dedup_key.clone(), NotifyState { count: 1, last: now });
         }
-        map.insert(dedup_key, now);
     }
 
     let note = WenmeiNotification {

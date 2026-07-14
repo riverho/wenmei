@@ -33,12 +33,13 @@ import {
 import type { FileNode, PiMessage, SearchResult } from "@/lib/tauri-bridge";
 import type { SidecarItem } from "@/lib/sidecar-types";
 import {
+  groupFeedItems,
   journalEventToItem,
   relTime,
   type FeedFilter,
 } from "@/lib/sidecar-feed";
 import { effectiveNarrationPrompt } from "@/lib/narration-prompt";
-import { FeedChips, OverlayCard } from "./SidecarOverlay";
+import { AlertGroupCard, FeedChips, OverlayCard } from "./SidecarOverlay";
 import SidecarDetail from "./SidecarDetail";
 import {
   Send,
@@ -219,6 +220,7 @@ export default function PiPanel() {
     sidecarItems,
     addSidecarItem,
     markSidecarClassRead,
+    dismissAlertGroup,
     pendingFeedFilter,
     clearPendingFeedFilter,
   } = useAppStore();
@@ -299,9 +301,16 @@ export default function PiPanel() {
       i => i.kind === "review_change" || i.kind === "review_decision"
     );
   }, [sidecarItems, feedFilter, inputActive]);
-  const visibleItems = useMemo(
-    () => filteredItems.slice(0, (overlayPage + 1) * OVERLAYS_PER_PAGE),
-    [filteredItems, overlayPage]
+  // Repeat alerts (same alertLabel) collapse into one group entry — see
+  // groupFeedItems. Paginated over entries, not raw items, so a group still
+  // counts as one row.
+  const feedEntries = useMemo(
+    () => groupFeedItems(filteredItems),
+    [filteredItems]
+  );
+  const visibleEntries = useMemo(
+    () => feedEntries.slice(0, (overlayPage + 1) * OVERLAYS_PER_PAGE),
+    [feedEntries, overlayPage]
   );
   const unreadNarration = useMemo(
     () => sidecarItems.filter(i => !i.read && i.kind === "narrate").length,
@@ -1558,22 +1567,46 @@ export default function PiPanel() {
         )}
 
         {/* Overlay stack — narrate/alert/review cards above the chat base
-            layer; collapses entirely while the user is in the composer. */}
-        {visibleItems.length > 0 && (
+            layer; collapses entirely while the user is in the composer.
+            Repeat alerts of the same kind collapse into one group card
+            (groupFeedItems) so a chatty check doesn't spam the feed. */}
+        {visibleEntries.length > 0 && (
           <div
             ref={overlayStackRef}
             className="mb-3 -mx-3 rounded-md overflow-hidden"
             style={{ border: "1px solid var(--surface-3)" }}
           >
-            {visibleItems.map(item => (
-              <OverlayCard
-                key={item.id}
-                item={item}
-                onMarkRead={() => markSidecarClassRead([item.kind])}
-                onOpen={setDetailItem}
-              />
-            ))}
-            {filteredItems.length > visibleItems.length && (
+            {visibleEntries.map(entry =>
+              entry.type === "alert-group" && entry.group.items.length > 1 ? (
+                <AlertGroupCard
+                  key={`group-${entry.group.alertLabel}`}
+                  group={entry.group}
+                  onMarkRead={() => markSidecarClassRead(["alert"])}
+                  onOpen={setDetailItem}
+                  onClearGroup={dismissAlertGroup}
+                />
+              ) : (
+                <OverlayCard
+                  key={
+                    entry.type === "item"
+                      ? entry.item.id
+                      : entry.group.items[0].id
+                  }
+                  item={
+                    entry.type === "item" ? entry.item : entry.group.items[0]
+                  }
+                  onMarkRead={() =>
+                    markSidecarClassRead([
+                      entry.type === "item"
+                        ? entry.item.kind
+                        : entry.group.items[0].kind,
+                    ])
+                  }
+                  onOpen={setDetailItem}
+                />
+              )
+            )}
+            {feedEntries.length > visibleEntries.length && (
               <button
                 onClick={() => setOverlayPage(p => p + 1)}
                 className="w-full px-3 py-1.5 text-[10px] uppercase tracking-wider"
@@ -1582,7 +1615,7 @@ export default function PiPanel() {
                   background: "var(--surface-0)",
                 }}
               >
-                Show {filteredItems.length - visibleItems.length} more
+                Show {feedEntries.length - visibleEntries.length} more
               </button>
             )}
           </div>

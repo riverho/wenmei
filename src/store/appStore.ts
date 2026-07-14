@@ -186,6 +186,11 @@ interface AppState {
   markSidecarClassRead: (kinds: SidecarItemKind[]) => void;
   requestSidecarFilter: (filter: Exclude<FeedFilter, "all" | "chat">) => void;
   clearPendingFeedFilter: () => void;
+  /** Drops every alert sharing `alertLabel` from the live feed (the "Clear
+   *  all" group link). The journal on disk is untouched — this only
+   *  declutters the in-memory overlay window, same scope as the existing
+   *  200-item cap. */
+  dismissAlertGroup: (alertLabel: string) => void;
 
   // Machine-level settings (persisted via save_app_state → state.json)
   setNarrateByDefault: (on: boolean) => void;
@@ -402,6 +407,13 @@ export const useAppStore = create<AppState>()(
       requestSidecarFilter: filter =>
         set({ pendingFeedFilter: filter, rightPanelOpen: true }),
       clearPendingFeedFilter: () => set({ pendingFeedFilter: null }),
+      dismissAlertGroup: alertLabel =>
+        set({
+          sidecarItems: get().sidecarItems.filter(
+            i =>
+              !(i.kind === "alert" && (i.alertLabel ?? "alert") === alertLabel)
+          ),
+        }),
 
       setNarrateByDefault: on => set({ narrateByDefault: on }),
       setHeartbeatEnabled: on => set({ heartbeatEnabled: on }),

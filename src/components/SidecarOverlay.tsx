@@ -7,7 +7,12 @@ import {
   type AlertSeverity,
   type SidecarItem,
 } from "@/lib/sidecar-types";
-import { FILTER_CONFIG, relTime, type FeedFilter } from "@/lib/sidecar-feed";
+import {
+  FILTER_CONFIG,
+  relTime,
+  type AlertGroup,
+  type FeedFilter,
+} from "@/lib/sidecar-feed";
 import { approvePrompt, currentPrompt } from "@/lib/tauri-bridge";
 
 // ─── Overlay layer for the unified sidecar feed (docs/design/unified-sidecar.md)
@@ -220,6 +225,121 @@ function ApprovalActions() {
         }}
       >
         Deny
+      </button>
+    </div>
+  );
+}
+
+/** Collapses repeat alerts sharing an alertLabel (see groupFeedItems) into
+ *  one card: the latest alert's content, a "×N" count pill, and a "Clear
+ *  all" link that drops the whole group from the feed. */
+export function AlertGroupCard({
+  group,
+  onMarkRead,
+  onOpen,
+  onClearGroup,
+}: {
+  group: AlertGroup;
+  onMarkRead: (id: string) => void;
+  onOpen?: (item: SidecarItem) => void;
+  onClearGroup: (alertLabel: string) => void;
+}) {
+  const latest = group.items[0];
+  const count = group.items.length;
+
+  const cardBg =
+    latest.severity === "error"
+      ? "rgba(194, 74, 74, 0.04)"
+      : latest.severity === "warning"
+        ? "rgba(245, 158, 11, 0.04)"
+        : latest.severity === "success"
+          ? "rgba(0, 134, 115, 0.04)"
+          : "transparent";
+
+  const leftBorderColor =
+    latest.severity === "error"
+      ? "var(--accent-rose)"
+      : latest.severity === "warning"
+        ? "#f59e0b"
+        : "var(--accent-teal)";
+
+  return (
+    <div
+      className="px-3 py-2 transition-colors cursor-pointer"
+      style={{
+        background: cardBg,
+        borderLeft: `2px solid ${leftBorderColor}`,
+        borderBottom: "1px solid var(--surface-3)",
+      }}
+      onClick={() => {
+        for (const item of group.items) {
+          if (!item.read) onMarkRead(item.id);
+        }
+        onOpen?.(latest);
+      }}
+    >
+      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+        {group.items.some(i => !i.read) && (
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: "var(--accent-teal)" }}
+          />
+        )}
+        <SeverityDot severity={latest.severity ?? "info"} />
+        <span
+          className="text-[9px] font-semibold uppercase tracking-wider"
+          style={{ color: "#fb923c" }}
+        >
+          {latest.label}
+        </span>
+        <span
+          className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+          style={{
+            background: "var(--surface-2)",
+            color: "var(--text-secondary)",
+          }}
+          title={`${count} alerts of this kind`}
+        >
+          ×{count}
+        </span>
+        {latest.sessionId && (
+          <span
+            className="text-[9px] px-1 py-0.5 rounded"
+            style={{
+              background: "var(--surface-2)",
+              color: "var(--text-tertiary)",
+            }}
+          >
+            {latest.sessionTitle ?? latest.sessionId}
+          </span>
+        )}
+        <span
+          className="text-[9px] ml-auto shrink-0"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          {relTime(latest.ts)}
+        </span>
+      </div>
+      <div
+        className="text-[11px] leading-relaxed whitespace-pre-wrap break-words"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        {latest.expanded || !isLongContent(latest.body)
+          ? latest.body
+          : truncateBody(latest.body)}
+      </div>
+
+      {latest.alertLabel === "input.needs_response" && <ApprovalActions />}
+
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          onClearGroup(group.alertLabel);
+        }}
+        className="mt-1 text-[10px] font-medium hover:underline"
+        style={{ color: "var(--text-tertiary)" }}
+      >
+        Clear all ({count})
       </button>
     </div>
   );

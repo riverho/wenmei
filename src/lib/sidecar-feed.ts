@@ -91,3 +91,42 @@ export function journalEventToItem(event: {
   }
   return null;
 }
+
+// ─── Alert grouping ──────────────────────────────────────────────────────────
+// Repeat alerts of the same kind (e.g. "resource.staging" firing on every
+// heartbeat poll while staging stays over its cap) collapse into one group so
+// the feed doesn't read as spam. Grouped by `alertLabel` (the notification
+// kind slug — see journalEventToItem above), not by adjacency: every alert
+// sharing a label folds into the single group at that label's first
+// (newest) occurrence, wherever it falls in the list.
+
+export interface AlertGroup {
+  alertLabel: string;
+  /** Newest first; items[0] is what the group card displays. */
+  items: SidecarItem[];
+}
+
+export type FeedEntry =
+  | { type: "item"; item: SidecarItem }
+  | { type: "alert-group"; group: AlertGroup };
+
+export function groupFeedItems(items: SidecarItem[]): FeedEntry[] {
+  const groups = new Map<string, AlertGroup>();
+  const entries: FeedEntry[] = [];
+  for (const item of items) {
+    if (item.kind !== "alert") {
+      entries.push({ type: "item", item });
+      continue;
+    }
+    const label = item.alertLabel ?? "alert";
+    const existing = groups.get(label);
+    if (existing) {
+      existing.items.push(item);
+      continue;
+    }
+    const group: AlertGroup = { alertLabel: label, items: [item] };
+    groups.set(label, group);
+    entries.push({ type: "alert-group", group });
+  }
+  return entries;
+}
