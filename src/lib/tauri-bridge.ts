@@ -326,6 +326,7 @@ export interface AppPersistedState {
   terminal_tabs_unlimited?: boolean;
   sandbox_new_windows?: boolean;
   narration_depth?: string;
+  narration_prompt?: string;
   keymap?: Record<string, string>;
 }
 

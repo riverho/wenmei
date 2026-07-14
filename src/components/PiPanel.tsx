@@ -37,6 +37,7 @@ import {
   relTime,
   type FeedFilter,
 } from "@/lib/sidecar-feed";
+import { effectiveNarrationPrompt } from "@/lib/narration-prompt";
 import { FeedChips, OverlayCard } from "./SidecarOverlay";
 import SidecarDetail from "./SidecarDetail";
 import {
@@ -1215,7 +1216,12 @@ export default function PiPanel() {
       if (narratePendingRef.current) return; // one narration at a time
       try {
         await startPiForFocusedSandbox();
-        const prompt = `You are observing a terminal session. Summarize what the agent just did in 1-3 sentences. Flag anything risky, including possible task drift.\n\nTerminal output:\n${digest}${
+        // Harness is user-editable (Settings › Terminal › narration prompt);
+        // read fresh from the store — this listener mounts once.
+        const harness = effectiveNarrationPrompt(
+          useAppStore.getState().narrationPrompt
+        );
+        const prompt = `${harness}\n\nTerminal output:\n${digest}${
           fileChanges?.length
             ? `\n\nFiles changed: ${fileChanges.join(", ")}`
             : ""
@@ -1870,7 +1876,12 @@ export default function PiPanel() {
 
       {/* Detail pane — overlay items expand here; Escape or ✕ closes. */}
       {detailItem && (
-        <SidecarDetail item={detailItem} onClose={() => setDetailItem(null)} />
+        <SidecarDetail
+          item={detailItem}
+          onClose={() => setDetailItem(null)}
+          allItems={sidecarItems}
+          onNavigate={setDetailItem}
+        />
       )}
     </div>
   );

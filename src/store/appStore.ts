@@ -98,6 +98,9 @@ interface AppState {
   terminalTabsUnlimited: boolean;
   sandboxNewWindows: boolean;
   narrationDepth: "off" | "brief" | "detailed";
+  /** Instruction harness for the sidecar narration agent. Empty string =
+   *  use DEFAULT_NARRATION_PROMPT (lib/narration-prompt.ts). */
+  narrationPrompt: string;
   keymap: Keymap;
 
   // Terminal tabs (session-local; each tab is a PTY session)
@@ -193,6 +196,7 @@ interface AppState {
   setTerminalTabsUnlimited: (on: boolean) => void;
   setSandboxNewWindows: (on: boolean) => void;
   setNarrationDepth: (depth: "off" | "brief" | "detailed") => void;
+  setNarrationPrompt: (prompt: string) => void;
   setLicenseKey: (key: string | null) => void;
   clearCommentary: () => void;
 
@@ -275,6 +279,7 @@ export const useAppStore = create<AppState>()(
       terminalTabsUnlimited: false,
       sandboxNewWindows: true,
       narrationDepth: "brief",
+      narrationPrompt: "",
       keymap: DEFAULT_KEYMAP,
       terminalTabs: [],
       activeTerminalTabId: null,
@@ -407,6 +412,7 @@ export const useAppStore = create<AppState>()(
       setTerminalTabsUnlimited: on => set({ terminalTabsUnlimited: on }),
       setSandboxNewWindows: on => set({ sandboxNewWindows: on }),
       setNarrationDepth: depth => set({ narrationDepth: depth }),
+      setNarrationPrompt: prompt => set({ narrationPrompt: prompt }),
       setLicenseKey: key => set({ licenseKey: key }),
 
       openTerminal: () => {
@@ -566,6 +572,7 @@ export const useAppStore = create<AppState>()(
           sandboxNewWindows: state.sandbox_new_windows ?? true,
           narrationDepth: (state.narration_depth ?? "brief") as
             "off" | "brief" | "detailed",
+          narrationPrompt: state.narration_prompt ?? "",
           keymap: { ...DEFAULT_KEYMAP, ...(state.keymap ?? {}) },
         });
         // Apply theme
@@ -610,6 +617,7 @@ export const useAppStore = create<AppState>()(
         terminal_tabs_unlimited: get().terminalTabsUnlimited,
         sandbox_new_windows: get().sandboxNewWindows,
         narration_depth: get().narrationDepth,
+        narration_prompt: get().narrationPrompt,
         keymap: get().keymap,
       }),
     }),

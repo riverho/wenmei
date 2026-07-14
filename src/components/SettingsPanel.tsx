@@ -38,7 +38,10 @@ import {
   X,
   HeartPulse,
   HeartOff,
+  SquarePen,
+  RotateCcw,
 } from "lucide-react";
+import { DEFAULT_NARRATION_PROMPT } from "@/lib/narration-prompt";
 
 // ─── Toggle component ─────────────────────────────────────────────────────────
 
@@ -1104,12 +1107,163 @@ function CheckUpdateRow() {
   );
 }
 
+// ─── Narration prompt editor ─────────────────────────────────────────────────
+// Full-page editor for the sidecar narration harness (the instruction the
+// narration agent runs with). Layered above the Settings lightbox (z-[200])
+// and the sidecar detail overlay (z-[300]). Empty store value = default.
+
+function NarrationPromptEditor({ onClose }: { onClose: () => void }) {
+  const narrationPrompt = useAppStore(s => s.narrationPrompt);
+  const setNarrationPrompt = useAppStore(s => s.setNarrationPrompt);
+  const [draft, setDraft] = useState(() =>
+    narrationPrompt.trim() ? narrationPrompt : DEFAULT_NARRATION_PROMPT
+  );
+  const isDefault = draft.trim() === DEFAULT_NARRATION_PROMPT;
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  function save() {
+    const trimmed = draft.trim();
+    // Store "" when the text matches the default, so future default
+    // improvements reach users who never customized.
+    setNarrationPrompt(trimmed === DEFAULT_NARRATION_PROMPT ? "" : trimmed);
+    onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[400] flex items-center justify-center p-4 md:p-8"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        background: "rgba(0, 0, 0, 0.45)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
+      <div
+        className="flex flex-col overflow-hidden rounded-2xl shadow-2xl"
+        style={{
+          width: "min(760px, 94vw)",
+          height: "min(560px, 88vh)",
+          background: "var(--surface-1)",
+          border: "1px solid var(--surface-3)",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between shrink-0 px-5 py-3"
+          style={{ borderBottom: "1px solid var(--surface-3)" }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Bot size={15} style={{ color: "#a78bfa" }} />
+            <div className="min-w-0">
+              <h2
+                className="text-sm font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Narration prompt
+              </h2>
+              <div
+                className="text-[10px] mt-0.5"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                The harness the sidecar agent runs with — what to watch for and
+                how to narrate it
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 hover:-translate-y-0.5 shrink-0 ml-3"
+            style={{ color: "var(--text-tertiary)" }}
+            title="Close (Esc)"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Editor */}
+        <div className="flex flex-col flex-1 min-h-0 p-5 gap-2">
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            autoFocus
+            spellCheck={false}
+            className="flex-1 min-h-0 w-full resize-none rounded-lg p-4 text-xs font-mono leading-relaxed outline-none wenmei-scroll"
+            style={{
+              background: "var(--surface-0)",
+              border: "1px solid var(--surface-3)",
+              color: "var(--text-primary)",
+            }}
+          />
+          <div
+            className="text-[10px]"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            Terminal output, changed files, and drift flags are appended
+            automatically after this prompt on every narration.
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          className="flex items-center justify-between shrink-0 px-5 py-3"
+          style={{ borderTop: "1px solid var(--surface-3)" }}
+        >
+          <button
+            onClick={() => setDraft(DEFAULT_NARRATION_PROMPT)}
+            disabled={isDefault}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: "var(--surface-2)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <RotateCcw size={11} />
+            Reset to default
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded text-[11px] font-medium transition-colors"
+              style={{
+                background: "var(--surface-2)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={draft.trim().length === 0}
+              className="px-3 py-1.5 rounded text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "var(--accent-teal)", color: "#fff" }}
+            >
+              Save prompt
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Settings panel ───────────────────────────────────────────────────────
 
 export default function SettingsPanel() {
   const {
     narrateByDefault,
     setNarrateByDefault,
+    narrationPrompt,
     heartbeatEnabled,
     setHeartbeatEnabled,
     heartbeatIntervalMinutes,
@@ -1132,6 +1286,7 @@ export default function SettingsPanel() {
 
   const [copiedKey, setCopiedKey] = useState(false);
   const [activeSection, setActiveSection] = useState("general");
+  const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [agentNamesDraft, setAgentNamesDraft] = useState(() =>
     agentProcessNames.join(", ")
   );
@@ -1256,12 +1411,30 @@ export default function SettingsPanel() {
               label="Narration by default"
               description="New terminal tabs start with narration enabled"
             >
-              <Toggle
-                checked={narrateByDefault}
-                onChange={v => setNarrateByDefault(v)}
-                label="Narrate by default"
-                description="When enabled, new tabs start with narration on"
-              />
+              <div className="flex flex-col items-start gap-2">
+                <Toggle
+                  checked={narrateByDefault}
+                  onChange={v => setNarrateByDefault(v)}
+                  label="Narrate by default"
+                  description="When enabled, new tabs start with narration on"
+                />
+                <button
+                  onClick={() => setPromptEditorOpen(true)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium border transition-colors hover:opacity-80"
+                  style={{
+                    background: "var(--surface-2)",
+                    borderColor: "var(--surface-3)",
+                    color: "var(--text-secondary)",
+                  }}
+                  title="What the sidecar agent watches for and narrates"
+                >
+                  <SquarePen size={10} />
+                  Edit narration prompt
+                  <span style={{ color: "var(--text-tertiary)" }}>
+                    · {narrationPrompt.trim() ? "custom" : "default"}
+                  </span>
+                </button>
+              </div>
             </SettingRow>
 
             <SettingRow
@@ -1778,6 +1951,10 @@ export default function SettingsPanel() {
           </Section>
         </div>
       </div>
+
+      {promptEditorOpen && (
+        <NarrationPromptEditor onClose={() => setPromptEditorOpen(false)} />
+      )}
     </div>
   );
 }

@@ -263,9 +263,11 @@ function FileRefChip({ path }: { path: string }) {
 function HistoryList({
   item,
   allItems,
+  onSelect,
 }: {
   item: SidecarItem;
   allItems: SidecarItem[];
+  onSelect?: (item: SidecarItem) => void;
 }) {
   // Show items from the same session, or related review items
   const related = allItems
@@ -299,9 +301,7 @@ function HistoryList({
           <div
             key={r.id}
             className="flex items-start gap-2 px-3 py-2 hover:opacity-80 cursor-pointer transition-opacity"
-            onClick={() => {
-              // In a real implementation, this would navigate to the related item
-            }}
+            onClick={() => onSelect?.(r)}
           >
             <span
               className="text-[9px] font-medium mt-0.5 shrink-0"
@@ -327,12 +327,16 @@ function HistoryList({
 export default function SidecarDetail({
   item,
   onClose,
+  allItems = [],
+  onNavigate,
 }: {
   item: SidecarItem;
   onClose: () => void;
+  /** Full feed from the parent — powers the Related list so the overlay can
+   *  browse all content of the same kind (e.g. every narration entry). */
+  allItems?: SidecarItem[];
+  onNavigate?: (item: SidecarItem) => void;
 }) {
-  // History items — passed from parent SidecarFeed which owns the item list
-  const allItems: SidecarItem[] = [];
   const [activeArtifact, setActiveArtifact] = useState<SidecarArtifact | null>(
     item.artifacts[0] ?? null
   );
@@ -626,7 +630,11 @@ export default function SidecarDetail({
               >
                 Related
               </div>
-              <HistoryList item={item} allItems={allItems} />
+              <HistoryList
+                item={item}
+                allItems={allItems}
+                onSelect={onNavigate}
+              />
             </div>
           </div>
 

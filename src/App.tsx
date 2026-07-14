@@ -152,6 +152,7 @@ function AppContent() {
     useAppStore(s => s.terminalTabsUnlimited),
     useAppStore(s => s.sandboxNewWindows),
     useAppStore(s => s.narrationDepth),
+    useAppStore(s => s.narrationPrompt),
     useAppStore(s => s.licenseKey),
     useAppStore(s => s.keymap),
     activeFilePath,

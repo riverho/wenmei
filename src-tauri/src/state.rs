@@ -135,6 +135,11 @@ pub struct AppState {
     pub sandbox_new_windows: bool,
     #[serde(default = "default_narration_depth")]
     pub narration_depth: String,
+    /// Instruction prompt ("harness") for the sidecar narration agent.
+    /// Empty means the built-in default (src/lib/narration-prompt.ts) —
+    /// the prompt is consumed frontend-side; Rust only persists it.
+    #[serde(default)]
+    pub narration_prompt: String,
     #[serde(default = "default_keymap")]
     pub keymap: HashMap<String, String>,
 }
@@ -283,6 +288,7 @@ impl AppState {
             terminal_tabs_unlimited: false,
             sandbox_new_windows: true,
             narration_depth: default_narration_depth(),
+            narration_prompt: String::new(),
             keymap: default_keymap(),
         }
     }

@@ -118,14 +118,38 @@ export function OverlayCard({
           {relTime(item.ts)}
         </span>
       </div>
-      <div
-        className="text-[11px] leading-relaxed whitespace-pre-wrap break-words"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        {item.expanded || !isLongContent(item.body)
-          ? item.body
-          : truncateBody(item.body)}
-      </div>
+      {isNarrate ? (
+        <>
+          {/* Teaser: the lead-in only — the full narration lives in the
+              detail overlay behind the link (and the card click). */}
+          <div
+            className="text-[11px] leading-relaxed break-words line-clamp-2"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {item.body}
+          </div>
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              if (!item.read) onMarkRead(item.id);
+              onOpen?.(item);
+            }}
+            className="mt-1 text-[10px] font-medium hover:underline"
+            style={{ color: "#a78bfa" }}
+          >
+            Read full narration →
+          </button>
+        </>
+      ) : (
+        <div
+          className="text-[11px] leading-relaxed whitespace-pre-wrap break-words"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {item.expanded || !isLongContent(item.body)
+            ? item.body
+            : truncateBody(item.body)}
+        </div>
+      )}
 
       {/* Approval relay (H10): input.needs_response carries hands. */}
       {item.alertLabel === "input.needs_response" && <ApprovalActions />}
