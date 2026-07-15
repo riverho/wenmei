@@ -358,10 +358,10 @@ export default function Header() {
           }}
           title={
             isTerminal
-              ? "Exit terminal mode"
+              ? "Exit terminal mode (Ctrl+2)"
               : terminalBadgeCount > 0
-                ? `Open embedded terminal (${waitingTabs} waiting on input, ${unreadAgentDone} agent completion${unreadAgentDone === 1 ? "" : "s"})`
-                : "Open embedded terminal"
+                ? `Open embedded terminal (Ctrl+2) — ${waitingTabs} waiting on input, ${unreadAgentDone} agent completion${unreadAgentDone === 1 ? "" : "s"}`
+                : "Open embedded terminal (Ctrl+2)"
           }
         >
           {isTerminal ? <Minimize2 size={15} /> : <Terminal size={15} />}

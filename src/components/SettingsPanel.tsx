@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, DEFAULT_KEYMAP } from "@/store/appStore";
 import {
   checkForUpdate,
   cliIntegrationStatus,
@@ -829,10 +829,12 @@ function HeartbeatIntervalSelector({
 // ─── Key hint ────────────────────────────────────────────────────────────────
 
 function KeyHint({ chord }: { chord: string }) {
+  const isMac = useAppStore(s => s.platform) === "macos";
   const keys = chord.split("+").map(k => {
     const lower = k.toLowerCase();
+    if (lower === "mod") return isMac ? "⌘" : "Ctrl";
     if (lower === "meta" || lower === "cmdorctrl") return "⌘";
-    if (lower === "ctrl" || lower === "control") return "⌃";
+    if (lower === "ctrl" || lower === "control") return isMac ? "⌃" : "Ctrl";
     if (lower === "shift") return "⇧";
     if (lower === "alt") return "⌥";
     if (lower === "arrowup") return "↑";
@@ -877,20 +879,25 @@ function KeyHint({ chord }: { chord: string }) {
   );
 }
 
-// ─── Default keymap ─────────────────────────────────────────────────────────
+// ─── Keymap labels ──────────────────────────────────────────────────────────
+// Action keys mirror DEFAULT_KEYMAP in appStore.ts exactly — the displayed
+// chord is read live from the keymap store, not derived from row position.
 
-const DEFAULT_SHORTCUTS = [
+const SHORTCUT_LABELS: { action: string; label: string }[] = [
   { action: "toggleLeftPanel", label: "Toggle left panel" },
-  { action: "focusEditor", label: "Focus editor" },
-  { action: "toggleRightPanel", label: "Toggle right panel + focus Pi" },
-  { action: "paperMode", label: "Paper mode" },
-  { action: "newFile", label: "New file" },
-  { action: "newFolder", label: "New folder" },
-  { action: "searchFiles", label: "Search files" },
-  { action: "toggleTheme", label: "Cycle theme" },
-  { action: "splitMode", label: "Split view" },
+  { action: "toggleTerminalMode", label: "Toggle terminal mode" },
+  { action: "focusPi", label: "Toggle right panel / focus Pi" },
   { action: "editMode", label: "Edit mode" },
   { action: "previewMode", label: "Preview mode" },
+  { action: "splitMode", label: "Split view" },
+  { action: "togglePaper", label: "Paper mode" },
+  { action: "toggleTerminal", label: "Toggle terminal (alt binding)" },
+  { action: "focusSearch", label: "Search files" },
+  { action: "commandPalette", label: "Command palette (opens Pi)" },
+  { action: "newFile", label: "New file" },
+  { action: "newFolder", label: "New folder" },
+  { action: "toggleTheme", label: "Cycle theme" },
+  { action: "workspaceSearch", label: "Workspace search (Pi)" },
 ];
 
 // ─── Live CLI integration row (real bridge status + install) ─────────────────
@@ -1282,6 +1289,8 @@ export default function SettingsPanel() {
     licenseKey,
     setLicenseKey,
     platform,
+    keymap,
+    setKeymapBinding,
   } = useAppStore();
 
   const [copiedKey, setCopiedKey] = useState(false);
@@ -1290,6 +1299,48 @@ export default function SettingsPanel() {
   const [agentNamesDraft, setAgentNamesDraft] = useState(() =>
     agentProcessNames.join(", ")
   );
+  const [recordingAction, setRecordingAction] = useState<string | null>(null);
+
+  // Capture the next keypress while a shortcut row is being rebound. Runs in
+  // the capture phase and stops propagation so it wins the race against
+  // useKeyboardShortcuts' bubble-phase window listener (e.g. so recording
+  // "Cmd+1" doesn't also toggle the sidebar, and Escape cancels the
+  // recording instead of closing this Settings modal).
+  useEffect(() => {
+    if (!recordingAction) return;
+    const action = recordingAction;
+    function handleCapture(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+      if (
+        e.key === "Escape" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        !e.altKey
+      ) {
+        setRecordingAction(null);
+        return;
+      }
+      // Bare printable keys (letters/digits/punctuation) need a modifier so
+      // the binding doesn't collide with normal typing elsewhere in the app.
+      const printable = e.key.length === 1;
+      if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && printable) {
+        return;
+      }
+      const parts: string[] = [];
+      if (e.metaKey || e.ctrlKey) parts.push("mod");
+      if (e.shiftKey) parts.push("shift");
+      if (e.altKey) parts.push("alt");
+      parts.push(e.key.toLowerCase());
+      setKeymapBinding(action, parts.join("+"));
+      setRecordingAction(null);
+    }
+    window.addEventListener("keydown", handleCapture, true);
+    return () => window.removeEventListener("keydown", handleCapture, true);
+  }, [recordingAction, setKeymapBinding]);
 
   function commitAgentNames() {
     const names = agentNamesDraft
@@ -1528,40 +1579,96 @@ export default function SettingsPanel() {
               className="rounded-lg border overflow-hidden"
               style={{ borderColor: "var(--surface-3)" }}
             >
-              {DEFAULT_SHORTCUTS.map((shortcut, i) => (
-                <div
-                  key={shortcut.action}
-                  className="flex items-center justify-between px-3 py-2"
-                  style={{
-                    background:
-                      i % 2 === 0 ? "var(--surface-0)" : "transparent",
-                    borderBottom:
-                      i < DEFAULT_SHORTCUTS.length - 1
-                        ? "1px solid var(--surface-3)"
-                        : "none",
-                  }}
-                >
-                  <span
-                    className="text-xs"
-                    style={{ color: "var(--text-secondary)" }}
+              {SHORTCUT_LABELS.map((shortcut, i) => {
+                const chord =
+                  keymap[shortcut.action] ?? DEFAULT_KEYMAP[shortcut.action];
+                const isCustom = chord !== DEFAULT_KEYMAP[shortcut.action];
+                const isRecording = recordingAction === shortcut.action;
+                return (
+                  <div
+                    key={shortcut.action}
+                    className="flex items-center justify-between px-3 py-2"
+                    style={{
+                      background:
+                        i % 2 === 0 ? "var(--surface-0)" : "transparent",
+                      borderBottom:
+                        i < SHORTCUT_LABELS.length - 1
+                          ? "1px solid var(--surface-3)"
+                          : "none",
+                    }}
                   >
-                    {shortcut.label}
-                  </span>
-                  <KeyHint chord={`Ctrl+${i + 1}`} />
-                </div>
-              ))}
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {shortcut.label}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {isRecording ? (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded animate-pulse"
+                          style={{
+                            background: "var(--surface-2)",
+                            color: "var(--accent-teal)",
+                          }}
+                        >
+                          Press keys… (Esc to cancel)
+                        </span>
+                      ) : (
+                        <KeyHint chord={chord} />
+                      )}
+                      <button
+                        onClick={() =>
+                          setRecordingAction(
+                            isRecording ? null : shortcut.action
+                          )
+                        }
+                        className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:opacity-80"
+                        style={{
+                          color: isRecording
+                            ? "var(--accent-teal)"
+                            : "var(--text-tertiary)",
+                        }}
+                        title="Change shortcut"
+                      >
+                        <SquarePen size={11} />
+                      </button>
+                      {isCustom && (
+                        <button
+                          onClick={() =>
+                            setKeymapBinding(
+                              shortcut.action,
+                              DEFAULT_KEYMAP[shortcut.action]
+                            )
+                          }
+                          className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:opacity-80"
+                          style={{ color: "var(--text-tertiary)" }}
+                          title="Reset to default"
+                        >
+                          <RotateCcw size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <button
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+              onClick={() => {
+                Object.entries(DEFAULT_KEYMAP).forEach(([action, chord]) =>
+                  setKeymapBinding(action, chord)
+                );
+              }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
               style={{
                 background: "var(--surface-0)",
                 borderColor: "var(--surface-3)",
                 color: "var(--text-secondary)",
               }}
             >
-              <Keyboard size={11} />
-              Customize shortcuts
+              <RotateCcw size={11} />
+              Reset all to defaults
             </button>
           </Section>
 

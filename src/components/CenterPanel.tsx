@@ -273,7 +273,7 @@ export default function CenterPanel() {
 
         {/* Document */}
         <div
-          className="flex-1 overflow-y-auto wenmei-scroll py-16 px-8"
+          className="flex-1 overflow-y-auto wenmei-scroll wenmei-main-scroll py-16 px-8"
           onScroll={handleScroll}
         >
           <div className="mx-auto" style={{ width: "70%", maxWidth: "70%" }}>
@@ -314,7 +314,7 @@ export default function CenterPanel() {
         value={activeFileContent}
         onChange={handleChange}
         onBlur={handleBlur}
-        className="editor-textarea flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll"
+        className="editor-textarea flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll wenmei-main-scroll"
         style={{
           background: "var(--surface-1)",
           color: "var(--text-primary)",
@@ -330,7 +330,7 @@ export default function CenterPanel() {
 
   const renderPreview = () => (
     <div
-      className="h-full overflow-y-auto wenmei-scroll py-10 px-10 md:px-16"
+      className="h-full overflow-y-auto wenmei-scroll wenmei-main-scroll py-10 px-10 md:px-16"
       style={{ background: "var(--surface-1)" }}
     >
       <div
@@ -374,7 +374,7 @@ export default function CenterPanel() {
           value={activeFileContent}
           onChange={handleChange}
           onBlur={handleBlur}
-          className="flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll"
+          className="flex-1 resize-none outline-none py-10 px-4 editor-font wenmei-scroll wenmei-main-scroll"
           style={{
             background: "var(--surface-1)",
             color: "var(--text-primary)",

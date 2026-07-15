@@ -68,10 +68,8 @@ src-tauri/gen/schemas/
 src-tauri/target/release/bundle/
 
 # Local tool settings
-.claude/
 .wenmei/
 .pi/
-
 
 
 # Agent

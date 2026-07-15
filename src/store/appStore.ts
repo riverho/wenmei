@@ -34,7 +34,7 @@ export type Keymap = Record<string, string>;
 
 export const DEFAULT_KEYMAP: Keymap = {
   toggleLeftPanel: "mod+1",
-  focusEditor: "mod+2",
+  toggleTerminalMode: "mod+2",
   focusPi: "mod+3",
   editMode: "mod+e",
   previewMode: "mod+shift+p",

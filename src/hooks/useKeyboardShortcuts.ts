@@ -33,6 +33,11 @@ export function useKeyboardShortcuts() {
     setMobilePiOpen,
     setPiInput,
     keymap,
+    lightboxOpen,
+    lightboxVariant,
+    closeLightbox,
+    leftPanelOpen,
+    setLeftPanelOpen,
   } = useAppStore();
 
   useEffect(() => {
@@ -47,6 +52,26 @@ export function useKeyboardShortcuts() {
       const prevent = () => {
         e.preventDefault();
         e.stopPropagation();
+      };
+
+      // Runs `act` on the element matching `selector` inside FileTree. Since
+      // FileTree only mounts while the left panel is open, opening it first
+      // (when needed) and waiting a tick avoids the shortcut silently no-oping
+      // just because the sidebar happened to be collapsed.
+      const withFileTree = (
+        selector: string,
+        act: (el: HTMLElement) => void
+      ) => {
+        const run = () => {
+          const el = document.querySelector(selector) as HTMLElement | null;
+          if (el) act(el);
+        };
+        if (leftPanelOpen) {
+          run();
+        } else {
+          setLeftPanelOpen(true);
+          setTimeout(run, 50);
+        }
       };
 
       // Terminal-mode tab navigation. Gated to terminal mode so Ctrl/Cmd+1..9
@@ -98,14 +123,10 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Cmd/Ctrl + 2 — Focus center
-      if (shortcut("focusEditor")) {
+      // Cmd/Ctrl + 2 — Toggle document/terminal mode
+      if (shortcut("toggleTerminalMode")) {
         prevent();
-        // Focus editor
-        const editor = document.querySelector(
-          ".editor-textarea"
-        ) as HTMLElement;
-        editor?.focus();
+        setMode(mode === "terminal" ? "edit" : "terminal");
         return;
       }
 
@@ -162,10 +183,7 @@ export function useKeyboardShortcuts() {
       // Cmd/Ctrl + B — Search / Find
       if (shortcut("focusSearch")) {
         prevent();
-        const searchInput = document.querySelector(
-          ".file-search-input"
-        ) as HTMLElement;
-        searchInput?.focus();
+        withFileTree(".file-search-input", el => el.focus());
         return;
       }
 
@@ -184,20 +202,14 @@ export function useKeyboardShortcuts() {
       if (shortcut("newFile")) {
         prevent();
         // Handled by FileTree component
-        const newFileBtn = document.querySelector(
-          ".new-file-btn"
-        ) as HTMLElement;
-        newFileBtn?.click();
+        withFileTree(".new-file-btn", el => el.click());
         return;
       }
 
       // Cmd/Ctrl + Shift + N — New folder
       if (shortcut("newFolder")) {
         prevent();
-        const newFolderBtn = document.querySelector(
-          ".new-folder-btn"
-        ) as HTMLElement;
-        newFolderBtn?.click();
+        withFileTree(".new-folder-btn", el => el.click());
         return;
       }
 
@@ -211,8 +223,15 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Escape — Exit paper/terminal mode or close mobile drawers
+      // Escape — Close the settings/alert modal, exit paper/terminal mode, or
+      // close mobile drawers. Onboarding is deliberately non-dismissable (its
+      // backdrop click and close button are disabled too), so it's excluded.
       if (e.key === "Escape") {
+        if (lightboxOpen && lightboxVariant !== "onboarding") {
+          prevent();
+          closeLightbox();
+          return;
+        }
         if (mode === "paper") {
           prevent();
           exitPaperMode();
@@ -228,10 +247,16 @@ export function useKeyboardShortcuts() {
         setMobilePiOpen(false);
       }
 
+      // Space/ArrowUp/ArrowDown scroll the main document pane specifically —
+      // ".wenmei-main-scroll" marks CenterPanel's active scroll container.
+      // Plain ".wenmei-scroll" is shared by several panes (incl. the file
+      // tree, which mounts earlier in the DOM), so querying it directly would
+      // grab whichever of those happens to come first, not the document.
+
       // Space — scroll one screen down (edit/preview/paper)
       if (e.key === " " && !meta && !e.shiftKey && e.target === document.body) {
         e.preventDefault();
-        const el = document.querySelector(".wenmei-scroll") as HTMLElement;
+        const el = document.querySelector(".wenmei-main-scroll") as HTMLElement;
         if (el) {
           el.scrollBy({ top: el.clientHeight, behavior: "smooth" });
         }
@@ -241,7 +266,7 @@ export function useKeyboardShortcuts() {
       // ArrowUp — scroll 10 rows up
       if (e.key === "ArrowUp" && !meta && e.target === document.body) {
         e.preventDefault();
-        const el = document.querySelector(".wenmei-scroll") as HTMLElement;
+        const el = document.querySelector(".wenmei-main-scroll") as HTMLElement;
         if (el) {
           const lineHeight = 24;
           el.scrollBy({ top: -lineHeight * 10, behavior: "smooth" });
@@ -252,7 +277,7 @@ export function useKeyboardShortcuts() {
       // ArrowDown — scroll 10 rows down
       if (e.key === "ArrowDown" && !meta && e.target === document.body) {
         e.preventDefault();
-        const el = document.querySelector(".wenmei-scroll") as HTMLElement;
+        const el = document.querySelector(".wenmei-main-scroll") as HTMLElement;
         if (el) {
           const lineHeight = 24;
           el.scrollBy({ top: lineHeight * 10, behavior: "smooth" });
@@ -286,5 +311,10 @@ export function useKeyboardShortcuts() {
     setMobilePiOpen,
     setPiInput,
     keymap,
+    lightboxOpen,
+    lightboxVariant,
+    closeLightbox,
+    leftPanelOpen,
+    setLeftPanelOpen,
   ]);
 }
