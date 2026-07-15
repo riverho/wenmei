@@ -74,21 +74,8 @@ function TerminalTabBar({ statuses }: { statuses: StatusMap }) {
     setEditingId(null);
   }
 
-  // Kill the PTY on close (fixes the orphaned-session leak), and confirm first
-  // when the tab is doing or awaiting work so a misclick can't drop an agent.
   function handleClose(id: string) {
-    const status = statuses[id];
-    const live = status === "active" || status === "needs-input";
-    if (live) {
-      const ok = window.confirm(
-        status === "needs-input"
-          ? "This terminal is waiting for input. Close it and end the session?"
-          : "This terminal has a running session. Close it and end the session?"
-      );
-      if (!ok) return;
-    }
-    terminalStop(id).catch(() => {});
-    closeTerminalTab(id);
+    closeTerminalSession(id, statuses[id] ?? "unknown", closeTerminalTab);
   }
 
   return (
@@ -239,6 +226,27 @@ function resetMessage(error: unknown) {
   return String(error).replace(CONTEXT_RESET_ERROR, "").trim();
 }
 
+// Kill the PTY on close (fixes the orphaned-session leak), and confirm first
+// when the session is doing or awaiting work so a misclick can't drop an
+// agent. Shared by the tab strip and the grid pane title bars.
+function closeTerminalSession(
+  id: string,
+  status: TerminalActivity | "unknown",
+  closeTerminalTab: (id: string) => void
+) {
+  const live = status === "active" || status === "needs-input";
+  if (live) {
+    const ok = window.confirm(
+      status === "needs-input"
+        ? "This terminal is waiting for input. Close it and end the session?"
+        : "This terminal has a running session. Close it and end the session?"
+    );
+    if (!ok) return;
+  }
+  terminalStop(id).catch(() => {});
+  closeTerminalTab(id);
+}
+
 // xterm needs concrete colors (the WebGL renderer can't resolve CSS vars),
 // so both palettes mirror the app theme tokens in index.css: background/
 // foreground track --surface-0/--text-primary, cursor tracks --accent-teal.
@@ -311,18 +319,22 @@ function isTabNavChord(e: KeyboardEvent): boolean {
 /**
  * One isolated terminal session — its own xterm, its own PTY keyed by
  * `sessionId`, scoped to the tab's own `sandboxId`. Output is filtered by
- * session_id so tabs don't cross-talk. Kept mounted while its tab is inactive
+ * session_id so tabs don't cross-talk. Kept mounted while hidden
  * (display:none) so the buffer and running agent survive tab switches.
+ * `visible` controls display (grid layout shows every instance at once);
+ * `active` marks the focused session (keyboard focus target).
  */
 function TerminalInstance({
   sessionId,
   sandboxId,
   active,
+  visible,
   onContext,
 }: {
   sessionId: string;
   sandboxId: string | null;
   active: boolean;
+  visible: boolean;
   onContext: (ctx: TerminalStarted | null) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -476,12 +488,13 @@ function TerminalInstance({
     }
   }, [isDark]);
 
-  // Refit + focus when this tab becomes active (it was display:none).
+  // Refit when this instance becomes visible (it was display:none), and
+  // focus it when it's also the active session.
   useEffect(() => {
-    if (!active) return;
+    if (!visible) return;
     const t = window.setTimeout(() => {
       fitRef.current?.fit();
-      termRef.current?.focus();
+      if (active) termRef.current?.focus();
       if (termRef.current) {
         terminalResize(
           sessionId,
@@ -491,13 +504,13 @@ function TerminalInstance({
       }
     }, 40);
     return () => window.clearTimeout(t);
-  }, [active, sessionId]);
+  }, [active, visible, sessionId]);
 
   return (
     <div
       ref={hostRef}
       className="flex-1 min-h-0 p-2"
-      style={{ display: active ? "block" : "none" }}
+      style={{ display: visible ? "block" : "none" }}
     />
   );
 }
@@ -506,11 +519,23 @@ export default function TerminalPanel() {
   const terminalTabs = useAppStore(s => s.terminalTabs);
   const activeTerminalTabId = useAppStore(s => s.activeTerminalTabId);
   const addTerminalTab = useAppStore(s => s.addTerminalTab);
+  const closeTerminalTab = useAppStore(s => s.closeTerminalTab);
+  const setActiveTerminalTab = useAppStore(s => s.setActiveTerminalTab);
+  const setTerminalCwd = useAppStore(s => s.setTerminalCwd);
+  const terminalLayout = useAppStore(s => s.terminalLayout);
+  const terminalTabLimit = useAppStore(s => s.terminalTabLimit);
+  const terminalTabsUnlimited = useAppStore(s => s.terminalTabsUnlimited);
   // Polled by useTerminalStatuses (called once from App.tsx, so it keeps
   // running regardless of which mode is active, not just while this panel
   // is mounted).
   const statuses = useAppStore(s => s.terminalTabStatuses);
-  const [context, setContext] = useState<TerminalStarted | null>(null);
+
+  const isGrid = terminalLayout === "grid";
+  const atLimit =
+    !terminalTabsUnlimited && terminalTabs.length >= terminalTabLimit;
+  const gridCols = Math.ceil(
+    Math.sqrt(terminalTabs.length + (atLimit ? 0 : 1))
+  );
 
   // Seed a tab when the terminal opens so the strip is never empty.
   useEffect(() => {
@@ -530,40 +555,115 @@ export default function TerminalPanel() {
       className="flex flex-col h-full overflow-hidden"
       style={{ background: "var(--surface-0)" }}
     >
-      <TerminalTabBar statuses={statuses} />
+      {/* Tab strip only in tabs layout — grid panes carry their own titles */}
+      {!isGrid && <TerminalTabBar statuses={statuses} />}
+
+      {/* Body. Each tab's wrapper stays mounted in both layouts (same element
+          per key), so toggling tabs/grid never remounts a TerminalInstance —
+          the PTY, buffer, and any running agent survive the switch. */}
       <div
-        className="flex items-center justify-between gap-3 px-4 py-2 border-b text-xs"
-        style={{
-          borderColor: "var(--surface-3)",
-          color: "var(--text-tertiary)",
-        }}
+        className={
+          isGrid
+            ? "flex-1 min-h-0 p-2 grid gap-2 auto-rows-fr"
+            : "flex-1 min-h-0 flex flex-col"
+        }
+        style={
+          isGrid
+            ? { gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }
+            : undefined
+        }
       >
-        <div className="truncate">
-          <span style={{ color: "var(--accent-teal)" }}>
-            Embedded Wenmei Terminal
-          </span>
-          {context ? (
-            <span className="ml-2">{context.cwd}</span>
-          ) : (
-            <span className="ml-2">starting…</span>
-          )}
-        </div>
-        {context && (
-          <div className="hidden lg:block truncate">
-            log: {context.log_file}
-          </div>
+        {terminalTabs.map(tab => {
+          const focused = tab.id === activeTerminalTabId;
+          const status = statuses[tab.id] ?? "unknown";
+          const dot = STATUS_DOT[status];
+          return (
+            <div
+              key={tab.id}
+              onClick={
+                isGrid && !focused
+                  ? () => setActiveTerminalTab(tab.id)
+                  : undefined
+              }
+              className={
+                isGrid
+                  ? "flex flex-col min-h-0 min-w-0 rounded-md overflow-hidden transition-colors"
+                  : "flex-1 min-h-0 flex-col"
+              }
+              style={
+                isGrid
+                  ? {
+                      border: `1px solid ${
+                        focused ? "var(--accent-teal)" : "var(--surface-3)"
+                      }`,
+                      cursor: focused ? "default" : "pointer",
+                    }
+                  : { display: focused ? "flex" : "none" }
+              }
+            >
+              {isGrid && (
+                <div
+                  className="group flex items-center gap-2 px-2 py-1 shrink-0 text-[10px] font-mono"
+                  style={{
+                    background: "var(--surface-2)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    color: focused
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
+                  }}
+                  title={`${tab.title} · ${dot.label}`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      dot.pulse ? "animate-pulse" : ""
+                    }`}
+                    style={{ background: dot.color }}
+                  />
+                  <span className="truncate">{tab.title}</span>
+                  <span className="flex-1" />
+                  {terminalTabs.length > 1 && (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        closeTerminalSession(tab.id, status, closeTerminalTab);
+                      }}
+                      className="flex items-center justify-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--surface-3)] shrink-0"
+                      style={{ color: "var(--text-secondary)" }}
+                      title="Close session"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              )}
+              <TerminalInstance
+                sessionId={tab.id}
+                sandboxId={tab.sandboxId}
+                active={focused}
+                visible={isGrid || focused}
+                onContext={ctx => {
+                  if (ctx) setTerminalCwd(tab.id, ctx.cwd);
+                }}
+              />
+            </div>
+          );
+        })}
+
+        {/* New session tile (grid only) */}
+        {isGrid && !atLimit && (
+          <button
+            onClick={() => addTerminalTab()}
+            className="flex flex-col items-center justify-center gap-1 min-h-0 rounded-md transition-colors hover:bg-[var(--surface-1)]"
+            style={{
+              border: "1px dashed var(--surface-3)",
+              color: "var(--text-tertiary)",
+            }}
+            title="New terminal session (bound to the focused sandbox)"
+          >
+            <Plus size={16} />
+            <span className="text-[10px] font-mono">new session</span>
+          </button>
         )}
-      </div>
-      <div className="flex-1 min-h-0 flex flex-col">
-        {terminalTabs.map(tab => (
-          <TerminalInstance
-            key={tab.id}
-            sessionId={tab.id}
-            sandboxId={tab.sandboxId}
-            active={tab.id === activeTerminalTabId}
-            onContext={setContext}
-          />
-        ))}
       </div>
     </div>
   );

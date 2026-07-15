@@ -39,7 +39,7 @@ Running a single Vitest file: `npx vitest run path/to/file.test.ts` (or drop `ru
 - **State dual-persisted:** Zustand store at `src/store/appStore.ts` (localStorage key `wenmei-store`) and Rust `AppState` → `state.json`. Changing state shape touches both sides plus the bridge.
 - **Vault vs sandbox:** vault = promoted folder root with local `.wenmei/` metadata; sandbox = subfolder-scoped working context (own terminal/Pi session/journal). Pi commands run against the active sandbox/vault. Path safety: relative-only, `..` rejected, `.wenmei/` hidden, deletes go to `.wenmei/trash/`.
 - **Pi integration:** Wenmei does **not** bundle Pi — expects a global `pi` binary (e.g. `/usr/local/bin/pi`). Two surfaces: interactive PTY (`Terminal`) and `pi --mode rpc` JSON-RPC (`PiPanel`).
-- **Rust → frontend events:** `sandbox-files-changed`, `pi-rpc-event`, `terminal-output`, `single-instance` (Windows/Linux file-open args).
+- **Rust → frontend events:** `sandbox-files-changed`, `pi-rpc-event`, `terminal-output`, `os-file-opened` (macOS). No single-instance lock — Explorer file-opens and "Open in new window" spawn a separate Wenmei process.
 
 ## Constraints from DEV_PLAN.md
 

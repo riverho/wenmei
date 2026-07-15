@@ -15,6 +15,7 @@ import {
   getPlatform,
 } from "@/lib/tauri-bridge";
 import Header from "./components/Header";
+import FooterBar from "./components/FooterBar";
 import FileTree from "./components/FileTree";
 import CenterPanel from "./components/CenterPanel";
 import PiPanel from "./components/PiPanel";
@@ -88,11 +89,8 @@ function AppContent() {
         }
 
         // CLI/Finder-launched file takes priority over last active
-        const windowFile = new URLSearchParams(window.location.search).get(
-          "openFile"
-        );
         const cliFile = await getInitialFile();
-        const fileToOpen = windowFile ?? cliFile ?? persisted.last_active_file;
+        const fileToOpen = cliFile ?? persisted.last_active_file;
         if (fileToOpen) {
           try {
             const file = await readFile(fileToOpen);
@@ -209,30 +207,9 @@ function AppContent() {
     return () => unlisten?.();
   }, [setActiveFile]);
 
-  // Handle single-instance file open (Windows/Linux double-click while running)
-  useEffect(() => {
-    let unlisten: UnlistenFn | null = null;
-    listen<string[]>("single-instance", event => {
-      const args = event.payload;
-      // args[0] is the executable; file paths start at args[1]
-      const path = args.find(
-        arg =>
-          arg.endsWith(".md") ||
-          arg.endsWith(".markdown") ||
-          arg.endsWith(".mdown") ||
-          arg.endsWith(".mkd")
-      );
-      if (!path) return;
-      readFile(path)
-        .then(file => setActiveFile(file.path, file.content, file.name))
-        .catch(err =>
-          console.warn(`Could not open single-instance file "${path}":`, err)
-        );
-    }).then(fn => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
-  }, [setActiveFile]);
+  // Windows/Linux double-click while running: no single-instance lock —
+  // each Explorer open launches a fresh Wenmei process with its own window
+  // (see main.rs), so no in-app event handling is needed here.
 
   return (
     <div
@@ -253,6 +230,9 @@ function AppContent() {
         {/* Right Panel — Desktop */}
         <RightPanel />
       </div>
+
+      {/* Footer toolbar — full path + session/save status (hidden in paper) */}
+      <FooterBar />
 
       {/* Mobile Drawers */}
       <MobileFileDrawer />
@@ -309,16 +289,49 @@ function LeftPanel() {
 }
 
 function RightPanel() {
-  const { rightPanelOpen, rightPanelWidth } = useAppStore();
+  const { rightPanelOpen, rightPanelWidth, setRightPanelWidth } = useAppStore();
   const [tab, setTab] = useState<"pi" | "review">("pi");
+  const [resizing, setResizing] = useState(false);
+
+  function startResize(e: ReactMouseEvent) {
+    e.preventDefault();
+    setResizing(true);
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth;
+    const onMove = (event: MouseEvent) => {
+      // Dragging left grows the panel (the handle sits on its left edge).
+      const next = Math.max(
+        260,
+        Math.min(640, startWidth - (event.clientX - startX))
+      );
+      setRightPanelWidth(next);
+    };
+    const onUp = () => {
+      setResizing(false);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   return (
     <div
-      className="hidden md:flex flex-col shrink-0 transition-all duration-300 ease-out overflow-hidden"
+      className={`hidden md:flex flex-col shrink-0 overflow-hidden relative ${
+        resizing ? "" : "transition-all duration-300 ease-out"
+      }`}
       style={{
         width: rightPanelOpen ? rightPanelWidth : 0,
         opacity: rightPanelOpen ? 1 : 0,
       }}
     >
+      {rightPanelOpen && (
+        <div
+          onMouseDown={startResize}
+          className="absolute top-0 left-0 h-full w-1 cursor-col-resize hover:bg-[var(--accent-teal)] z-10"
+          style={{ background: "transparent" }}
+        />
+      )}
       {rightPanelOpen && (
         <>
           <div

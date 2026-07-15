@@ -15,6 +15,7 @@ import type { FeedFilter } from "@/lib/sidecar-feed";
 import { mergeChangesetEntries } from "@/lib/review-changeset";
 
 export type ViewMode = "edit" | "preview" | "split" | "paper" | "terminal";
+export type TerminalLayout = "tabs" | "grid";
 export type LightboxVariant =
   "onboarding" | "settings" | "pi-chat" | "alert" | "custom" | null;
 
@@ -111,6 +112,12 @@ interface AppState {
   // can show a badge even while CenterPanel has unmounted TerminalPanel
   // (it only renders while mode === "terminal").
   terminalTabStatuses: Record<string, TerminalActivity>;
+  // Tabs strip vs side-by-side grid — a pure view preference, persisted in
+  // localStorage (zustand partialize), not state.json.
+  terminalLayout: TerminalLayout;
+  // Per-session cwd reported by terminalStart — feeds the footer toolbar's
+  // full-path readout while in terminal mode.
+  terminalCwds: Record<string, string>;
 
   // Pi Terminal
   piMessages: PiMessage[];
@@ -212,6 +219,8 @@ interface AppState {
   setActiveTerminalTab: (id: string) => void;
   renameTerminalTab: (id: string, title: string) => void;
   setTerminalTabStatuses: (statuses: Record<string, TerminalActivity>) => void;
+  setTerminalLayout: (layout: TerminalLayout) => void;
+  setTerminalCwd: (sessionId: string, cwd: string) => void;
 
   // Review session
   setActiveReviewSession: (id: string | null) => void;
@@ -289,6 +298,8 @@ export const useAppStore = create<AppState>()(
       terminalTabs: [],
       activeTerminalTabId: null,
       terminalTabStatuses: {},
+      terminalLayout: "tabs",
+      terminalCwds: {},
       isDirty: false,
       piMessages: [],
       piInput: "",
@@ -458,10 +469,13 @@ export const useAppStore = create<AppState>()(
       closeTerminalTab: id => {
         const tabs = get().terminalTabs.filter(t => t.id !== id);
         const active = get().activeTerminalTabId;
+        const cwds = { ...get().terminalCwds };
+        delete cwds[id];
         set({
           terminalTabs: tabs,
           activeTerminalTabId:
             active === id ? (tabs[tabs.length - 1]?.id ?? null) : active,
+          terminalCwds: cwds,
         });
         if (tabs.length === 0 && get().mode === "terminal") {
           set({ mode: "edit", rightPanelOpen: true });
@@ -480,6 +494,9 @@ export const useAppStore = create<AppState>()(
       },
       setTerminalTabStatuses: statuses =>
         set({ terminalTabStatuses: statuses }),
+      setTerminalLayout: layout => set({ terminalLayout: layout }),
+      setTerminalCwd: (sessionId, cwd) =>
+        set({ terminalCwds: { ...get().terminalCwds, [sessionId]: cwd } }),
 
       setActiveReviewSession: id => set({ activeReviewSession: id }),
       setChangeset: entries => set({ changeset: entries }),
@@ -644,6 +661,7 @@ export const useAppStore = create<AppState>()(
         rightPanelWidth: state.rightPanelWidth,
         splitRatio: state.splitRatio,
         openFolders: state.openFolders,
+        terminalLayout: state.terminalLayout,
         piMessages: state.piMessages.slice(-200),
         keymap: state.keymap,
         sidecarLastSeen: state.sidecarLastSeen,
